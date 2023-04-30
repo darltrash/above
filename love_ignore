@@ -1,0 +1,8 @@
+lib/obj.lua
+lib/lovebird.lua
+assets/*.obj
+makefile
+.*/
+export_ignore
+out/
+cache/
