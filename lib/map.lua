@@ -1,4 +1,9 @@
--- Some sort of map re-encoder.
+-- THIS IS A CRAZY ASS MODEL FORMAT I MADE FOR MYSELF
+-- PLEASE DO NOT USE, IT'S ASS ANYWAYS, I'M GOING TO REPLACE IT
+-- WITH IQM/EXM IN THE NEAR FUTURE... 
+
+-- anyways, to convert an obj to my own format, just go like:
+-- > luajit lib/map.lua assets/YOUR_MODEL.obj assets/OUTPUT.mod 
 
 local ffi = require "ffi"
 
