@@ -4,6 +4,16 @@ local rmap = require "lib.map"
 local input = require "input"
 local fam = require "fam"
 
+-- // TODO: GET RID OF THIS HIDEOUS BEAST. 
+local moonshine = require "lib.moonshine"
+local effect = moonshine(moonshine.effects.scanlines)
+				.chain(moonshine.effects.chromasep)
+				.chain(moonshine.effects.crt)
+
+effect.crt.feather = 0.005
+effect.crt.distortionFactor = {1.03, 1.03}
+effect.scanlines.opacity = 0.1
+
 -- SOME SETTINGS (sadly it uses env vars)
 local settings = {}
 do
@@ -37,6 +47,7 @@ local state = {
 }
 
 local shader = lg.newShader "assets/shd_basic.glsl"
+local post = lg.newShader "assets/shd_post.glsl"
 local font = lg.newFont("assets/fnt_monogram.ttf", 16)
 local atlas = lg.newImage("assets/atl_main.png")
 local quad_model = rmap("assets/mod_quad.mod").mesh
@@ -54,7 +65,7 @@ local function load_map(what)
 	state.map_mesh:setTexture(state.map_texture)
 end
 
-load_map("mod_thing")
+load_map("mod_lamp")
 
 -- This mechanism right here allows me to share uniforms in between
 -- shaders AND automatically update them to reduce boilerplate.
@@ -101,14 +112,14 @@ function love.resize(w, h)
 
     state.canvas_main_a  = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8", msaa=1 })
     state.canvas_depth_a = lg.newCanvas(w/state.scale, h/state.scale, { format = "depth32f", readable = true, msaa=1 })
-    state.canvas_normal_a = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8", msaa=1 })
 
 	-- // TODO: DO GRAB PASS STUFF ////////
 	state.canvas_main_b  = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8", msaa=1 })
     state.canvas_depth_b = lg.newCanvas(w/state.scale, h/state.scale, { format = "depth32f", readable = true, msaa=1 })
-    state.canvas_normal_a = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8", msaa=1 })
 
-	--uniforms.resolution = {w/state.scale, h/state.scale}
+	effect.resize(w, h)
+	effect.scanlines.frequency = h / state.scale
+	effect.chromasep.radius = state.scale
 end
 
 local entities = {
@@ -332,13 +343,16 @@ function love.draw()
 		--uniforms.canvas = state.canvas_main_a
 		--uniform_update(canvas_copy)
 		--lg.draw(state.canvas_depth_a)
+
+		lg.setShader()
+
+		lg.setColor(COLOR_WHITE)
+		lg.setBlendMode("alpha")
+		lg.setFont(font)
+		for i, v in ipairs(debug_lines) do
+			lg.print(v, 4, 8*(i-1))
+		end
 	lg.pop()
 
-	lg.draw(state.canvas_main_a, 0, 0, 0, state.scale)
-
-	lg.scale(2)
-	lg.setFont(font)
-	for i, v in ipairs(debug_lines) do
-		lg.print(v, 4, 8*(i-1))
-	end
+	effect(lg.draw, state.canvas_main_a, 0, 0, 0, state.scale)
 end
