@@ -1,0 +1,2 @@
+If you're reading this, you might have opened the game's source code from
+the binaries provided in the itch.io page, congratulations! you're a nerd!

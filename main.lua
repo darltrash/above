@@ -53,7 +53,9 @@ local atlas = lg.newImage("assets/atl_main.png")
 local quad_model = rmap("assets/mod_quad.mod").mesh
 quad_model:setTexture(atlas)
 
+local map_name = ""
 local function load_map(what)
+	map_name = what
 	if state.map_mesh then
 		state.map_mesh:release()
 		state.map_texture:release()
@@ -65,7 +67,7 @@ local function load_map(what)
 	state.map_mesh:setTexture(state.map_texture)
 end
 
-load_map("mod_lamp")
+load_map("mod_city")
 
 -- This mechanism right here allows me to share uniforms in between
 -- shaders AND automatically update them to reduce boilerplate.
@@ -163,6 +165,12 @@ local lights = {
 
 local debug_lines = {} -- Debug stuff!
 
+function love.keypressed(k)
+	if (k == "f3") then
+		load_map("mod_lighthouse")
+	end
+end
+
 function love.update(dt)
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)
 	input:update()
@@ -224,7 +232,16 @@ function love.draw()
 		love.resize(w, h) -- Create one!
 	end
 
-	debug_lines = {} -- Clean out the debug lines
+	debug_lines = {
+		"/////////////////////////////",
+		"/ ABOVE, 0.01, DEMO MODE ON /",
+		"/////////////////////////////",
+		"",
+
+		"PRESS F3 TO MOVE ON.",
+		"MAP:    " .. map_name:upper(),
+		""
+	}
 
 	do -- Lighting code
 		uniforms.ambient = {0.5, 0.5, 0.7, 1.0}
@@ -257,7 +274,11 @@ function love.draw()
 		)
 
 		table.insert(debug_lines, 
-			("TARGET: %s"):format(state.target_true)
+			("TARGET: %s"):format(state.target_true:round())
+		)
+
+		table.insert(debug_lines, 
+			("INPUT:  %s, %s"):format(input:current().name, input:get_direction():sign())
 		)
 	end
 

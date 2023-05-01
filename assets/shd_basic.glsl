@@ -4,7 +4,6 @@ uniform mat4 projection;
 
 varying vec4 cl_position;
 varying vec4 vw_position;
-varying vec2 vw_texcoord;
 varying vec3 vw_normal;
 
 #ifdef VERTEX
@@ -28,7 +27,6 @@ varying vec3 vw_normal;
     vec4 position( mat4 _, vec4 vertex_position ) {
         vw_position = view * model * vertex_position;
         vw_normal = (model * vec4(VertexNormal, 1.0)).xyz;
-        vw_texcoord = VertexTexCoord.xy;
 
         cl_position = projection * vw_position;
 
@@ -37,22 +35,15 @@ varying vec3 vw_normal;
 #endif
 
 #ifdef PIXEL
-    #define LIGHT_AMOUNT 16
-
-    // Our texture ☭
-    uniform Image MainTex;
-
-    // This allows us to make a mesh only take a certain region
-    // of the main texture, useful for displaying only sprites
-    uniform vec4 clip;
-
     // Lighting!
+    #define LIGHT_AMOUNT 16
     uniform vec4 ambient;
     uniform vec3 light_positions[LIGHT_AMOUNT];
     uniform vec4 light_colors[LIGHT_AMOUNT];
     uniform int light_amount;
 
     uniform float time;
+    uniform vec4 clip;
 
     // Crazy dither thing
     uniform float dither_table[16];
@@ -80,7 +71,8 @@ varying vec3 vw_normal;
         return max(0.0, d-distance(a, b))/d;
     }
 
-    void effect() {
+    vec4 effect(vec4 color, Image texture, vec2 tuv, vec2 suv) {
+        vec4 o = vec4(1.0);
         vec3 normal = normalize(vw_normal);
 
         // Lighting! (Diffuse + Rim)
@@ -104,22 +96,26 @@ varying vec3 vw_normal;
             lighting.rgb += normalize(light_colors[i].rgb) * power;
         }
 
+        // This helps us make the models just use a single portion of the 
+        // texture, which allows us to make things such as sprites show up :)
+        vec2 uv = clip.xy + tuv * clip.zw;
+
         // Evrathing togetha
-        love_Canvases[0] = Texel(MainTex, clip.xy + vw_texcoord * clip.zw) * VaryingColor * lighting; // color
+        o = Texel(texture, uv) * color * lighting; // color
         
         // If something is very close to the camera, make it transparent!
-        love_Canvases[0].a *= (1.0 - diststep(vw_position.xyz, vec3(0.0, 0.0, 0.0), 3.0));
+        o.a *= (1.0 - diststep(vw_position.xyz, vec3(0.0, 0.0, 0.0), 3.0));
         
         // Calculate dithering based on transparency, skip dithered pixels!
-        if (dither4x4(love_PixelCoord.xy, love_Canvases[0].a) == 0.0)
+        if (dither4x4(love_PixelCoord.xy, o.a) == 0.0)
             discard;
 
         // Make the rest of the pixels completely solid
-        love_Canvases[0].a = 1.0;
+        o.a = 1.0;
 
         // Correct the color 
-        love_Canvases[0] = gammaCorrectColor (
-            vec4(tonemap_aces(love_Canvases[0].rgb), love_Canvases[0].a)
+        return gammaCorrectColor (
+            vec4(tonemap_aces(o.rgb), o.a)
         );
 
         //love_Canvases[1] = vec4(normalize(normal), 1.0); // normals

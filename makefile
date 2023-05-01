@@ -5,6 +5,7 @@ $(shell mkdir -p .temp)
 GREEN='\033[0;32m'
 NC='\033[0m'
 
+# TODO: Make this target produce only run ONCE per makefile execution!
 love: # REQUIRES RSYNC
 	rm -rf .temp/*
 	rsync -r --exclude-from=love_ignore * .temp
