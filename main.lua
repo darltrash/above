@@ -112,12 +112,12 @@ function love.resize(w, h)
 		state.canvas_depth_b:release()
 	end
 
-    state.canvas_main_a  = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8", msaa=1 })
-    state.canvas_depth_a = lg.newCanvas(w/state.scale, h/state.scale, { format = "depth32f", readable = true, msaa=1 })
+    state.canvas_main_a  = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8" })
+    state.canvas_depth_a = lg.newCanvas(w/state.scale, h/state.scale, { format = "depth16", readable = true, msaa=1 })
 
 	-- // TODO: DO GRAB PASS STUFF ////////
-	state.canvas_main_b  = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8", msaa=1 })
-    state.canvas_depth_b = lg.newCanvas(w/state.scale, h/state.scale, { format = "depth32f", readable = true, msaa=1 })
+	state.canvas_main_b  = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8" })
+    state.canvas_depth_b = lg.newCanvas(w/state.scale, h/state.scale, { format = "depth16", readable = true, msaa=1 })
 
 	effect.resize(w, h)
 	effect.scanlines.frequency = h / state.scale
