@@ -1,8 +1,9 @@
-lib/obj.lua
 lib/lovebird.lua
-assets/*.obj
+*.blend
+*.blend*
+*.desktop
 makefile
 .*/
-export_ignore
+love_ignore
 out/
 cache/
