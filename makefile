@@ -6,14 +6,15 @@ GREEN='\033[0;32m'
 NC='\033[0m'
 
 # TODO: Make this target produce only run ONCE per makefile execution!
-love: # REQUIRES RSYNC
+love: # REQUIRES RSYNC, ZIP
 	rm -rf .temp/*
 	rsync -r --exclude-from=love_ignore * .temp
+	mv .temp/assets/*.txt .temp
 	rm out/above.love
 	cd .temp/ && zip -r -9 ../out/above.love * 
 	@echo -e ${GREEN}///// BUILT LÖVE${NC}
 
-win32: love # REQUIRES RSYNC, WGET, UNZIP
+win32: love # REQUIRES RSYNC, WGET, ZIP, UNZIP
 	rm -rf .temp/*
 	wget -nc https://github.com/love2d/love/releases/download/11.4/love-11.4-win32.zip -O cache/love.win32.zip
 	unzip -j cache/love.win32.zip -d .temp/ -x *.ico *changes.txt *readme.txt *lovec.exe
@@ -22,7 +23,7 @@ win32: love # REQUIRES RSYNC, WGET, UNZIP
 	cd .temp/ && zip -r -9 ../out/above.win32.zip *
 	@echo -e ${GREEN}///// BUILT WIN32 ZIP${NC}
 
-win64: love # REQUIRES RSYNC, WGET, UNZIP
+win64: love # REQUIRES RSYNC, WGET, ZIP, UNZIP
 	rm -rf .temp/*
 	wget -nc https://github.com/love2d/love/releases/download/11.4/love-11.4-win64.zip -O cache/love.win64.zip
 	unzip -j cache/love.win64.zip -d .temp/ -x *.ico *changes.txt *readme.txt *lovec.exe
@@ -31,7 +32,7 @@ win64: love # REQUIRES RSYNC, WGET, UNZIP
 	cd .temp/ && zip -r -9 ../out/above.win64.zip *
 	@echo -e ${GREEN}///// BUILT WIN64 ZIP${NC}
 
-appimage: love # REQUIRES RSYNC, WGET, GLIBC, APPIMAGETOOL
+appimage: love # REQUIRES RSYNC, WGET, GLIBC, ZIP, APPIMAGETOOL
 	rm -rf .temp/*
 	wget -nc https://github.com/love2d/love/releases/download/11.4/love-11.4-x86_64.AppImage -O cache/love.appimage
 	chmod +x cache/love.appimage

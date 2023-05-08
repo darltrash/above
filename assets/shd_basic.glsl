@@ -6,6 +6,8 @@ varying vec4 cl_position;
 varying vec4 vw_position;
 varying vec3 vw_normal;
 
+#define sqr(a) (a*a)
+
 #ifdef VERTEX
     attribute vec3 VertexNormal;
 
@@ -26,7 +28,7 @@ varying vec3 vw_normal;
 
     vec4 position( mat4 _, vec4 vertex_position ) {
         vw_position = view * model * vertex_position;
-        vw_normal = cofactor(model) * VertexNormal;
+        vw_normal = cofactor(view * model) * VertexNormal;
 
         cl_position = projection * vw_position;
 
@@ -47,7 +49,7 @@ varying vec3 vw_normal;
     uniform float translucent; // useful for displaying flat things
 
     // Crazy dither thing
-    uniform float dither_table[16];
+    uniform float dither_table[4*4];
 
     float dither4x4(vec2 position, float brightness) {
         ivec2 p = ivec2(mod(position, 4.0));
@@ -74,6 +76,10 @@ varying vec3 vw_normal;
         return max(0.0, area-distance(a, b))/area;
     }
 
+    float linearstep(float e0, float e1, float x) {
+        return clamp((x - e0) / (e1 - e0), 0.0, 1.0);
+    }
+
     // Actual math
     vec4 effect(vec4 color, Image texture, vec2 tuv, vec2 suv) {
         // Lighting! (Diffuse + Rim)
@@ -81,25 +87,18 @@ varying vec3 vw_normal;
         vec3 normal = normalize(vw_normal);
 
         for(int i=0; i<light_amount; ++i) { // For each light
-            vec3 position = light_positions[i];
-            float area = length(light_colors[i].rgb) * light_colors[i].a;
-            float power = 1.0;
+            vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
+            float intensity = sqrt(light_colors[i].a);
+            vec4 color = vec4(normalize(light_colors[i].rgb) * intensity, intensity);
 
-            // Diffuse (get the pixel more "lit" if it's closer to the light source)
-            float dist = diststep(vw_position.xyz, (view * vec4(position, 1.0)).xyz, area);
-            power *= dist * dist;
+            float dist = max(0.001, length(position - vw_position.xyz));
+            float power = sqr(linearstep(color.w, 0.0, dist));
             
             float shade = dot(normalize(vw_position.xyz - position), normal);
-            float front = max(0.0, 1.0 - shade);
-            float both = abs(shade);
-            power *= mix(front, both, translucent);
-
-            // Rim (uhh, this one sucks? idk it barely makes any difference)
-            float rim = 1.0 - max(dot(normalize(-vw_position.xyz), normalize(mat3(view) * normal)), 0.0); // rim...?
-            power += smoothstep(0.6, 1.0, rim) * 0.5 * dist;
+            power *= mix(max(0.0, 1.0 - shade), 1, translucent);
 
             // Now we add our light's color to the light value
-            lighting.rgb += normalize(light_colors[i].rgb) * power;
+            lighting.rgb += normalize(color.rgb) * power;
         }
 
         // This helps us make the models just use a single portion of the 
@@ -118,7 +117,7 @@ varying vec3 vw_normal;
 
         // Correct the color and make it solid
         return gammaCorrectColor (
-            vec4(tonemap_aces(o.rgb), 1.0)
+            vec4(tonemap_aces(o.rgb * exp2(-1.0)), 1.0)
         );
     }
 #endif

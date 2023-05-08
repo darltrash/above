@@ -1,9 +1,10 @@
+local input = require "input"
+local fam = require "fam"
+
 local exm = require "lib.iqm"
 local mat4 = require "lib.mat4"
 local vector = require "lib.vec3"
-local input = require "input"
 local json = require "lib.json"
-local fam = require "fam"
 
 local noop = function () end
 
@@ -20,23 +21,27 @@ effect.scanlines.opacity = 0.1
 -- SOME SETTINGS (sadly it uses env vars)
 local settings = {}
 do
+	settings.low_end = os.getenv("ABOVE_LOW_END")
 	settings.debug = os.getenv("ABOVE_DEBUG")
 	settings.fps = os.getenv("ABOVE_FPS") or settings.debug
 	settings.linear = os.getenv("ABOVE_LINEAR") -- cursed mode
-	settings.no_post = os.getenv("ABOVE_NO_POST")
+	settings.no_post = os.getenv("ABOVE_NO_POST") or settings.low_end
 	settings.mute = os.getenv("ABOVE_MUTE")
 	settings.fullscreen = os.getenv("ABOVE_FULLSCREEN") and true or false
 	settings.scale = os.getenv("ABOVE_SCALE")
-
+	settings.vsync = tonumber(os.getenv("ABOVE_VSYNC")) or 1
 end
+package.loaded.settings = settings
 
 if not settings.linear then
 	love.graphics.setDefaultFilter("nearest", "nearest")
 end
 
+love.window.setVSync(settings.vsync)
 love.window.setFullscreen(settings.fullscreen)
 
 -- GLOBALS!
+local MAX_LIGHTS = 16
 local COLOR_WHITE = {1, 1, 1, 1}
 local CLIP_NONE = {0, 0, 1, 1}
 _G.lg = love.graphics
@@ -44,17 +49,18 @@ _G.lm = love.math
 _G.la = love.audio
 _G.lt = love.timer
 
---local music = love.audio.newSource("assets/mus_brothermidi.mp3", "static")
---music:setLooping(true)
---music:play()
-
 la.setVolume(tonumber(settings.mute) or 1)
 
-local water_mesh = exm.load("assets/mod_water.exm").mesh
-local step_sound = la.newSource("assets/snd_step.ogg", "static")
+local assets = require "assets"
+local entities = require "entity"
 
 local state = {
+	render_list = {},
+	entities = {},
+	lights = {},
+
 	scale = 2,
+	zoom = 1,
 	target = vector.zero:copy(),
 	target_true = vector.zero:copy(),
 	canvas_switcheroo = false,
@@ -66,20 +72,16 @@ local state = {
 	end
 }
 
-local shader = lg.newShader "assets/shd_basic.glsl"
-local font = lg.newFont("assets/fnt_monogram.ttf", 16)
-local atlas = lg.newImage("assets/atl_main.png")
-local quad_model = exm.load("assets/mod_quad.exm").mesh
-quad_model:setTexture(atlas)
-
 -- This mechanism right here allows me to share uniforms in between
 -- shaders AND automatically update them to reduce boilerplate.
 local uniform_map = {}
 local uniforms = {
 	dither_table = {
 		unpack = true,
-		0.0625, 0.5625, 0.1875, 0.6875, 0.8125, 0.3125, 0.9375,
-		0.4375, 0.25, 0.75, 0.125, 0.625, 1.0, 0.5, 0.875, 0.375,
+		0.0625, 0.5625, 0.1875, 0.6875, 
+		0.8125, 0.3125, 0.9375, 0.4375, 
+		0.2500, 0.7500, 0.1250, 0.6250, 
+		1.0000, 0.5000, 0.8750, 0.3750,
 	}
 }
 
@@ -101,24 +103,6 @@ local function uniform_update(shader)
 	end
 end
 
-local lights = {}
-local entities = {
-	{
-		sprite = {0, 0, 32, 32},
-		position = vector(0, 0, 0),
-		rotation = vector(0, 0, 0),
-		velocity = vector(0, 0, 0),
-		camera_target = true,
-		controller = "player"
-	},
-
-	{
-		position = vector(0, 0, 0),
-		music = la.newSource("assets/mus_small_town.mp3", "stream"),
-		music_volume = 0
-	}
-}
-
 local map_name = ""
 local function load_map(what)
 	map_name = what
@@ -132,10 +116,15 @@ local function load_map(what)
 	local meta = json.decode(map.metadata)
 
 	for index, light in ipairs(meta.lights) do
-		table.insert(lights, {
+		table.insert(state.lights, {
 			position = vector(light.position[1], light.position[3], -light.position[2]),
-			color = {light.color[1], light.color[2], light.color[3], light.power * 0.2}
+			color = {light.color[1], light.color[2], light.color[3], light.power }
 		})
+	end
+
+	state.entities = {}
+	for index, entity in ipairs(meta.objects) do
+		entities.init(state.entities, entity, state)
 	end
 
 	state.map.texture = lg.newImage(("assets/%s.png"):format(what))
@@ -151,12 +140,16 @@ function love.resize(w, h)
 
 	-- If the canvases already exist, YEET THEM OUT (safely).
 	if state.canvas_main_a then
+		state.canvas_flat:release()
+		
 		state.canvas_main_a:release()
 		state.canvas_depth_a:release()
 
 		state.canvas_main_b:release()
 		state.canvas_depth_b:release()
 	end
+
+	state.canvas_flat = lg.newCanvas(256, 256)
 
     state.canvas_main_a  = lg.newCanvas(w/state.scale, h/state.scale, { format = "rgba8" })
     state.canvas_depth_a = lg.newCanvas(w/state.scale, h/state.scale, { format = "depth16", readable = true, msaa=1 })
@@ -173,17 +166,12 @@ end
 local debug_lines = {} -- Debug stuff!
 
 function love.keypressed(k)
-	if (k == "f3") then
-		load_map("mod_lighthouse")
-	elseif (k == "f11") then
+	if (k == "f11") then
 		settings.fullscreen = not settings.fullscreen
 		love.window.setFullscreen(settings.fullscreen)
-	elseif (k == "f6") then
-		state.transition_speed = -1
 	end
 end
 
-local render_list = {}
 function love.update(dt)
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)
 	input:update()
@@ -196,7 +184,6 @@ function love.update(dt)
 		lovebird.whitelist = nil
 		lovebird.port = 1337
 		lovebird.update()
-		_G.STATE = state
 	end
 
 	do 
@@ -204,15 +191,15 @@ function love.update(dt)
 		local pos = state.target:copy()
 		pos.y = -1.5
 
-		table.insert(render_list, {
-			mesh = water_mesh,
-			color = {0x9d/255, 0x3b/255, 0xe5/255, 1},
-			model = mat4.from_transform(pos, 0, 20)
+		table.insert(state.render_list, {
+			mesh = assets.water_mesh,
+			color = fam.hex("#9d3be5"),
+			model = mat4.from_transform(pos, 0, 40)
 		})
 
 		-- MAP STUFF
 		for _, buffer in ipairs(state.map.meshes) do
-			table.insert(render_list, {
+			table.insert(state.render_list, {
 				mesh = state.map.mesh,
 				unshaded = buffer.material:match("unshaded"),
 				range = {buffer.first, buffer.last - buffer.first}
@@ -220,109 +207,20 @@ function love.update(dt)
 		end
 	end
 
-	-- Process entities
-	for _, entity in ipairs(entities) do
-		if entity.music then
-			entity.music:setLooping(true)
-			if entity.position then
-				local volume = entity.music_volume or 1
-				local area = entity.music_area or 8
-				local dist = math.max(0, area-state.target:dist(entity.position))/area
-				entity.music:setVolume(dist * dist* volume)
-			end
-			
-			if not entity.music:isPlaying() then
-				entity.music:play()
-			end
-		end
-
-		if not entity.position then -- If it doesnt even have a position
-			goto continue -- Then why even bother?
-		end
-
-		-- This controls any element that is considered a "player"
-		if entity.controller == "player" then
-			local dir = -input:get_direction()
-
-			entity.velocity = vector(dir.x, 0, dir.y) * 2.5
-			entity.scale = entity.scale or vector(1, 1, 1)
-			entity.flip_x = entity.flip_x or 1
-
-			local dirs = dir:sign()
-			if dirs.x ~= 0 then
-				entity.flip_x = -dirs.x
-			end
-
-			entity.scale.x = fam.decay(entity.scale.x, entity.flip_x, 3, dt)
-			
-			local anim = 0
-			if dir:magnitude() > 0 then
-				anim = 1
-
-				local a = math.abs(math.sin(lt.getTime() * 15))
-				if a > 0.8 or a < 0.2 then
-					step_sound:setVolume(lm.random(20, 70)/100)
-					step_sound:play()
-				end
-
-			end
-			entity.animation_power = fam.decay(entity.animation_power or 0, anim, 3, dt)
-
-			entity.rotation.z = math.sin(lt.getTime() * 15) * 0.1 * entity.animation_power
-			entity.scale.y = 1 - (math.abs(math.sin(lt.getTime() * 15)) * entity.animation_power * 0.1)
-			
-			entity.camera_target = true
-		end
-
-		-- // TODO: Implement fixed timesteps
-		if entity.velocity then -- Euler integration
-			entity.position = entity.position + entity.velocity * dt
-		end
-
-		if entity.camera_target then
-			state.target_true = entity.position
-		end
-
-		local invisible = entity.invisible
-		if not invisible then
-			local call = {
-				color = entity.tint,
-				model = mat4.from_transform(
-					entity.position, entity.rotation or 0, entity.scale or 1),
-				mesh = entity.mesh
-			}
-
-			if entity.sprite then
-				call.culling = "none"
-				call.translucent = 1
-				call.clip = {
-					entity.sprite[1] / atlas:getWidth(),
-					entity.sprite[2] / atlas:getHeight(),
-					entity.sprite[3] / atlas:getWidth(),
-					entity.sprite[4] / atlas:getHeight(),
-				}
-				
-				call.mesh = quad_model
-			end
-		
-			if call.mesh then
-				table.insert(render_list, call)
-			end
-		end
-
-		:: continue ::
-	end
+	entities.tick(state.entities, dt, state)
 
 	state.target = state.target:decay(state.target_true, 1, dt)
 
-	if love.keyboard.isDown("escape") then
-		state.escape = fam.decay(state.escape, 1, 0.5, dt)
-	else
-		state.escape = fam.decay(state.escape, 0, 3, dt)
-	end
+	do -- Escape code
+		if love.keyboard.isDown("escape") then
+			state.escape = fam.decay(state.escape, 1, 0.5, dt)
+		else
+			state.escape = fam.decay(state.escape, 0, 3, dt)
+		end
 
-	if state.escape > 0.99 then
-		love.event.quit()
+		if state.escape > 0.99 then
+			love.event.quit()
+		end
 	end
 
 	do -- Transition code
@@ -348,25 +246,17 @@ function love.draw()
 	end
 
 	debug_lines = {
-		"/////////////////////////////",
-		"/ ABOVE, 0.01, DEMO MODE ON /",
-		"/////////////////////////////",
-		"",
-
-		"PRESS F3 TO MOVE ON.",
-		"PRESS F11 FOR FULLSCREEN.",
-		"MAP:    " .. map_name:upper(),
-		""
+		'"guarded place."',
 	}
 
 	do -- Lighting code
-		uniforms.ambient = {0.5, 0.5, 0.7, state.transition}
+		uniforms.ambient = {0.4, 0.4, 0.6, state.transition}
 		--uniforms.ambient = {0.2, 0.2, 0.2, state.transition}
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
-		uniforms.light_amount = #lights
+		uniforms.light_amount = #state.lights
 
-		for _, light in ipairs(lights) do
+		for _, light in ipairs(state.lights) do
 			local pos = light.position:to_array()
 			pos.w = 1
 			table.insert(uniforms.light_positions, pos)
@@ -390,16 +280,22 @@ function love.draw()
 	if settings.debug then
 		debug("DELTA:  %ins", lt.getAverageDelta() * 1000000000)
 		debug("TARGET: %s", state.target_true:round())
-		debug("CALLS:  %i", #render_list)
-		debug("LIGHTS: %i", #lights)
+		debug("CALLS:  %i", #state.render_list)
+		debug("LIGHTS: %i/%i", #state.lights, MAX_LIGHTS)
 	end
 
 	-- Push the state, so now any changes will only happen locally
 	lg.push("all")
 		-- Set the current canvas
 		lg.setCanvas({ state.canvas_main_a, depth = state.canvas_depth_a })
-		lg.clear({ 0x4f/255, 0x0a/255, 0xb0/255, 1 }, true, true)
-		lg.setShader(shader)
+		--lg.clear({ 0x4f/255, 0x0a/255, 0xb0/255, 1 }, true, true)
+		lg.clear(false, true, true)
+		lg.setShader(assets.shader_gradient)
+		assets.shader_gradient:send("bg_colora", fam.hex("#8438ff"))
+		assets.shader_gradient:send("bg_colorb", fam.hex("#4f0ab0"))
+		lg.draw(assets.white, 0, 0, 0, state.canvas_main_a:getWidth(), state.canvas_main_a:getHeight()*0.4)
+		
+		lg.setShader(assets.shader)
 		
 		uniforms.projection = mat4.from_perspective(-45, -w/h, 0.01, 1000)
 		uniforms.model = mat4.from_transform(0, 0, 0)
@@ -418,19 +314,17 @@ function love.draw()
 			)
 
 			uniforms.view = uniforms.view *
-				mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, 1)
+				mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, state.zoom)
 		end
 
 		local vertices = 0
 
 		lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
-		for index, call in ipairs(render_list) do
+		for index, call in ipairs(state.render_list) do
 			lg.setColor(call.color or COLOR_WHITE)
 			lg.setDepthMode(call.depth or "less", true)
 			lg.setMeshCullMode(call.culling or "back")
 
-			uniforms.translucent = call.translucent and 1 or 0
-			
 			local light_amount = uniforms.light_amount
 			local ambient = uniforms.ambient
 			if call.unshaded then
@@ -440,8 +334,13 @@ function love.draw()
 
 			uniforms.clip = call.clip or CLIP_NONE
 			uniforms.model = call.model or mat4
+			uniforms.translucent = call.translucent and 1 or 0
 
-			uniform_update(shader)
+			if call.texture then
+				call.mesh:setTexture(call.texture)
+			end
+
+			uniform_update(assets.shader)
 
 			if call.range then
 				call.mesh:setDrawRange(unpack(call.range))
@@ -452,14 +351,11 @@ function love.draw()
 			uniforms.light_amount = light_amount
 			uniforms.ambient = ambient
 
-			if call.range then
-				call.mesh:setDrawRange()
-				vertices = vertices + call.range[2]
-			else
-				vertices = vertices + call.mesh:getVertexCount()
-			end
+			call.mesh:setDrawRange()
+			local v = call.range and call.range[2] or call.mesh:getVertexCount()
+			vertices = vertices + v
 
-			render_list[index] = nil
+			state.render_list[index] = nil
 		end
 
 		if settings.debug then
@@ -471,7 +367,7 @@ function love.draw()
 		lg.setShader()
 		lg.setColor(COLOR_WHITE)
 		lg.setBlendMode("alpha")
-		lg.setFont(font)
+		lg.setFont(assets.font)
 		for i, v in ipairs(debug_lines) do
 			lg.print(v, 4, 8*(i-1))
 		end

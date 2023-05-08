@@ -2,6 +2,9 @@ lib/lovebird.lua
 *.blend
 *.blend*
 *.desktop
+*.obj
+*.md
+readme.txt
 makefile
 .*/
 love_ignore
