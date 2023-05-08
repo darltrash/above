@@ -5,21 +5,21 @@ How to build:
         Requirements: Some posix-esque interface, WGET, Make, zip, unzip, rsync, git
 
         Command:
-            git clone https://github.com/darltrash/above
+            git clone --recurse-submodules https://github.com/darltrash/above
             make win32 # change to win64 if you want 64 bit binaries
 
     - Linux (Appimage, GLIBC 64 bits):
         Requirements: Linux/WSL (GLIBC), WGET, Make, Appimagetool, zip, rsync, git
 
         Command:
-            git clone https://github.com/darltrash/above
+            git clone --recurse-submodules https://github.com/darltrash/above
             make appimage
 
     - Everything else:
         Requirements: Some posix-esque interface, Make, zip, rsync, git
 
         Command:
-            git clone https://github.com/darltrash/above
+            git clone --recurse-submodules https://github.com/darltrash/above
             make love
 
 How to run without building:

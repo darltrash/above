@@ -191,12 +191,6 @@ function love.update(dt)
 		local pos = state.target:copy()
 		pos.y = -1.5
 
-		table.insert(state.render_list, {
-			mesh = assets.water_mesh,
-			color = fam.hex("#9d3be5"),
-			model = mat4.from_transform(pos, 0, 40)
-		})
-
 		-- MAP STUFF
 		for _, buffer in ipairs(state.map.meshes) do
 			table.insert(state.render_list, {
@@ -205,6 +199,12 @@ function love.update(dt)
 				range = {buffer.first, buffer.last - buffer.first}
 			})
 		end
+
+		table.insert(state.render_list, {
+			mesh = assets.water_mesh,
+			color = fam.hex("#9d3be5"),
+			model = mat4.from_transform(pos, 0, 40)
+		})
 	end
 
 	entities.tick(state.entities, dt, state)
