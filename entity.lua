@@ -2,6 +2,7 @@ local mat4 = require "lib.mat4"
 local vector = require "lib.vec3"
 local input = require "input"
 local fam = require "fam"
+local scripts = require "scripts"
 
 local assets = require "assets"
 
@@ -14,29 +15,54 @@ local initializers = {
         entity.scale = vector()
         entity.rotation = vector()
         entity.camera_target = true
-        entity.sprite = {0, 0, 32, 32}
 
         entity.animation_power = 0
         state.target = entity.position:copy()
+
+        entity.collider = {
+            x=-0.4, y=0, z=0,
+            w=0.8, h=0.8, d=0.1
+        }
+    end,
+
+    ["npc"] = function (entity, state, script)
+        entity.sprite = {0, 224, 32, 32}
+        entity.routine = script
     end
 }
 
 local function init(entities, raw, state)
+    local title = raw.name:match("(.+)%.%d+")
+
     local entity = {
-        
+        title = title,
         -- Change Z=1 to Y=1
         position = vector(raw.position[1], raw.position[3], -raw.position[2])
     }
 
-    local init = initializers[raw.name:match("(.+)%.%d+")]
+    local sections = fam.split(title, "%/")
+    local init = initializers[sections[1]]
     if init then
-        init(entity, state)
+        init(entity, state, unpack(sections, 2))
+    end
+
+    if entity.position and entity.collider then
+        local x = entity.position.x - entity.collider.x
+        local y = entity.position.y - entity.collider.y
+        local z = entity.position.z - entity.collider.z
+
+        local w = entity.collider.w
+        local h = entity.collider.h
+        local d = entity.collider.d
+        state.colliders:add(entity, x, y, z, w, h, d)
     end
 
     table.insert(entities, entity)
 end
 
 --------------------------------------------------------------
+
+local SPR_PLAYER_LEFT_RIGHT = {0, 0, 32, 32}
 
 local controllers = {
     ["player"] = function (entity, dt, state)
@@ -67,6 +93,8 @@ local controllers = {
         entity.animation_power = fam.decay(entity.animation_power or 0, anim, 3, dt)
         entity.rotation.z = math.sin(lt.getTime() * 15) * 0.1 * entity.animation_power
         entity.scale.y = 1 - (math.abs(math.sin(lt.getTime() * 15)) * entity.animation_power * 0.1)
+    
+        entity.sprite = SPR_PLAYER_LEFT_RIGHT
     end,
 }
 
@@ -87,6 +115,22 @@ local function tick(entities, dt, state)
 			end
 		end
 
+        if entity.routine then
+            local routine = scripts[entity.routine]
+            if routine then
+                entity.script = coroutine.create(routine)
+            end
+            entity._routine = entity.routine
+            entity.routine = nil
+        end
+
+        if entity.script then
+            local ok = coroutine.resume(entity.script, entity, dt, state)
+            if not ok then
+                coroutine.script = nil
+            end
+        end
+
 		if entity.position then
             -- This controls any element that has a "controller",
             -- like the player, the monsters, etc
@@ -97,7 +141,22 @@ local function tick(entities, dt, state)
 
             -- // TODO: Implement fixed timesteps
             if entity.velocity then -- Euler integration
-                entity.position = entity.position + entity.velocity * dt
+                local position = entity.position + entity.velocity * dt
+
+                if state.colliders:hasItem(entity) then
+                    local x, y, z = state.colliders:move(
+                        entity,
+                        position.x+entity.collider.x,
+                        position.y+entity.collider.y,
+                        position.z+entity.collider.z
+                    )
+
+                    position.x = x - entity.collider.x
+                    position.y = y - entity.collider.y
+                    position.z = z - entity.collider.z
+                end
+
+                entity.position = position
             end
 
             if entity.camera_target then
@@ -129,7 +188,32 @@ local function tick(entities, dt, state)
                 end
             
                 if call.mesh then
-                    table.insert(state.render_list, call)
+                    state.render(call)
+                end
+
+                if state.settings.debug then
+                    local pos = entity.position-vector(0, 0.3, 0)
+
+                    state.render {
+                        culling = "none",
+                        translucent = true,
+                        unshaded = true,
+                        title = entity.title,
+                        
+                        model = mat4.from_transform(pos, 0, 3),
+
+                        texture = function (call)
+                            lg.setFont(assets.font)
+                            if call.title then
+                                local w = 64 - (assets.font:getWidth(call.title)/2)
+                                local h = 64 - (assets.font:getHeight()/2)
+                                lg.print(call.title, w, h)
+                            end
+                            --lg.rectangle("fill", 0, 0, 2000, 2000)
+                        end,
+
+                        mesh = assets.quad_model
+                    }
                 end
             end
         end

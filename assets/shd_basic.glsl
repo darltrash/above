@@ -5,6 +5,7 @@ uniform mat4 projection;
 varying vec4 cl_position;
 varying vec4 vw_position;
 varying vec3 vw_normal;
+varying vec4 vx_color;
 
 #define sqr(a) (a*a)
 
@@ -32,11 +33,15 @@ varying vec3 vw_normal;
 
         cl_position = projection * vw_position;
 
+        vx_color = VertexColor;
+
         return cl_position;
     }
 #endif
 
 #ifdef PIXEL
+    uniform Image MainTex;
+
     // Lighting!
     #define LIGHT_AMOUNT 16
     uniform vec4 ambient;
@@ -54,26 +59,9 @@ varying vec3 vw_normal;
     float dither4x4(vec2 position, float brightness) {
         ivec2 p = ivec2(mod(position, 4.0));
         
-        float limit = 0.0;
-        if (p.x < 8)
-            limit = dither_table[p.x + p.y * 4];
+        float limit = mix(0.0, dither_table[p.x + p.y * 4], step(float(p.x), 8.0));
 
-        return brightness < limit ? 0.0 : 1.0;
-    }
-
-    // Cool color correction, makes things look cooler.
-    vec3 tonemap_aces(vec3 x) {
-        float a = 2.51;
-        float b = 0.03;
-        float c = 2.43;
-        float d = 0.59;
-        float e = 0.14;
-        return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
-    }
-
-    // Helper function that returns 0.0-1.0
-    float diststep(vec3 a, vec3 b, float area) {
-        return max(0.0, area-distance(a, b))/area;
+        return step(limit, brightness);
     }
 
     float linearstep(float e0, float e1, float x) {
@@ -81,7 +69,7 @@ varying vec3 vw_normal;
     }
 
     // Actual math
-    vec4 effect(vec4 color, Image texture, vec2 tuv, vec2 suv) {
+    void effect() {
         // Lighting! (Diffuse + Rim)
         vec4 lighting = ambient;
         vec3 normal = normalize(vw_normal);
@@ -103,21 +91,21 @@ varying vec3 vw_normal;
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
-        vec2 uv = clip.xy + tuv * clip.zw;
+        vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
-        vec4 o = Texel(texture, uv) * color * lighting; // color
+        vec4 o = Texel(MainTex, uv) * VaryingColor * lighting; // color
         
         // If something is very close to the camera, make it transparent!
-        o.a *= 1.0 - diststep(vw_position.xyz, vec3(0.0, 0.0, 0.0), 3.0);
+        o.a *= min(1.0, length(vw_position.xyz) / 3.0);
         
         // Calculate dithering based on transparency, skip dithered pixels!
         if (dither4x4(love_PixelCoord.xy, o.a) < 0.5)
             discard;
 
-        // Correct the color and make it solid
-        return gammaCorrectColor (
-            vec4(tonemap_aces(o.rgb * exp2(-1.0)), 1.0)
-        );
+        vec3 n = mix(normal, abs(normal), translucent) * 0.5 + 0.5;
+
+        love_Canvases[0] = vec4(o.rgb, 1.0);
+        love_Canvases[1] = vec4(n, 1.0);
     }
 #endif

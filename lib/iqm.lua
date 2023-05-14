@@ -20,6 +20,7 @@ ffi.cdef [[
         uint num_comment, ofs_comment;
         uint num_extensions, ofs_extensions;
     };
+
     struct iqmmesh {
         uint name;
         uint material;
@@ -28,86 +29,33 @@ ffi.cdef [[
     };
     
     enum {
-        IQM_POSITION     = 0,
-        IQM_TEXCOORD     = 1,
-        IQM_NORMAL       = 2,
-        IQM_TANGENT      = 3,
-        IQM_BLENDINDEXES = 4,
-        IQM_BLENDWEIGHTS = 5,
-        IQM_COLOR        = 6,
-        IQM_CUSTOM       = 0x10
+        IQM_POSITION = 0, IQM_TEXCOORD, IQM_NORMAL,
+        IQM_TANGENT, IQM_BLENDINDEXES, IQM_BLENDWEIGHTS,
+        IQM_COLOR,
+
+        IQM_CUSTOM = 0x10
     };
 
     enum {
-        IQM_BYTE   = 0,
-        IQM_UBYTE  = 1,
-        IQM_SHORT  = 2,
-        IQM_USHORT = 3,
-        IQM_INT    = 4,
-        IQM_UINT   = 5,
-        IQM_HALF   = 6,
-        IQM_FLOAT  = 7,
-        IQM_DOUBLE = 8,
+        IQM_BYTE = 0, IQM_UBYTE, IQM_SHORT, IQM_USHORT,
+        IQM_INT, IQM_UINT, IQM_HALF, IQM_FLOAT, IQM_DOUBLE,
     };
 
     struct iqmvertexarray {
-        uint type;
-        uint flags;
-        uint format; 
-        uint size;
-        uint offset;
+        uint type, flags, format, size, offset;
     };
 
     struct iqmtriangle {
         uint vertex[3];
     };
 
-    struct iqmadjacency {
-        uint triangle[3];
-    };
-
-    struct iqmjoint {
-        uint name;
-        int parent; // parent < 0 means this is a root bone
-        float translate[3], rotate[4], scale[3];
-    };
-
-    struct iqmpose {
-        int parent; 
-        uint channelmask;
-        float channeloffset[10], channelscale[10];
-    };
-
-    struct iqmanim {
-        uint name;
-        uint first_frame, num_frames;
-        float framerate;
-        uint flags;
-    };
-
     enum {
         IQM_LOOP = 1<<0
-    };
-
-    struct iqmbounds {
-        float bbmins[3], bbmaxs[3];
-        float xyradius, radius;
-    };
-
-    struct iqmextension {
-        uint name;
-        uint num_data, ofs_data;
-        uint ofs_extensions;
-    };
-
-    struct iqmvertex {
-        float position[3], texcoord[2], normal[3], tangent[4];
-        uchar blendindices[4], blendweights[4], color[4];
     };
 ]]
 local c = ffi.C
 
--- MODDED FOR ABOVE 
+-- MODDED FOR ABOVE
 local iqm = {
 	_LICENSE     = "Inter-Quake Model Loader is distributed as public domain (Unlicense). See LICENSE.md for full text.",
 	_URL         = "https://github.com/excessive/iqm",
