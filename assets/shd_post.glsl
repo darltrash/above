@@ -1,3 +1,5 @@
+#pragma language glsl3
+
 #ifdef VERTEX
 	vec4 position(mat4 mvp, vec4 vertex) { return mvp * vertex; }
 #endif
@@ -15,7 +17,7 @@
 
     vec4 effect(vec4 _, Image tex, vec2 uv, vec2 screen_coords) {
         return gammaCorrectColor (
-            vec4(tonemap_aces(Texel(tex, uv).rgb * exp2(-0.5)), 1.0)
+            vec4(tonemap_aces(textureLod(tex, uv, 0.0).rgb * exp2(-0.5)), 1.0)
         );
     }
 

@@ -6,8 +6,6 @@ local ret = {
     shader_water = lg.newShader("assets/shd_water.glsl"),
     shader_copy = lg.newShader("assets/shd_copy.glsl"),
     shader_post = lg.newShader("assets/shd_post.glsl"),
-    shader_gtao = lg.newShader("assets/shd_gtao.glsl"),
-    shader_depth_copy = lg.newShader("assets/shd_depth_copy.glsl"),
     shader_cubemap = lg.newShader("assets/shd_cubemap.glsl"),
 
     font = lg.newFont("assets/fnt_monogram.ttf", 16),

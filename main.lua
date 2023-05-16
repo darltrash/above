@@ -190,7 +190,7 @@ local function load_map(what)
 	)
 end
 
-load_map(settings.level or "mod_lighthouse")
+load_map(settings.level or "mod_test_alpha")
 
 local avg_values = {}
 
@@ -232,12 +232,13 @@ function love.resize(w, h)
 
 	state.canvas_main_a  = canvas {
 		format = "rg11b10f",
-		mipmaps = "auto"
+		mipmaps = "auto",
 	}
+	state.canvas_main_a:setMipmapFilter("linear")
     state.canvas_normals_a = canvas {
 		format = "rgb10a2",
 		mipmaps = "auto",
-		filter = "nearest"
+		filter = "linear"
 	}
     state.canvas_depth_a = canvas {
 		format = "depth24",
@@ -252,10 +253,11 @@ function love.resize(w, h)
 		format = "rg11b10f",
 		mipmaps = "auto"
 	}
+	state.canvas_main_b:setMipmapFilter("linear")
     state.canvas_normals_b = canvas {
 		format = "rgb10a2",
 		mipmaps = "auto",
-		filter = "nearest"
+		filter = "linear"
 	}
     state.canvas_depth_b = canvas {
 		format = "depth24",
@@ -574,60 +576,30 @@ function love.draw()
 			debug("RENDER: %ins", (love.timer.getTime() - time) * 1000000000)
 			debug("VERTS:  %i", vertices)
 		end
-
-		lg.setCanvas(canvas_color)
-
-		lg.setShader()
-		lg.setColor(COLOR_BLACK)
-		lg.setBlendMode("alpha")
-		lg.setFont(assets.font)
-		for i, v in ipairs(debug_lines) do
-			lg.print(v, 4, 8*(i-1))
-		end
-
-		lg.scale(2)
-		lg.setColor(0, 0, 0, state.escape*state.escape)
-		lg.rectangle("line", (w/(state.scale*2)) - 73, 2, w, 12)
-		lg.setColor(0, 0, 0, 1)
-		lg.rectangle("fill", (w/(state.scale*2)) - 73, 2, w, 12*(state.escape*state.escape))
-		lg.setColor(1, 1, 1, state.escape*state.escape)
-		lg.print("QUITTER...", (w/(state.scale*2)) - 70)
 	lg.pop()
 
 	lg.reset()
 
-	switch_canvas()
-
-	lg.push("all")
-		lg.setShader(assets.shader_depth_copy)
-		lg.setDepthMode("always", true)
-
-		for x=1, canvas_depth:getMipmapCount() do
-			lg.setCanvas({depthstencil = {canvas_depth, mipmap = x}})
-
-			lg.draw(uniforms.back_depth, 0, 0, 0, 1/x)
-		end
-	lg.pop()
-
 	local r = function ()
 		lg.push("all")
-		lg.setColor(1, 1, 1, 1)
-		lg.clear(1, 1, 1, 1)
+			lg.setShader(assets.shader_post)
+			lg.scale(state.scale)
+			lg.draw(canvas_color)
 
-		lg.setBlendMode("multiply", "premultiplied")
-		lg.setShader(assets.shader_post)
-		lg.draw(canvas_color, 0, 0, 0, state.scale)
+			lg.setShader()
+			lg.setBlendMode("alpha")
+			lg.setFont(assets.font)
+			for i, v in ipairs(debug_lines) do
+				lg.print(v, 4, 8*(i-1))
+			end
 
-		if not settings.not_ssao then
-			lg.setShader(assets.shader_gtao)
-
-			assets.shader_gtao:send("depth_texture", canvas_depth)
-			assets.shader_gtao:send("normal_texture", canvas_normal)
-			assets.shader_gtao:send("inverse_proj", "column", uniforms.inverse_proj:to_columns())
-			assets.shader_gtao:send("frame", 1)
-
-			lg.draw(canvas_color, 0, 0, 0, state.scale)
-		end
+			lg.scale(2)
+			lg.setColor(0, 0, 0, state.escape*state.escape)
+			lg.rectangle("line", (w/(state.scale*2)) - 73, 2, w, 12)
+			lg.setColor(0, 0, 0, 1)
+			lg.rectangle("fill", (w/(state.scale*2)) - 73, 2, w, 12*(state.escape*state.escape))
+			lg.setColor(1, 1, 1, state.escape*state.escape)
+			lg.print("QUITTER...", (w/(state.scale*2)) - 70)
 		lg.pop()
 	end
 
