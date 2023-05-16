@@ -6,6 +6,9 @@ local ret = {
     shader_water = lg.newShader("assets/shd_water.glsl"),
     shader_copy = lg.newShader("assets/shd_copy.glsl"),
     shader_post = lg.newShader("assets/shd_post.glsl"),
+    shader_gtao = lg.newShader("assets/shd_gtao.glsl"),
+    shader_depth_copy = lg.newShader("assets/shd_depth_copy.glsl"),
+    shader_cubemap = lg.newShader("assets/shd_cubemap.glsl"),
 
     font = lg.newFont("assets/fnt_monogram.ttf", 16),
     atlas = lg.newImage("assets/atl_main.png"),
@@ -19,6 +22,8 @@ local ret = {
     aligned_cube = exm.load("assets/mod_aligned_cube.exm").mesh,
 
     white = lg.newImage("assets/spr_white.png"),
+
+    sky_test = lg.newCubeImage("assets/sky_test.png")
 }
 
 ret.quad_model:setTexture(ret.atlas)
@@ -35,6 +40,6 @@ noise:mapPixel(function (x, y)
     return n.x, n.y, n.z, 1
 end)
 
-ret.noise = lg.newImage(noise)
+ret.noise = lg.newImage("assets/spr_noise.png")
 
 return ret

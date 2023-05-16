@@ -68,7 +68,7 @@ varying vec3 lc_position;
         return step(limit, brightness);
     }
 
-    // Ported from Colby's thingy :)
+    // Ported from Excessive's thingy :)
     vec3 calculate_view_position(vec2 uv, float z) {
         // don't allow 0.0/1.0, because the far plane can be infinite
         const float threshold = 0.000001;
@@ -77,11 +77,29 @@ varying vec3 lc_position;
         return position_vs.xyz / position_vs.w;
     }
 
+    uniform vec3 harmonics[9];
+
+    vec3 sh(vec3 sph[9], vec3 n) {
+        vec3 result = sph[0].rgb
+            + sph[1].rgb * n.x
+            + sph[2].rgb * n.y
+            + sph[3].rgb * n.z
+            + sph[4].rgb * n.x * n.z
+            + sph[5].rgb * n.z * n.y
+            + sph[6].rgb * n.y * n.x
+            + sph[7].rgb * (3.0 * n.z * n.z - 1.0)
+            + sph[8].rgb * n.x * n.x - n.y * n.y
+        ;
+        return max(result, vec3(0.0));
+    }
+
     void effect() {
         vec3 coords = ((cl_position.xyz / cl_position.w) + 1.0) * 0.5;
         float s_depth = Texel(back_depth, coords.xy).r;
 
         vec4 o = VaryingColor * ambient;
+        //o.rgb *= sh(harmonics, normalize(vw_normal));
+
         if (s_depth != 1.0) {
             vec3 scoords = calculate_view_position(coords.xy, s_depth);
             float dist = clamp(distance(vw_position.xyz, scoords) / 16.0, 0.0, 1.0);

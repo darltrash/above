@@ -9,6 +9,9 @@ varying vec4 vx_color;
 
 #define sqr(a) (a*a)
 
+// Spherical harmonics, cofactor and improved diffuse
+// by the people at excessive ❤ moé 
+
 #ifdef VERTEX
     attribute vec3 VertexNormal;
 
@@ -49,6 +52,8 @@ varying vec4 vx_color;
     uniform vec4 light_colors[LIGHT_AMOUNT];
     uniform int light_amount;
 
+    uniform vec3 harmonics[9];
+
     uniform float time;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
@@ -59,7 +64,8 @@ varying vec4 vx_color;
     float dither4x4(vec2 position, float brightness) {
         ivec2 p = ivec2(mod(position, 4.0));
         
-        float limit = mix(0.0, dither_table[p.x + p.y * 4], step(float(p.x), 8.0));
+        float a = step(float(p.x), 8.0);
+        float limit = mix(0.0, dither_table[p.x + p.y * 4], a);
 
         return step(limit, brightness);
     }
@@ -67,12 +73,26 @@ varying vec4 vx_color;
     float linearstep(float e0, float e1, float x) {
         return clamp((x - e0) / (e1 - e0), 0.0, 1.0);
     }
+    
+    vec3 sh(vec3 sph[9], vec3 n) {
+        vec3 result = sph[0].rgb
+            + sph[1].rgb * n.x
+            + sph[2].rgb * n.y
+            + sph[3].rgb * n.z
+            + sph[4].rgb * n.x * n.z
+            + sph[5].rgb * n.z * n.y
+            + sph[6].rgb * n.y * n.x
+            + sph[7].rgb * (3.0 * n.z * n.z - 1.0)
+            + sph[8].rgb * n.x * n.x - n.y * n.y
+        ;
+        return max(result, vec3(0.0));
+    }
 
     // Actual math
     void effect() {
         // Lighting! (Diffuse + Rim)
-        vec4 lighting = ambient;
-        vec3 normal = normalize(vw_normal);
+        vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
+        vec4 lighting = ambient; //Texel(sky_texture, normal); // vec4(sh(harmonics, normal), 1.0)
 
         for(int i=0; i<light_amount; ++i) { // For each light
             vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
@@ -103,7 +123,7 @@ varying vec4 vx_color;
         if (dither4x4(love_PixelCoord.xy, o.a) < 0.5)
             discard;
 
-        vec3 n = mix(normal, abs(normal), translucent) * 0.5 + 0.5;
+        vec3 n = normal * 0.5 + 0.5;
 
         love_Canvases[0] = vec4(o.rgb, 1.0);
         love_Canvases[1] = vec4(n, 1.0);

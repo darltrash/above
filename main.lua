@@ -92,6 +92,19 @@ local uniforms = {
 		0.8125, 0.3125, 0.9375, 0.4375, 
 		0.2500, 0.7500, 0.1250, 0.6250, 
 		1.0000, 0.5000, 0.8750, 0.3750,
+	},
+
+	harmonics = {
+		unpack = true,
+		{ 0.7953949,  0.4405923,  0.5459412},
+		{ 0.3981450,  0.3526911,  0.6097158},
+		{-0.3424573, -0.1838151, -0.2715583},
+		{-0.2944621, -0.0560606,  0.0095193},
+		{-0.1123051, -0.0513088, -0.1232869},
+		{-0.2645007, -0.2257996, -0.4785847},
+		{-0.1569444, -0.0954703, -0.1485053},
+		{ 0.5646247,  0.2161586,  0.1402643},
+		{ 0.2137442, -0.0547578, -0.3061700}
 	}
 }
 
@@ -177,22 +190,9 @@ local function load_map(what)
 	)
 end
 
-load_map(settings.level or "mod_test3")
+load_map(settings.level or "mod_lighthouse")
 
 local avg_values = {}
-
-local function depth_mipmaps(canvas)
-	local out = {}
-
-	local w = canvas:getWidth()
-	local h = canvas:getHeight()
-	repeat
-		w = math.ceil(w / 2)
-		h = math.ceil(h / 2)
-
-		print(w, h)
-	until w == 1 and h == 1
-end
 
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
@@ -267,8 +267,6 @@ function love.resize(w, h)
 	effect.resize(w, h)
 	effect.scanlines.frequency = h / state.scale
 	effect.chromasep.radius = state.scale
-
-	depth_mipmaps(state.canvas_main_a)
 end
 
 local debug_lines = {} -- Debug stuff!
@@ -295,6 +293,7 @@ function love.update(dt)
 	-- Useful for shaders :)
 	uniforms.time = (uniforms.time or 0) + dt
 	uniforms.view = mat4.look_at(vector(0, 2, -6) + state.target, state.target, { y = 1 })
+	uniforms.frame = (uniforms.frame or 0) + 1
 
 	do -- Cool camera movement effect
 		local offset = vector(
@@ -440,16 +439,47 @@ function love.draw()
 	local canvas_depth = state.canvas_depth_a
 	local canvas_normal = state.canvas_normals_a
 
+	local function switch_canvas()
+		lg.push("all")
+			uniforms.back_normal = canvas_normal
+			uniforms.back_color  = canvas_color
+			uniforms.back_depth  = canvas_depth
+
+			cswitch = not cswitch
+
+			canvas_normal = cswitch 
+				and state.canvas_normals_b or state.canvas_normals_a
+				
+			canvas_color  = cswitch 
+				and state.canvas_main_b or state.canvas_main_a
+				
+			canvas_depth  = cswitch 
+				and state.canvas_depth_b or state.canvas_depth_a
+
+			lg.setCanvas({ canvas_color, canvas_normal, depthstencil = canvas_depth })
+			lg.clear(true, true, true)
+			lg.setColor(COLOR_WHITE)
+
+			lg.setShader(assets.shader_copy)
+			assets.shader_copy:send("color", uniforms.back_color)
+			assets.shader_copy:send("normal", uniforms.back_normal)
+			lg.setDepthMode("always", true)
+			lg.draw(uniforms.back_depth)
+		lg.pop()
+	end
+
 	-- Push the state, so now any changes will only happen locally
 	lg.push("all")	
 		lg.setCanvas({canvas_color, canvas_normal, depthstencil=canvas_depth})
 		lg.clear(true, true, true)
 
+		lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
+
 		lg.setShader(assets.shader_gradient)
 		assets.shader_gradient:send("bg_colora", fam.hex("#a166ff"))
 		assets.shader_gradient:send("bg_colorb", fam.hex("#eb8a44"))
 		lg.draw(assets.white, 0, 0, 0, state.canvas_main_a:getWidth(), state.canvas_main_a:getHeight()*0.4)
-		
+
 		lg.setShader(assets.shader)
 		
 		uniforms.projection = mat4.from_perspective(-45, -w/h, 0.01, 1000)
@@ -457,8 +487,6 @@ function love.draw()
 		uniforms.inverse_proj = uniforms.projection:inverse()
 
 		local vertices = 0
-
-		lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
 
 		local function render(call)
 			local color = call.color or COLOR_WHITE
@@ -501,28 +529,10 @@ function love.draw()
 			local shader = assets.shader
 			if call.shader then
 				shader = call.shader
-
-				uniforms.back_normal = canvas_normal
-				uniforms.back_color  = canvas_color
-				uniforms.back_depth  = canvas_depth
-
-				cswitch = not cswitch
-
-				canvas_normal = cswitch and state.canvas_normals_b or state.canvas_normals_a
-				canvas_color = cswitch and state.canvas_main_b or state.canvas_main_a
-				canvas_depth = cswitch and state.canvas_depth_b or state.canvas_depth_a
-
-				lg.setCanvas({ canvas_color, canvas_normal, depthstencil = canvas_depth })
-				lg.clear(true, true, true)
-				lg.setColor(COLOR_WHITE)
-
-				lg.setShader(assets.shader_copy)
-				assets.shader_copy:send("color", uniforms.back_color)
-				assets.shader_copy:send("normal", uniforms.back_normal)
-				lg.setDepthMode("always", true)
-				lg.draw(uniforms.back_depth)
+				switch_canvas()
 			end
 
+			lg.setCanvas({canvas_color, canvas_normal, depthstencil = canvas_depth})
 			lg.setDepthMode(call.depth or "less", true)
 			lg.setMeshCullMode(call.culling or "back")
 
@@ -584,19 +594,41 @@ function love.draw()
 		lg.print("QUITTER...", (w/(state.scale*2)) - 70)
 	lg.pop()
 
-	canvas_color:generateMipmaps()
-	canvas_color:setMipmapFilter("linear")
+	lg.reset()
+
+	switch_canvas()
+
+	lg.push("all")
+		lg.setShader(assets.shader_depth_copy)
+		lg.setDepthMode("always", true)
+
+		for x=1, canvas_depth:getMipmapCount() do
+			lg.setCanvas({depthstencil = {canvas_depth, mipmap = x}})
+
+			lg.draw(uniforms.back_depth, 0, 0, 0, 1/x)
+		end
+	lg.pop()
 
 	local r = function ()
+		lg.push("all")
+		lg.setColor(1, 1, 1, 1)
+		lg.clear(1, 1, 1, 1)
+
+		lg.setBlendMode("multiply", "premultiplied")
 		lg.setShader(assets.shader_post)
-		assets.noise:setWrap("repeat", "repeat")
-
-		assets.shader_post:send("depth_texture", canvas_depth)
-		assets.shader_post:send("normal_texture", canvas_normal)
-		assets.shader_post:send("random_texture", assets.noise)
-		assets.shader_post:send("inverse_proj", "column", uniforms.inverse_proj:to_columns())
-
 		lg.draw(canvas_color, 0, 0, 0, state.scale)
+
+		if not settings.not_ssao then
+			lg.setShader(assets.shader_gtao)
+
+			assets.shader_gtao:send("depth_texture", canvas_depth)
+			assets.shader_gtao:send("normal_texture", canvas_normal)
+			assets.shader_gtao:send("inverse_proj", "column", uniforms.inverse_proj:to_columns())
+			assets.shader_gtao:send("frame", 1)
+
+			lg.draw(canvas_color, 0, 0, 0, state.scale)
+		end
+		lg.pop()
 	end
 
 	if settings.no_post then
