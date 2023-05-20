@@ -20,6 +20,7 @@ local ret = {
     aligned_cube = exm.load("assets/mod_aligned_cube.exm").mesh,
 
     white = lg.newImage("assets/spr_white.png"),
+    general = lg.newImage("assets/atl_general.png"),
 
     sky_test = lg.newCubeImage("assets/sky_test.png")
 }

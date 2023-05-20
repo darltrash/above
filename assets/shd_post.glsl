@@ -17,7 +17,7 @@
 
     vec4 effect(vec4 _, Image tex, vec2 uv, vec2 screen_coords) {
         return gammaCorrectColor (
-            vec4(tonemap_aces(textureLod(tex, uv, 0.0).rgb * exp2(-0.5)), 1.0)
+            vec4(tonemap_aces(textureLod(tex, uv, 0.0).rgb * exp2(-0.0)), 1.0)
         );
     }
 

@@ -61,27 +61,6 @@ la.setVolume(tonumber(settings.volume) or 1)
 local assets = require "assets"
 local entities = require "entity"
 
-local state = {
-	render_list = {},
-	grab_render_list = {},
-	entities = {},
-	lights = {},
-
-	settings = settings,
-
-	scale = 2,
-	zoom = 1,
-	target = vector.zero:copy(),
-	target_true = vector.zero:copy(),
-	canvas_switcheroo = false,
-	escape = 0,
-	transition = 1,
-	transition_speed = 0,
-	transition_callback = function ()
-		print("test test test")
-	end
-}
-
 -- This mechanism right here allows me to share uniforms in between
 -- shaders AND automatically update them to reduce boilerplate.
 local uniform_map = {}
@@ -106,6 +85,56 @@ local uniforms = {
 		{ 0.5646247,  0.2161586,  0.1402643},
 		{ 0.2137442, -0.0547578, -0.3061700}
 	}
+}
+
+local state = {
+	render_list = {},
+	grab_render_list = {},
+	entities = {},
+	lights = {},
+
+	settings = settings,
+
+	scale = 2,
+	zoom = 1,
+	target = vector.zero:copy(),
+	target_true = vector.zero:copy(),
+	canvas_switcheroo = false,
+	escape = 0,
+	transition = 1,
+	transition_speed = 0,
+	transition_callback = function ()
+		print("test test test")
+	end,
+
+	switch_canvas = function (self)
+		lg.push("all")
+			uniforms.back_color  = self.canvas_color
+			uniforms.back_depth  = self.canvas_depth
+			uniforms.back_normal = self.canvas_normal
+
+			self.cswitch = not self.cswitch
+
+			self.canvas_color = self.cswitch 
+				and self.canvas_main_b or self.canvas_main_a
+			
+			self.canvas_depth  = self.cswitch 
+				and self.canvas_depth_b or self.canvas_depth_a
+
+			self.canvas_normal = self.cswitch 
+				and self.canvas_normals_b or self.canvas_normals_a
+
+			lg.setCanvas({ self.canvas_color, self.canvas_normal, depthstencil = self.canvas_depth })
+			lg.clear(true, true, true)
+			lg.setColor(COLOR_WHITE)
+
+			lg.setShader(assets.shader_copy)
+			assets.shader_copy:send("color", uniforms.back_color)
+			assets.shader_copy:send("normal", uniforms.back_normal)
+			lg.setDepthMode("always", true)
+			lg.draw(uniforms.back_depth)
+		lg.pop()
+	end
 }
 
 function state.render(call)
@@ -155,6 +184,21 @@ local function load_map(what)
 	state.map = map
 	local meta = json.decode(map.metadata)
 
+	local meshes = {}
+	local last = {}
+	for index, mesh in ipairs(map.meshes) do -- Re-Batch stuff.
+		if mesh.material == last.material 
+			and mesh.first == last.last then
+				
+			last.last = mesh.last
+		else
+			table.insert(meshes, mesh)
+			last = mesh
+
+		end
+	end
+	map.meshes = meshes
+
 	for index, light in ipairs(meta.lights) do
 		table.insert(state.lights, {
 			position = vector(light.position[1], light.position[3], -light.position[2]),
@@ -190,7 +234,7 @@ local function load_map(what)
 	)
 end
 
-load_map(settings.level or "mod_test_alpha")
+load_map(settings.level or "mod_forest")
 
 local avg_values = {}
 
@@ -279,9 +323,9 @@ function love.keypressed(k)
 		log.info("Fullscreen %s", settings.fullscreen and "enabled" or "disabled")
 		love.window.setFullscreen(settings.fullscreen)
 		love.resize(lg.getDimensions())
-	elseif (k == "f3") then
+	elseif (k == "f3") then -- DO NOT USE THIS
 		local avg = 0
-		for k, v in ipairs(avg_values) do
+		for _, v in ipairs(avg_values) do
 			avg = avg + v
 		end
 		log.info("sexo: %i", avg / #avg_values)
@@ -334,12 +378,14 @@ function love.update(dt)
 				mesh = state.map.mesh,
 				unshaded = buffer.material:match("unshaded"),
 				range = {buffer.first, buffer.last - buffer.first},
+				texture = buffer.material:match("general")
+					and assets.general or state.map.texture
 			}
 		end
 
 		state.render {
 			mesh = assets.water_mesh,
-			color = fam.hex("#9d3be5"),
+			color = fam.hex("#823be5"),
 			model = mat4.from_transform(pos, 0, 60),
 			order = math.huge,
 			shader = assets.shader_water,
@@ -377,116 +423,32 @@ function love.update(dt)
 	end
 end
 
-function love.draw()
-	-- If the canvas hasnt been created yet
-	local w, h = lg.getDimensions()
-	if not state.canvas_main_a then
-		love.resize(w, h) -- Create one!
-	end
+local function debug(str, ...)
+	table.insert(debug_lines, str:format(...))
+end
 
-	debug_lines = {
-		'"guarded place."',
-	}
+local function render_scene(w, h)
+	state.cswitch = false
+	state.canvas_color  = state.canvas_main_a
+	state.canvas_depth  = state.canvas_depth_a
+	state.canvas_normal = state.canvas_normals_a
 
-	do -- Lighting code
-		uniforms.ambient = {0.4, 0.4, 0.6, state.transition}
-		--uniforms.ambient = {0.2, 0.2, 0.2, state.transition}
-		uniforms.light_positions = { unpack = true }
-		uniforms.light_colors = { unpack = true }
-		uniforms.light_amount = #state.lights
-
-		for _, light in ipairs(state.lights) do
-			local pos = light.position:to_array()
-			pos.w = 1
-			table.insert(uniforms.light_positions, pos)
-			table.insert(uniforms.light_colors, light.color)
-		end
-
-		if uniforms.light_amount == 0 then
-			uniforms.light_positions = nil
-			uniforms.light_colors = nil
-		end
-	end
-
-	local function debug(str, ...)
-		table.insert(debug_lines, str:format(...))
-	end
-
-	if settings.fps then
-		debug("FPS:    %i", lt.getFPS())
-	end
-
-	if settings.debug then
-		debug("DELTA:  %ins", lt.getAverageDelta() * 1000000000)
-		debug("TARGET: %s", state.target_true:round())
-		debug("EYE:    %s", state.eye:round())
-		debug("CALLS:  %i", #state.render_list)
-		debug("LIGHTS: %i/%i", #state.lights, MAX_LIGHTS)
-
-		for k, v in ipairs(state.colliders:getItems()) do
-			local x, y, z, w, h, d = state.colliders:getCube(v)
-			local scale = vector(w, h, d)
-			local position = vector(x, y, z) + (scale / 2)
-			state.render {
-				mesh = assets.cube,
-				model = mat4.from_transform(position, 0, scale),
-				color = {1, 0, 1, 1/4},
-				unshaded = true
-			}
-		end
-	end
-
-	local cswitch = false
-	local canvas_color = state.canvas_main_a
-	local canvas_depth = state.canvas_depth_a
-	local canvas_normal = state.canvas_normals_a
-
-	local function switch_canvas()
-		lg.push("all")
-			uniforms.back_normal = canvas_normal
-			uniforms.back_color  = canvas_color
-			uniforms.back_depth  = canvas_depth
-
-			cswitch = not cswitch
-
-			canvas_normal = cswitch 
-				and state.canvas_normals_b or state.canvas_normals_a
-				
-			canvas_color  = cswitch 
-				and state.canvas_main_b or state.canvas_main_a
-				
-			canvas_depth  = cswitch 
-				and state.canvas_depth_b or state.canvas_depth_a
-
-			lg.setCanvas({ canvas_color, canvas_normal, depthstencil = canvas_depth })
-			lg.clear(true, true, true)
-			lg.setColor(COLOR_WHITE)
-
-			lg.setShader(assets.shader_copy)
-			assets.shader_copy:send("color", uniforms.back_color)
-			assets.shader_copy:send("normal", uniforms.back_normal)
-			lg.setDepthMode("always", true)
-			lg.draw(uniforms.back_depth)
-		lg.pop()
-	end
+	uniforms.projection = mat4.from_perspective(-45, -w/h, 0.01, 1000)
+	uniforms.inverse_proj = uniforms.projection:inverse()
 
 	-- Push the state, so now any changes will only happen locally
 	lg.push("all")	
-		lg.setCanvas({canvas_color, canvas_normal, depthstencil=canvas_depth})
+		lg.setCanvas({state.canvas_color, state.canvas_normal, depthstencil=state.canvas_depth})
 		lg.clear(true, true, true)
 
 		lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
 
 		lg.setShader(assets.shader_gradient)
 		assets.shader_gradient:send("bg_colora", fam.hex("#a166ff"))
-		assets.shader_gradient:send("bg_colorb", fam.hex("#eb8a44"))
+		assets.shader_gradient:send("bg_colorb", fam.hex("#eb44da"))
 		lg.draw(assets.white, 0, 0, 0, state.canvas_main_a:getWidth(), state.canvas_main_a:getHeight()*0.4)
 
 		lg.setShader(assets.shader)
-		
-		uniforms.projection = mat4.from_perspective(-45, -w/h, 0.01, 1000)
-		uniforms.model = mat4.from_transform(0, 0, 0)
-		uniforms.inverse_proj = uniforms.projection:inverse()
 
 		local vertices = 0
 
@@ -531,10 +493,10 @@ function love.draw()
 			local shader = assets.shader
 			if call.shader then
 				shader = call.shader
-				switch_canvas()
+				state:switch_canvas()
 			end
 
-			lg.setCanvas({canvas_color, canvas_normal, depthstencil = canvas_depth})
+			lg.setCanvas({state.canvas_color, state.canvas_normal, depthstencil = state.canvas_depth})
 			lg.setDepthMode(call.depth or "less", true)
 			lg.setMeshCullMode(call.culling or "back")
 
@@ -560,7 +522,6 @@ function love.draw()
 		end)
 		for index, call in ipairs(state.render_list) do
 			render(call)
-			state.render_list[index] = nil
 		end
 
 		table.sort(state.grab_render_list, function(a, b)
@@ -568,7 +529,6 @@ function love.draw()
 		end)
 		for index, call in ipairs(state.grab_render_list) do
 			render(call)
-			state.grab_render_list[index] = nil
 		end
 
 		if settings.debug then
@@ -577,6 +537,67 @@ function love.draw()
 			debug("VERTS:  %i", vertices)
 		end
 	lg.pop()
+end
+
+function love.draw()
+	-- If the canvas hasnt been created yet
+	local w, h = lg.getDimensions()
+	if not state.canvas_main_a then
+		love.resize(w, h) -- Create one!
+	end
+
+	debug_lines = {
+		'"guarded place."',
+	}
+
+	do -- Lighting code
+		uniforms.ambient = {0.8, 0.7, 0.7, state.transition}
+		--uniforms.ambient = {0.2, 0.2, 0.2, state.transition}
+		uniforms.light_positions = { unpack = true }
+		uniforms.light_colors = { unpack = true }
+		uniforms.light_amount = #state.lights
+
+		for _, light in ipairs(state.lights) do
+			local pos = light.position:to_array()
+			pos.w = 1
+			table.insert(uniforms.light_positions, pos)
+			table.insert(uniforms.light_colors, light.color)
+		end
+
+		if uniforms.light_amount == 0 then
+			uniforms.light_positions = nil
+			uniforms.light_colors = nil
+		end
+	end
+
+	if settings.fps then
+		debug("FPS:    %i", lt.getFPS())
+	end
+
+	if settings.debug then
+		debug("DELTA:  %ins", lt.getAverageDelta() * 1000000000)
+		debug("TARGET: %s", state.target_true:round())
+		debug("EYE:    %s", state.eye:round())
+		debug("CALLS:  %i", #state.render_list)
+		debug("LIGHTS: %i/%i", #state.lights, MAX_LIGHTS)
+
+		for k, v in ipairs(state.colliders:getItems()) do
+			local x, y, z, w, h, d = state.colliders:getCube(v)
+			local scale = vector(w, h, d)
+			local position = vector(x, y, z) + (scale / 2)
+			state.render {
+				mesh = assets.cube,
+				model = mat4.from_transform(position, 0, scale),
+				color = {1, 0, 1, 1/4},
+				unshaded = true
+			}
+		end
+	end
+
+	render_scene(w, h)
+
+	state.render_list = {}
+	state.grab_render_list = {}
 
 	lg.reset()
 
@@ -584,7 +605,7 @@ function love.draw()
 		lg.push("all")
 			lg.setShader(assets.shader_post)
 			lg.scale(state.scale)
-			lg.draw(canvas_color)
+			lg.draw(state.canvas_color)
 
 			lg.setShader()
 			lg.setBlendMode("alpha")

@@ -117,7 +117,7 @@ varying vec4 vx_color;
         vec4 o = Texel(MainTex, uv) * VaryingColor * lighting; // color
         
         // If something is very close to the camera, make it transparent!
-        o.a *= min(1.0, length(vw_position.xyz) / 3.0);
+        o.a *= min(1.0, length(vw_position.xyz) / 2.5);
         
         // Calculate dithering based on transparency, skip dithered pixels!
         if (dither4x4(love_PixelCoord.xy, o.a) < 0.5)
