@@ -5,6 +5,7 @@ local fam = require "fam"
 local scripts = require "scripts"
 
 local assets = require "assets"
+local renderer = require "renderer"
 
 ---------------------------------------------------------------
 
@@ -99,6 +100,12 @@ local controllers = {
 }
 
 local function tick(entities, dt, state)
+    if state.settings.debug then
+        state:debug("")
+        state:debug("--- ENTITIES -----")
+        state:debug("ITEMS:  %i", #entities)
+    end
+
 	for _, entity in ipairs(entities) do
         -- PROCESS SEMI-SPATIAL MUSIC/AUDIO 
 		if entity.music then
@@ -188,13 +195,13 @@ local function tick(entities, dt, state)
                 end
             
                 if call.mesh then
-                    state.render(call)
+                    renderer.render(call)
                 end
 
                 if state.settings.debug then
                     local pos = entity.position-vector(0, 0.3, 0)
 
-                    state.render {
+                    renderer.render {
                         culling = "none",
                         translucent = true,
                         unshaded = true,
