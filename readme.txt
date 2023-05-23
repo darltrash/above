@@ -6,6 +6,7 @@ How to build:
 
         Command:
             git clone --recurse-submodules https://github.com/darltrash/above
+            cd above
             make win32 # change to win64 if you want 64 bit binaries
 
     - Linux (Appimage, GLIBC 64 bits):
@@ -13,6 +14,7 @@ How to build:
 
         Command:
             git clone --recurse-submodules https://github.com/darltrash/above
+            cd above
             make appimage
 
     - Everything else:
@@ -20,6 +22,7 @@ How to build:
 
         Command:
             git clone --recurse-submodules https://github.com/darltrash/above
+            cd above
             make love
 
 How to run without building:

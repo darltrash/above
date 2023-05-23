@@ -5,6 +5,10 @@
 #endif
 
 #ifdef PIXEL
+    uniform vec4 color_a;
+    uniform vec4 color_b;
+    uniform float power;
+
     // Cool color correction, makes things look cooler.
     vec3 tonemap_aces(vec3 x) {
         float a = 2.51;
@@ -15,9 +19,17 @@
         return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
     }
 
+    float luma(vec3 color) {
+        return dot(color, vec3(0.299, 0.587, 0.114));
+    }
+
     vec4 effect(vec4 _, Image tex, vec2 uv, vec2 screen_coords) {
+        vec3 c = Texel(tex, uv).rgb;
+        float l = luma(c);
+        c = mix(c, mix(color_a.rgb, color_b.rgb, l), power);
+
         return gammaCorrectColor (
-            vec4(tonemap_aces(textureLod(tex, uv, 0.0).rgb * exp2(-0.0)), 1.0)
+            vec4(tonemap_aces(c), 1.0)
         );
     }
 

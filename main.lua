@@ -9,18 +9,19 @@ local log = require "lib.log"
 
 local bump = require "lib.bump"
 
-local noop = function () end
+local noop = function()
+end
 
 log.usecolor = love.system.getOS ~= "Windows"
 
--- // TODO: GET RID OF THIS HIDEOUS BEAST. 
+-- // TODO: GET RID OF THIS HIDEOUS BEAST.
 local moonshine = require "lib.moonshine"
 local effect = moonshine(moonshine.effects.scanlines)
-				.chain(moonshine.effects.chromasep)
-				.chain(moonshine.effects.crt)
+	.chain(moonshine.effects.chromasep)
+	.chain(moonshine.effects.crt)
 
 effect.crt.feather = 0.005
-effect.crt.distortionFactor = {1.03, 1.03}
+effect.crt.distortionFactor = { 1.03, 1.03 }
 effect.scanlines.opacity = 0.1
 
 -- SOME SETTINGS (sadly it uses env vars)
@@ -37,6 +38,8 @@ do
 	settings.vsync = tonumber(os.getenv("ABOVE_VSYNC")) or 1
 
 	settings.level = settings.debug and os.getenv("ABOVE_LEVEL") or nil
+
+	settings.fps_camera = false
 end
 
 if not settings.linear then
@@ -56,31 +59,36 @@ _G.lt = love.timer
 la.setVolume(tonumber(settings.volume) or 1)
 
 local assets = require "assets"
+local ui = require "ui"
 local entities = require "entity"
 local renderer = require "renderer"
 
 local state = {
-	entities = {},
+	entities = { hash = {} },
 
 	settings = settings,
 
 	target = vector.zero:copy(),
 	target_true = vector.zero:copy(),
 
-	scale = 2, zoom = 1,
-	escape = 0, transition = 1,
+	scale = 2,
+	zoom = 1,
+	escape = 0,
+	transition = 1,
 
 	transition_speed = 0,
-	transition_callback = function ()
+	transition_callback = function()
 		print("test test test")
 	end,
 
 	debug_lines = {},
 
-	debug = function (self, str, ...)
+	debug = function(self, str, ...)
 		table.insert(self.debug_lines, str:format(...))
 	end
 }
+
+local camera_rotation = vector(0, 0, 0)
 
 local map_name = ""
 local function load_map(what)
@@ -99,14 +107,12 @@ local function load_map(what)
 	local meshes = {}
 	local last = {}
 	for index, mesh in ipairs(map.meshes) do -- Re-Batch stuff.
-		if mesh.material == last.material 
+		if mesh.material == last.material
 			and mesh.first == last.last then
-				
 			last.last = mesh.last
 		else
 			table.insert(meshes, mesh)
 			last = mesh
-
 		end
 	end
 	map.meshes = meshes
@@ -115,23 +121,23 @@ local function load_map(what)
 	for index, light in ipairs(meta.lights) do
 		table.insert(state.map_lights, {
 			position = vector(light.position[1], light.position[3], -light.position[2]),
-			color = {light.color[1], light.color[2], light.color[3], light.power }
+			color = { light.color[1], light.color[2], light.color[3], light.power }
 		})
 	end
 
-	state.entities = {}
+	state.entities = { hash = {} }
 	for index, entity in ipairs(meta.objects) do
 		entities.init(state.entities, entity, state)
 	end
 
 	for index, collider in ipairs(meta.trigger_areas) do
-		local scale = vector(collider.size[1], collider.size[3], collider.size[2])*2
-		local position = vector(-collider.position[1], collider.position[3], -collider.position[2]) - (scale/2)
+		local position = vector.from_array(collider.position)
+		local scale = vector.from_array(collider.size)
 
-		state.colliders:add (
+		state.colliders:add(
 			collider,
-			position.x, position.y, position.z,
-			scale.x, scale.y, scale.z
+			position.x, position.z, -position.y,
+			scale.x, scale.z, scale.y
 		)
 	end
 
@@ -154,7 +160,7 @@ local avg_values = {}
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
 	-- Do some math and now we have a generalized scale for each pixel
-	state.scale = tonumber(settings.scale) or math.max(1, math.floor(math.min(w, h)/300))
+	state.scale = tonumber(settings.scale) or math.max(1, math.floor(math.min(w, h) / 300))
 
 	renderer.resize(w, h, state.scale)
 
@@ -170,41 +176,51 @@ function love.keypressed(k)
 		love.window.setFullscreen(settings.fullscreen)
 		love.resize(lg.getDimensions())
 	elseif (k == "f3") then -- DO NOT USE THIS
-		local avg = 0
-		for _, v in ipairs(avg_values) do
-			avg = avg + v
-		end
-		log.info("sexo: %i", avg / #avg_values)
+		settings.fps_camera = not settings.fps_camera
+		love.mouse.setGrabbed(settings.fps_camera)
+		love.mouse.setRelativeMode(settings.fps_camera)
 	end
+end
+
+function love.mousemoved(x, y, dx, dy)
 end
 
 function love.update(dt)
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)
 	input:update()
+	ui:update(dt)
+
+	state.time = lt.getTime()
 
 	-- Useful for shaders :)
 	renderer.uniforms.time = (renderer.uniforms.time or 0) + dt
-	renderer.uniforms.view = mat4.look_at(vector(0, 2, -6) + state.target, state.target, { y = 1 })
+
+	renderer.uniforms.view = mat4.look_at(
+		vector(0, 2, -6) + state.target, state.target+vector(0, 0.5, 0), { y = 1 })
+
+	if settings.fps_camera then
+		renderer.uniforms.view = mat4.look_at(state.target, state.target+camera_rotation, { y = 1 })
+	end
+	
 	renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
 
 	do -- Cool camera movement effect
 		local offset = vector(
-			lm.noise( lt.getTime()*0.1, lt.getTime()*0.3 ),
-			lm.noise( lt.getTime()*0.2, lt.getTime()*0.1 ),
+			lm.noise(lt.getTime() * 0.1, lt.getTime() * 0.3),
+			lm.noise(lt.getTime() * 0.2, lt.getTime() * 0.1),
 			0
 		)
 
 		local rot = vector(
 			0, 0,
-			lm.noise( lt.getTime()*0.12, lt.getTime()*0.1 ) - 0.5
+			lm.noise(lt.getTime() * 0.12, lt.getTime() * 0.1) - 0.5
 		)
 
 		renderer.uniforms.view = renderer.uniforms.view *
 			mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, state.zoom)
-
 	end
 
-	state.eye = vector.from_table(renderer.uniforms.view:multiply_vec4 {0, 0, 0, 1})
+	state.eye = vector.from_table(renderer.uniforms.view:multiply_vec4 { 0, 0, 0, 1 })
 
 	if settings.debug then -- SUPER COOL FEATURE!
 		local lovebird = require("lib.lovebird")
@@ -213,7 +229,7 @@ function love.update(dt)
 		lovebird.update()
 	end
 
-	do 
+	do
 		-- THE WATAH
 		local pos = state.target:copy()
 		pos.y = -1.5
@@ -223,7 +239,7 @@ function love.update(dt)
 			renderer.render {
 				mesh = state.map.mesh,
 				unshaded = buffer.material:match("unshaded"),
-				range = {buffer.first, buffer.last - buffer.first},
+				range = { buffer.first, buffer.last - buffer.first },
 				texture = buffer.material:match("general")
 					and assets.general or state.map.texture
 			}
@@ -236,6 +252,10 @@ function love.update(dt)
 			order = math.huge,
 			shader = assets.shader_water,
 		}
+	end
+
+	if settings.fps_camera and settings.debug then
+		state:debug("FPS CAMERA IS ON!")
 	end
 
 	if settings.fps then
@@ -255,13 +275,13 @@ function love.update(dt)
 			renderer.render {
 				mesh = assets.cube,
 				model = mat4.from_transform(position, 0, scale),
-				color = {1, 0, 1, 1/4},
+				color = { 1, 0, 1, 1 / 4 },
 				unshaded = true
 			}
 		end
 	end
 
-	entities.tick(state.entities, dt, state)
+	state.entities = entities.tick(state.entities, dt, state)
 
 	state.target = state.target:decay(state.target_true, 1, dt)
 
@@ -290,7 +310,6 @@ function love.update(dt)
 			state.transition_callback()
 		end
 	end
-
 end
 
 local resized
@@ -304,37 +323,42 @@ function love.draw()
 	end
 
 	lg.reset()
-	
+
 	for _, light in ipairs(state.map_lights) do
 		renderer.light(light)
 	end
-	
+
 	renderer.draw(w, h, state)
 
-	local r = function ()
+	local r = function()
 		lg.push("all")
-			lg.setShader(assets.shader_post)
-			lg.scale(state.scale)
+		assets.shader_post:send("color_a", fam.hex"#00093b")
+		assets.shader_post:send("color_b", fam.hex"#ff0080")
+		assets.shader_post:send("power",  0.2)
+		lg.setShader(assets.shader_post)
+		lg.scale(state.scale)
 
-			local canvas = renderer.output()
-			lg.draw(canvas)
+		local canvas = renderer.output()
+		lg.draw(canvas)
 
-			lg.setShader()
-			lg.setBlendMode("alpha")
-			lg.setFont(assets.font)
-			for i, v in ipairs(state.debug_lines) do
-				lg.print(v, 4, 8*(i-1))
+		lg.setShader()
+		lg.setBlendMode("alpha")
+		lg.setFont(assets.font)
+		for i, v in ipairs(state.debug_lines) do
+			lg.print(v, 4, 8 * (i - 1))
 
-				state.debug_lines[i] = nil
-			end
+			state.debug_lines[i] = nil
+		end
 
-			lg.scale(2)
-			lg.setColor(0, 0, 0, state.escape*state.escape)
-			lg.rectangle("line", (w/(state.scale*2)) - 73, 2, w, 12)
-			lg.setColor(0, 0, 0, 1)
-			lg.rectangle("fill", (w/(state.scale*2)) - 73, 2, w, 12*(state.escape*state.escape))
-			lg.setColor(1, 1, 1, state.escape*state.escape)
-			lg.print("QUITTER...", (w/(state.scale*2)) - 70)
+		ui:draw(w/state.scale, h/state.scale)
+
+		lg.scale(2)
+		lg.setColor(0, 0, 0, state.escape * state.escape)
+		lg.rectangle("line", (w / (state.scale * 2)) - 73, 2, w, 12)
+		lg.setColor(0, 0, 0, 1)
+		lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
+		lg.setColor(1, 1, 1, state.escape * state.escape)
+		lg.print("QUITTER...", (w / (state.scale * 2)) - 70)
 		lg.pop()
 	end
 
@@ -343,5 +367,4 @@ function love.draw()
 	else
 		effect(r)
 	end
-	
 end

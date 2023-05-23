@@ -24,11 +24,14 @@ local initializers = {
             x=-0.4, y=0, z=0,
             w=0.8, h=0.8, d=0.1
         }
+
+        entity.id = "player"
     end,
 
     ["npc"] = function (entity, state, script)
         entity.sprite = {0, 224, 32, 32}
         entity.routine = script
+        entity.scripts = {}
     end
 }
 
@@ -58,6 +61,10 @@ local function init(entities, raw, state)
         state.colliders:add(entity, x, y, z, w, h, d)
     end
 
+    if entity.id then
+        entities.hash[entity.id] = entity
+    end
+
     table.insert(entities, entity)
 end
 
@@ -70,18 +77,20 @@ local controllers = {
         state.player = entity
         local dir = -input:get_direction()
 
-        entity.velocity = vector(dir.x, 0, dir.y) * 2.5
         entity.flip_x = entity.flip_x or 1
+        entity.velocity = vector(0, 0, 0)
 
-        local dirs = dir:sign()
-        if dirs.x ~= 0 then
-            entity.flip_x = -dirs.x
+        if not entity.interacting_with then
+            entity.velocity = vector(dir.x, 0, dir.y) * 2.5
+
+            local dirs = dir:sign()
+            if dirs.x ~= 0 then
+                entity.flip_x = -dirs.x
+            end
         end
 
-        entity.scale.x = fam.decay(entity.scale.x, entity.flip_x, 3, dt)
-        
         local anim = 0
-        if dir:magnitude() > 0 then
+        if entity.velocity:magnitude() > 0 then
             anim = 1
 
             local a = math.abs(math.sin(lt.getTime() * 15))
@@ -106,7 +115,25 @@ local function tick(entities, dt, state)
         state:debug("ITEMS:  %i", #entities)
     end
 
-	for _, entity in ipairs(entities) do
+    local new_entities  = { hash = entities.hash }
+
+    local player = new_entities.hash.player
+
+    for _, entity in ipairs(entities) do
+        if entity.delete then
+            if entity.id then
+                new_entities.hash[entity.id] = nil
+            end
+
+            if player and player.interacting_with == entity then
+                player.interacting_with = nil
+            end
+        else
+            table.insert(new_entities, entity)
+        end
+    end
+
+	for _, entity in ipairs(new_entities) do
         -- PROCESS SEMI-SPATIAL MUSIC/AUDIO 
 		if entity.music then
 			entity.music:setLooping(true)
@@ -125,20 +152,50 @@ local function tick(entities, dt, state)
         if entity.routine then
             local routine = scripts[entity.routine]
             if routine then
-                entity.script = coroutine.create(routine)
+                table.insert(entity.scripts, coroutine.create(routine))
             end
             entity._routine = entity.routine
             entity.routine = nil
         end
 
-        if entity.script then
-            local ok = coroutine.resume(entity.script, entity, dt, state)
-            if not ok then
-                coroutine.script = nil
+        if entity.scripts then
+            local i = #entity.scripts
+            if i > 0 then
+                local ok = coroutine.resume(entity.scripts[i], entity, dt, state)
+                if not ok then
+                    entity.scripts[i] = nil
+
+                    if entity.interact_routine == i then
+                        entity.in_interaction = false
+                        player.interacting_with = nil
+                    end
+                end
             end
         end
 
 		if entity.position then
+            local dist = player.position:dist(entity.position)
+
+            if player and entity.interact then
+                local interaction = 0
+
+                if (dist < (entity.distance or 2)) and not player.interacting_with then
+                    interaction = 1
+
+                    if input.just_pressed("action") then
+                        player.interacting_with = entity
+                        entity.routine = entity.interact
+                        entity.interact_routine = #entity.scripts+1
+                    end
+                end
+
+                if entity.in_interaction then
+                    interaction = 0
+                end
+
+                entity.interaction_anim = fam.decay(entity.interaction_anim or 0, interaction, 1, dt)
+            end    
+
             -- This controls any element that has a "controller",
             -- like the player, the monsters, etc
             local control = controllers[entity.controller]
@@ -178,6 +235,10 @@ local function tick(entities, dt, state)
                         entity.position, entity.rotation or 0, entity.scale or 1),
                     mesh = entity.mesh
                 }
+
+                if entity.flip_x and entity.scale then
+                    entity.scale.x = fam.decay(entity.scale.x, entity.flip_x, 3, dt)
+                end
 
                 if entity.sprite then
                     call.culling = "none"
@@ -222,9 +283,34 @@ local function tick(entities, dt, state)
                         mesh = assets.quad_model
                     }
                 end
+
+                if entity.interaction_anim then
+                    local e = entity.interaction_anim
+                    local pos = entity.position+vector(0, 0.1+(e*e), 0)
+                    local a = e
+                    if a > 0.99 then
+                        a = 1
+                    end
+
+                    renderer.render {
+                        color = {1, 1, 1, a*a},
+                        model = mat4.from_transform(pos, math.sin(lt.getTime()*3)*0.2, 0.5),
+                        translucent = true,
+                        texture = assets.atlas,
+                        clip = {
+                            240 / assets.atlas:getWidth(),
+                             16 / assets.atlas:getHeight(),
+                             16 / assets.atlas:getWidth(),
+                             16 / assets.atlas:getHeight()
+                        },
+                        mesh = assets.quad_model
+                    }
+                end
             end
         end
 	end
+
+    return new_entities
 end
 
 return {

@@ -44,4 +44,15 @@ fam.wait = function (ticks)
     end
 end
 
+fam.animate = function (ticks, callback) -- fn(t)
+    local start = lt.getTime()
+
+    local i = 0
+    repeat
+        i = (lt.getTime() - start) / ticks
+        callback(i)
+        coroutine.yield()
+    until i >= 1
+end
+
 return fam

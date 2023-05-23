@@ -121,6 +121,7 @@ local function resize(w, h, scale)
 	canvas_color_a  = canvas {
 		format = "rg11b10f",
 		mipmaps = "auto",
+		filter = "nearest"
 	}
 	canvas_color_a:setMipmapFilter("linear")
     canvas_normals_a = canvas {
@@ -139,7 +140,8 @@ local function resize(w, h, scale)
 
 	canvas_color_b  = canvas {
 		format = "rg11b10f",
-		mipmaps = "auto"
+		mipmaps = "auto",
+		filter = "nearest"
 	}
 	canvas_color_b:setMipmapFilter("linear")
     canvas_normals_b = canvas {
@@ -200,10 +202,21 @@ local function render_scene(w, h)
 
 		lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
 
-		lg.setShader(assets.shader_gradient)
-		assets.shader_gradient:send("bg_colora", fam.hex("#a166ff"))
-		assets.shader_gradient:send("bg_colorb", fam.hex("#eb44da"))
-		lg.draw(assets.white, 0, 0, 0, canvas_color_a:getWidth(), canvas_color_a:getHeight()*0.4)
+--		lg.setShader(assets.shader_sky)
+--		lg.setColor(1, 1, 1, 1)
+--
+--		local t = vector.from_array(uniforms.view:multiply_vec4({0, 0, 0, 0}))
+--		local m = uniforms.projection * uniforms.view * mat4.from_translation(-t)
+--		assets.shader_sky:send("inverse_view_proj", "column", m:inverse():to_columns())
+--
+--		local sun_rot = uniforms.time*0.1
+--		local sun = vector(0, -math.sin(sun_rot), math.cos(sun_rot))
+--		assets.shader_sky:send("u_sun_params", {sun.x, sun.y, sun.z, 0})
+--
+--		lg.rectangle("fill", -1, -1, 2, 2)
+
+		lg.setColor(fam.hex "#7e75ff")
+		lg.rectangle("fill", 0, 0, w, h)
 
 		lg.setShader(assets.shader)
 
@@ -312,7 +325,7 @@ local function draw(w, h, state)
     end
 
     do -- Lighting code
-		uniforms.ambient = {0.3, 0.3, 0.5, 1}
+		uniforms.ambient = fam.hex "#2c2683"
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
 		uniforms.light_amount = #light_list
