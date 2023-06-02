@@ -6,26 +6,34 @@ local scripts = require "scripts"
 
 local assets = require "assets"
 local renderer = require "renderer"
+local permanence = require "permanence"
 
 ---------------------------------------------------------------
 
 local initializers = {
     ["player"] = function (entity, state)
         entity.controller = "player"
-        entity.velocity = vector()
-        entity.scale = vector()
-        entity.rotation = vector()
+        entity.velocity = vector(0, 0, 0)
+        entity.scale = vector(0, 0, 0)
+        entity.rotation = vector(0, 0, 0)
         entity.camera_target = true
 
         entity.animation_power = 0
         state.target = entity.position:copy()
 
+        entity.animation = 0
+        entity.flip_x = 1
+        entity.atlas = assets.tex_deer_person
         entity.collider = {
-            x=-0.4, y=0, z=0,
-            w=0.8, h=0.8, d=0.1
+            x=-0.2, y=0, z=0,
+            w=0.4, h=0.8, d=0.1
         }
 
+        entity.tint = {1, 1, 1, 1}
+
         entity.id = "player"
+        entity.offset = vector(0, 0, 0)
+        entity.animation_index = 1
     end,
 
     ["npc"] = function (entity, state, script)
@@ -36,12 +44,13 @@ local initializers = {
 }
 
 local function init(entities, raw, state)
-    local title = raw.name:match("(.+)%.%d+")
+    local title, numba = raw.name:match("(.+)%.(%d*)")
+    title = title or raw.name
 
     local entity = {
         title = title,
         -- Change Z=1 to Y=1
-        position = vector(raw.position[1], raw.position[3], -raw.position[2])
+        position = raw.position and vector(raw.position[1], raw.position[3], -raw.position[2]) or false
     }
 
     local sections = fam.split(title, "%/")
@@ -70,41 +79,77 @@ end
 
 --------------------------------------------------------------
 
-local SPR_PLAYER_LEFT_RIGHT = {0, 0, 32, 32}
+local PLAYER_ANIMS = {
+    {
+        {   0,   0, 112, 112, off = 0 },
+        { 112,   0, 112, 112, off = 1 },
+        {   0,   0, 112, 112, off = 0 },
+        { 224,   0, 112, 112, off = 1 },
+    },
+
+    {
+        {   0, 112, 112, 112, off = 0 },
+        { 112, 112, 112, 112, off = 1 },
+        {   0, 112, 112, 112, off = 0 },
+        { 224, 112, 112, 112, off = 1 },
+    },
+
+    {
+        {   0, 224, 112, 112, off = 0 },
+        { 112, 224, 112, 112, off = 1 },
+    }
+}
 
 local controllers = {
     ["player"] = function (entity, dt, state)
         state.player = entity
         local dir = -input:get_direction()
 
-        entity.flip_x = entity.flip_x or 1
         entity.velocity = vector(0, 0, 0)
 
-        if not entity.interacting_with then
-            entity.velocity = vector(dir.x, 0, dir.y) * 2.5
+        if (not entity.interacting_with) and require("ui").done then
+            entity.velocity = vector(dir.x, 0, dir.y) * 3.5
+        end
 
-            local dirs = dir:sign()
-            if dirs.x ~= 0 then
-                entity.flip_x = -dirs.x
-            end
+        if not require("ui").done then
+            entity.tint[4] = 0
+        else
+            entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*2)
         end
 
         local anim = 0
-        if entity.velocity:magnitude() > 0 then
+        local mag = entity.velocity:magnitude()
+        if mag > 0 then
             anim = 1
 
             local a = math.abs(math.sin(lt.getTime() * 15))
             if a > 0.8 or a < 0.2 then
-                assets.step_sound:setVolume(lm.random(20, 70)/100)
-                assets.step_sound:play()
+                assets.sfx_step:setVolume(lm.random(20, 70)/100)
+                assets.sfx_step:play()
             end
+
+            if entity.animation == 0 then
+                entity.animation = 1
+            end
+            entity.animation = entity.animation + dt * mag * 1.4
+        else
+            entity.animation = 0
         end
 
-        entity.animation_power = fam.decay(entity.animation_power or 0, anim, 3, dt)
-        entity.rotation.z = math.sin(lt.getTime() * 15) * 0.1 * entity.animation_power
-        entity.scale.y = 1 - (math.abs(math.sin(lt.getTime() * 15)) * entity.animation_power * 0.1)
-    
-        entity.sprite = SPR_PLAYER_LEFT_RIGHT
+        if math.abs(dir.x) > 0 then
+            --entity.scale.x = 1
+            entity.flip_x = -fam.sign(dir.x)
+            entity.animation_index = 3
+        elseif dir.y > 0 then
+            entity.animation_index = 2
+        elseif dir.y < 0 then
+            entity.animation_index = 1
+        end
+
+        local anim = PLAYER_ANIMS[entity.animation_index]
+        entity.sprite = anim[(math.floor(entity.animation)%#anim)+1]
+        entity.scale.y = 1
+        entity.offset.y = fam.lerp(entity.offset.y, -entity.sprite.off*0.14, dt*25)
     end,
 }
 
@@ -183,6 +228,7 @@ local function tick(entities, dt, state)
                     interaction = 1
 
                     if input.just_pressed("action") then
+                        assets.sfx_done:play()
                         player.interacting_with = entity
                         entity.routine = entity.interact
                         entity.interact_routine = #entity.scripts+1
@@ -229,10 +275,15 @@ local function tick(entities, dt, state)
 
             local invisible = entity.invisible
             if not invisible then
+                local pos = entity.position:copy()
+                if entity.offset then
+                    pos = pos - entity.offset
+                end
+                
                 local call = {
                     color = entity.tint,
                     model = mat4.from_transform(
-                        entity.position, entity.rotation or 0, entity.scale or 1),
+                        pos, entity.rotation or 0, entity.scale or 1),
                     mesh = entity.mesh
                 }
 
@@ -244,7 +295,7 @@ local function tick(entities, dt, state)
                     call.culling = "none"
                     call.translucent = true
 
-                    call.texture = entity.atlas or assets.atlas
+                    call.texture = entity.atlas or assets.tex_main
                     call.clip = {
                         entity.sprite[1] / call.texture:getWidth(),
                         entity.sprite[2] / call.texture:getHeight(),
@@ -252,7 +303,7 @@ local function tick(entities, dt, state)
                         entity.sprite[4] / call.texture:getHeight(),
                     }
                     
-                    call.mesh = assets.quad_model
+                    call.mesh = assets.mod_quad
                 end
             
                 if call.mesh then
@@ -271,22 +322,22 @@ local function tick(entities, dt, state)
                         model = mat4.from_transform(pos, 0, 3),
 
                         texture = function (call)
-                            lg.setFont(assets.font)
+                            lg.setFont(assets.fnt_main)
                             if call.title then
-                                local w = 64 - (assets.font:getWidth(call.title)/2)
-                                local h = 64 - (assets.font:getHeight()/2)
+                                local w = 64 - (assets.fnt_main:getWidth(call.title)/2)
+                                local h = 64 - (assets.fnt_main:getHeight()/2)
                                 lg.print(call.title, w, h)
                             end
                             --lg.rectangle("fill", 0, 0, 2000, 2000)
                         end,
 
-                        mesh = assets.quad_model
+                        mesh = assets.mod_quad
                     }
                 end
 
                 if entity.interaction_anim then
                     local e = entity.interaction_anim
-                    local pos = entity.position+vector(0, 0.1+(e*e), 0)
+                    local pos = entity.position+vector(0, 0.1+(e*e*0.8), 0)
                     local a = e
                     if a > 0.99 then
                         a = 1
@@ -296,14 +347,13 @@ local function tick(entities, dt, state)
                         color = {1, 1, 1, a*a},
                         model = mat4.from_transform(pos, math.sin(lt.getTime()*3)*0.2, 0.5),
                         translucent = true,
-                        texture = assets.atlas,
+                        texture = assets.tex_ui,
                         clip = {
-                            240 / assets.atlas:getWidth(),
-                             16 / assets.atlas:getHeight(),
-                             16 / assets.atlas:getWidth(),
-                             16 / assets.atlas:getHeight()
+                            0, 0,
+                            64 / assets.tex_ui:getWidth(),
+                            64 / assets.tex_ui:getHeight()
                         },
-                        mesh = assets.quad_model
+                        mesh = assets.mod_quad
                     }
                 end
             end

@@ -4,6 +4,10 @@
     },
     "Lua.workspace.library": [
         "${3rd}/love2d/library",
-        "${3rd}/lovr/library"
+        "${3rd}/lovr/library",
+        "/home/darl/.vscode/extensions/sumneko.lua-3.6.20-linux-x64/server/meta/73bf0615"
+    ],
+    "Lua.diagnostics.globals": [
+        "log"
     ]
 }

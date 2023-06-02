@@ -1,0 +1,15 @@
+[water]
+shader: water
+
+[paper]
+translucent: yes
+
+[general]
+texture: general
+
+[unshaded]
+unshaded: yes
+
+[glass]
+#unshaded: yes
+shader: glass

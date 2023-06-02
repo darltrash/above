@@ -232,9 +232,9 @@ function iqm.load(file, save_data, preserve_cw)
 			if va.type == "position" then
 				local v = vertices[i][va.type]
 
-                local y = vertices[i][va.type][1]
-                vertices[i][va.type][1] = vertices[i][va.type][2]
-                vertices[i][va.type][2] = -y
+                local y = v[1]
+                v[1] = v[2]
+                v[2] = -y
 
 				for i = 1, 3 do
 					computed_bbox.min[i] = math.min(computed_bbox.min[i] or v[i-1], v[i-1])
@@ -244,9 +244,9 @@ function iqm.load(file, save_data, preserve_cw)
             if va.type == "normal" then
                 local v = vertices[i][va.type]
 
-                local y = vertices[i][va.type][1]
-                vertices[i][va.type][1] = vertices[i][va.type][2]
-                vertices[i][va.type][2] = -y
+                local y = v[1]
+                v[1] = v[2]
+                v[2] = -y
             end
 		end
 	end

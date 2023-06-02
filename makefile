@@ -47,7 +47,13 @@ appimage: love # REQUIRES RSYNC, WGET, GLIBC, ZIP, APPIMAGETOOL
 
 everything: love win32 win64 appimage
 
+clear:
+	rm -rf out/
+	rm -rf .temp
+
+LOVE ?= love
+
 run: # REQUIRES LÖVE AND LOVE :)
-	love .
+	$(LOVE) .
 
 .ONESHELL: 

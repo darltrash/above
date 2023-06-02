@@ -59,17 +59,22 @@ varying vec3 lc_position;
         return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
     }
 
-    // Crazy dither thing
-    uniform float dither_table[4*4];
-
     float dither4x4(vec2 position, float brightness) {
+        mat4 dither_table = mat4(
+            0.0625, 0.5625, 0.1875, 0.6875, 
+            0.8125, 0.3125, 0.9375, 0.4375, 
+            0.2500, 0.7500, 0.1250, 0.6250, 
+            1.0000, 0.5000, 0.8750, 0.3750
+        );
+
         ivec2 p = ivec2(mod(position, 4.0));
         
-        float limit = mix(0.0, dither_table[p.x + p.y * 4], step(float(p.x), 8.0));
+        float a = step(p.x, 3);
+        float limit = mix(0.0, dither_table[p.y][p.x], a);
 
         return step(limit, brightness);
     }
-
+    
     // Ported from Excessive's thingy :)
     vec3 calculate_view_position(vec2 uv, float z) {
         // don't allow 0.0/1.0, because the far plane can be infinite

@@ -5,23 +5,39 @@ local assets= require "assets"
 
 local dialog = {}
 dialog.text = ""
+dialog.speed = 1
 
-dialog.say = function(self, text)
+dialog.say = function(self, text, speed, silent)
     self.text = text
     self.length = 0
     self.busy = true
+    self.silent = silent
+    self.speed = speed or 1
     while self.busy do
         coroutine.yield()
     end
 end
 
 local a = 1
+local k = 0
+local ready
 dialog.update = function (self, dt)
-    self.length = math.min((self.length or 0) + dt * 18, #self.text)
+    self.length = self.length or 0
 
-    local ready = math.floor(self.length) == #self.text
-    if ready and input.just_pressed("action") then
+    local is_letter = self.text:sub(k, k):match("%a")
+    if k ~= math.floor(self.length) and is_letter then
+        assets.sfx_speech:stop()
+        assets.sfx_speech:play()
+    end
 
+    k = math.floor(self.length)
+    self.length = math.min(self.length + dt * 18 * self.speed, #self.text)
+
+    ready = math.floor(self.length) == #self.text
+    if ready and input.just_pressed("action") and self.busy then
+        if not self.silent then
+            assets.sfx_done:play()
+        end
         self.busy = false
     end
 
@@ -64,40 +80,36 @@ local function printw(text, x, y, w, c)
         end
 
         lg.print(char, tx, ty)
-        tx = tx + assets.font:getWidth(char)
+        tx = tx + assets.fnt_main:getWidth(char)
 
         if char == "\n" then
             tx = x
-            ty = ty + assets.font:getHeight()
+            ty = ty + assets.fnt_main:getHeight()
         end
     end
 
 end
 
 dialog.draw = function(self)
-    lg.translate(0, (a * a) * (H / 2))
+    lg.push("all")
+        lg.translate(0, (a * a) * (H / 2))
 
-    local y = H * 0.7
-    local m = 4
-    local mm = 8
+        local y = H * 0.7
+        local m = 4
+        local mm = 4
+        
+        lg.setColor(fam.hex("#0d0025", (1.1-a) ^ 2))
+        lg.rectangle("fill", 1+m, y+m, (W-2)-(m*2), (H-y)-1-(m*2), 5)
 
-    lg.setColor(fam.hex"#dadada")
-    lg.rectangle("fill", 1+mm, y+1+mm, W-2-(mm*2),    (H-y)-1-2-(mm*2))
-    lg.rectangle("fill", 2+mm, y+mm,  (W-2)-2-(mm*2), (H-y)-1-(mm*2))
-    
-    local c = fam.hex"#0d0025"
-    lg.setColor(c)
-    lg.rectangle("fill", 1+m+mm, y+m+mm, (W-2)-(m*2)-(mm*2), (H-y)-1-(m*2)-(mm*2))
+        local tx = 8+m+mm
+        local ty = y+m+mm+5
 
-    c[4] = 1 / 3
-    lg.setColor(c)
-    lg.rectangle("fill", 1+m+mm, y+m+mm, (W-2)-(mm*2)-m, (H-y)-1-(mm*2)-m)
-
-    local tx = 8+m+mm
-    local ty = y+m+mm+5
-
-    lg.setColor(fam.hex"#dadada")
-    printw(sub(self.text, 1, self.length), tx, ty, W-5)
+        lg.setColor(fam.hex("#dadada", (1.1-a) ^ 2))
+        if ready and (math.floor((lt.getTime() * 2)%2)==0) then
+            lg.circle("fill", W-m-mm-10, y+((H-y)-1-2-(mm*3))-2, 4, 3) -- i'm using a circle as a triangle
+        end
+        printw(sub(self.text, 1, self.length), tx, ty, W-5)
+    lg.pop()
 end
 
 return dialog

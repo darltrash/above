@@ -8,6 +8,9 @@ local json = require "lib.json"
 local log = require "lib.log"
 
 local bump = require "lib.bump"
+local fysx = require "fysx"
+
+local world = fysx.new()
 
 local noop = function()
 end
@@ -55,6 +58,7 @@ _G.lg = love.graphics
 _G.lm = love.math
 _G.la = love.audio
 _G.lt = love.timer
+_G.lf = love.filesystem
 
 la.setVolume(tonumber(settings.volume) or 1)
 
@@ -62,9 +66,12 @@ local assets = require "assets"
 local ui = require "ui"
 local entities = require "entity"
 local renderer = require "renderer"
+local permanence = require "permanence"
+--local _settings = require "settings"
 
 local state = {
 	entities = { hash = {} },
+	new_entities = {},
 
 	settings = settings,
 
@@ -90,6 +97,10 @@ local state = {
 
 local camera_rotation = vector(0, 0, 0)
 
+local sphere = vector(1, 4, 0)
+local sphere_vel = vector(0, 0, 0)
+local gravity = 0
+
 local map_name = ""
 local function load_map(what)
 	map_name = what
@@ -100,7 +111,7 @@ local function load_map(what)
 
 	state.colliders = bump.newWorld()
 
-	local map = exm.load(("assets/%s.exm"):format(what))
+	local map = exm.load(("assets/mod/%s.exm"):format(what), true)
 	state.map = map
 	local meta = json.decode(map.metadata)
 
@@ -130,15 +141,26 @@ local function load_map(what)
 		entities.init(state.entities, entity, state)
 	end
 
-	for index, collider in ipairs(meta.trigger_areas) do
-		local position = vector.from_array(collider.position)
-		local scale = vector.from_array(collider.size)
+	local function transform(a)
+		return { a[1], a[3], -a[2] }
+	end
 
-		state.colliders:add(
-			collider,
-			position.x, position.z, -position.y,
-			scale.x, scale.z, scale.y
-		)
+	for index, collider in ipairs(meta.trigger_areas) do
+		if collider.name:match("camera_box") then
+			state.camera_box = {
+				position = vector.from_array(transform(collider.position)),
+				size = vector.from_array(transform(collider.size))
+			}
+		end
+
+--		local position = vector.from_array(collider.position)
+--		local scale = vector.from_array(collider.size)
+--
+--		state.colliders:add(
+--			collider,
+--			position.x, position.z, -position.y,
+--			scale.x, scale.z, scale.y
+--		)
 	end
 
 	local data = ("assets/%s.png"):format(what)
@@ -147,13 +169,25 @@ local function load_map(what)
 		state.map.mesh:setTexture(state.map.texture)
 	end
 
+	local triangles = {}
+	for _, triangle in ipairs(map.triangles) do
+		table.insert(triangles, {
+			transform(triangle[1].position),
+			transform(triangle[2].position),
+			transform(triangle[3].position)
+		})
+	end
+	world:add_triangles(triangles, "level")
+
 	log.info(
 		"Loaded map '%s',\n>\tLIGHTS: %i, ENTITIES: %i, COLLS: %i",
 		what, #state.map_lights, #state.entities, #meta.trigger_areas
 	)
 end
 
-load_map(settings.level or "mod_forest")
+permanence.load(1)
+
+load_map(settings.level or "forest")
 
 local avg_values = {}
 
@@ -166,7 +200,7 @@ function love.resize(w, h)
 
 	effect.resize(w, h)
 	effect.scanlines.frequency = h / state.scale
-	effect.chromasep.radius = state.scale
+	effect.chromasep.radius = state.scale / 2
 end
 
 function love.keypressed(k)
@@ -195,8 +229,22 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = (renderer.uniforms.time or 0) + dt
 
-	renderer.uniforms.view = mat4.look_at(
-		vector(0, 2, -6) + state.target, state.target+vector(0, 0.5, 0), { y = 1 })
+	local eye
+	do
+		eye = vector(0, 2, -6) + state.target
+
+		if state.camera_box then
+			local p = state.camera_box.position
+			local s = state.camera_box.size:round() - 2 -- margin
+
+			eye.x = fam.clamp(eye.x, p.x - s.x, p.x + s.x)
+			eye.z = fam.clamp(eye.z, p.z + s.z, p.z - s.z)
+		end
+	end
+
+	state.eye = eye --vector.lerp(state.eye or eye, eye, dt * 4)
+
+	renderer.uniforms.view = mat4.look_at(state.eye, state.target+vector(0, 0.5, 0), { y = 1 })
 
 	if settings.fps_camera then
 		renderer.uniforms.view = mat4.look_at(state.target, state.target+camera_rotation, { y = 1 })
@@ -238,20 +286,57 @@ function love.update(dt)
 		for _, buffer in ipairs(state.map.meshes) do
 			renderer.render {
 				mesh = state.map.mesh,
-				unshaded = buffer.material:match("unshaded"),
 				range = { buffer.first, buffer.last - buffer.first },
-				texture = buffer.material:match("general")
-					and assets.general or state.map.texture
+				material = buffer.material,
 			}
 		end
 
 		renderer.render {
-			mesh = assets.water_mesh,
-			color = fam.hex("#823be5"),
+			mesh = assets.mod_water,
+			color = fam.hex("#a46cff"),
 			model = mat4.from_transform(pos, 0, 60),
 			order = math.huge,
-			shader = assets.shader_water,
+			material = "water"
 		}
+
+		if input.just_pressed("action") then
+			sphere = state.entities.hash.player.position + vector(0, 4, 0)
+			sphere_vel = vector(0, 0, 0)
+
+		end
+
+		if settings.debug and state.camera_box then
+			renderer.render {
+				mesh = assets.mod_cube,
+				color = fam.hex("#823be5", 1/4),
+				model = mat4.from_transform(state.camera_box.position, 0, state.camera_box.size*2),
+			}
+		end
+
+		--gravity = gravity + dt
+
+		--[[
+		local velocity = sphere_vel + vector(0, -gravity, 0)
+		local next, penetration, normal = world:check(sphere, velocity * dt, 0.5)
+		sphere = next
+
+		if normal then
+			normal = vector.from_table(normal)
+			
+			if normal:dot(vector(0, 1, 0)) > 0.9 then
+				gravity = 0
+			end
+
+			sphere_vel = sphere_vel + normal * penetration * 5
+		end
+
+		renderer.render {
+			mesh = assets.sphere,
+			unshaded = true,
+			color = fam.hex("#ff0095"),
+			model = mat4.from_transform(sphere, lt.getTime(), 0.5)
+		}
+		]]
 	end
 
 	if settings.fps_camera and settings.debug then
@@ -267,18 +352,23 @@ function love.update(dt)
 		state:debug("TARGET: %s", state.target_true:round())
 		state:debug("EYE:    %s", state.eye:round())
 
-		for k, v in ipairs(state.colliders:getItems()) do
-			local x, y, z, w, h, d = state.colliders:getCube(v)
-			local scale = vector(w, h, d)
-			local position = vector(x, y, z) + (scale / 2)
+--		for k, v in ipairs(state.colliders:getItems()) do
+--			local x, y, z, w, h, d = state.colliders:getCube(v)
+--			local scale = vector(w, h, d)
+--			local position = vector(x, y, z) + (scale / 2)
+--
+--			renderer.render {
+--				mesh = assets.mod_cube,
+--				model = mat4.from_transform(position, 0, scale),
+--				color = { 1, 0, 1, 1 / 4 },
+--				unshaded = true
+--			}
+--		end
+	end
 
-			renderer.render {
-				mesh = assets.cube,
-				model = mat4.from_transform(position, 0, scale),
-				color = { 1, 0, 1, 1 / 4 },
-				unshaded = true
-			}
-		end
+	for index, entity in ipairs(state.new_entities) do
+		entities.init(state.entities, entity, state)
+		state.new_entities[index] = nil
 	end
 
 	state.entities = entities.tick(state.entities, dt, state)
@@ -312,14 +402,12 @@ function love.update(dt)
 	end
 end
 
-local resized
-
 function love.draw()
 	-- If the canvas hasnt been created yet
 	local w, h = lg.getDimensions()
-	if not resized then
+	if not state.resized then
 		love.resize(w, h) -- Create one!
-		resized = true
+		state.resized = true
 	end
 
 	lg.reset()
@@ -332,18 +420,19 @@ function love.draw()
 
 	local r = function()
 		lg.push("all")
-		assets.shader_post:send("color_a", fam.hex"#00093b")
-		assets.shader_post:send("color_b", fam.hex"#ff0080")
-		assets.shader_post:send("power",  0.2)
-		lg.setShader(assets.shader_post)
+		assets.shd_post:send("color_a", fam.hex"#00093b")
+		assets.shd_post:send("color_b", fam.hex"#ff0080")
+		assets.shd_post:send("power",  0.2)
+		lg.setShader(assets.shd_post)
 		lg.scale(state.scale)
 
 		local canvas = renderer.output()
+		canvas:setFilter("nearest")
 		lg.draw(canvas)
 
 		lg.setShader()
 		lg.setBlendMode("alpha")
-		lg.setFont(assets.font)
+		lg.setFont(assets.fnt_main)
 		for i, v in ipairs(state.debug_lines) do
 			lg.print(v, 4, 8 * (i - 1))
 
@@ -368,3 +457,6 @@ function love.draw()
 		effect(r)
 	end
 end
+
+-- i love you,
+--             

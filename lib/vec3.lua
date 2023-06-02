@@ -85,8 +85,12 @@ vector.unpack = function (self)
     return self.x, self.y, self.z
 end
 
+vector.magnitude_squared = function (self)
+    return self.x^2 + self.y^2 + self.z^2
+end
+
 vector.magnitude = function (self)
-    return math.sqrt(self.x^2 + self.y^2 + self.z^2)
+    return math.sqrt(self:magnitude_squared())
 end
 
 vector.normalize = function (self)
@@ -102,7 +106,7 @@ vector.dist = function (a, b)
 end
 
 vector.dot = function (a, b)
-    return  a.x * b.x + a.y * b.y + a.z * b.z
+    return a.x * b.x + a.y * b.y + a.z * b.z
 end
 
 vector.sign = function (a)
@@ -114,7 +118,7 @@ vector.sign = function (a)
 end
 
 local clamp = function (x, min, max)
-    return x < min and min or (x > max and max or x)
+    return math.min(math.max(min, x), max)
 end
 local lerp = function (a, b, t)
     return a * (1-t) + b * t
@@ -156,18 +160,18 @@ vector.lerp = function (a, b, t)
         )
 end
 
-vector.decay = function (a, b, r, d)
+vector.decay = function (a, b, rate, delay)
     return is_vector(b) and
         vector.new(
-            decay(a.x, b.x, r, d),
-            decay(a.y, b.y, r, d),
-            decay(a.z, b.z, r, d)
+            decay(a.x, b.x, rate, delay),
+            decay(a.y, b.y, rate, delay),
+            decay(a.z, b.z, rate, delay)
         )
         or
         vector.new(
-            decay(a.x, b, r, d),
-            decay(a.y, b, r, d),
-            decay(a.z, b, r, d)
+            decay(a.x, b, rate, delay),
+            decay(a.y, b, rate, delay),
+            decay(a.z, b, rate, delay)
         )
 end
 
@@ -196,31 +200,37 @@ vector.__add = function (a, b)
     return is_vector(b) and vector.new(a.x+b.x, a.y+b.y, a.z+b.z)
                         or vector.new(a.x+b,   a.y+b  , a.z+b)
 end
+vector.add = vector.__add
 
 vector.__sub = function (a, b)
     return is_vector(b) and vector.new(a.x-b.x, a.y-b.y, a.z-b.z)
                         or vector.new(a.x-b,   a.y-b  , a.z-b)
 end
+vector.sub = vector.__sub
 
 vector.__mul = function (a, b)
     return is_vector(b) and vector.new(a.x*b.x, a.y*b.y, a.z*b.z)
                         or vector.new(a.x*b,   a.y*b  , a.z*b)
 end
+vector.mul = vector.__mul
 
 vector.__div = function (a, b)
     return is_vector(b) and vector.new(a.x/b.x, a.y/b.y, a.z/b.z)
                         or vector.new(a.x/b,   a.y/b  , a.z/b)
 end
+vector.div = vector.__div
 
 vector.__mod = function (a, b)
     return is_vector(b) and vector.new(a.x%b.x, a.y%b.y, a.z%b.z)
                         or vector.new(a.x%b,   a.y%b  , a.z%b)
 end
+vector.modulo = vector.__mod
 
 vector.__pow = function (a, b)
     return is_vector(b) and vector.new(a.x^b.x, a.y^b.y, a.z^b.z)
                         or vector.new(a.x^b,   a.y^b  , a.z^b)
 end
+vector.pow = vector.__pow
 
 vector.__unm = function (a)
     a.x = -a.x

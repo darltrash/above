@@ -57,6 +57,12 @@ local modes = {
                     
                 end
             end
+            
+            if done then
+                self.times.any = (self.times.any or 0) +1
+            else
+                self.times.any = 0
+            end
 
             return done
         end,
@@ -72,11 +78,9 @@ local modes = {
 
     joysticks = {
         name = "joystick",
-
+        times = {},
         map = {
-            movement_x = {"axis", 1},
-            movement_y = {"axis", 2},
-            camera_x = {"axis", 3},
+            action = {1},
         },
 
         get_direction = function (self)
@@ -92,15 +96,29 @@ local modes = {
         end,
 
         update = function (self)
+            local joysticks = lj.getJoysticks()
+
+            if #joysticks > 0 then
+                for k, v in pairs(self.map) do
+                    if joysticks[1]:isDown(unpack(v)) then
+                        self.times[k] = (self.times[k] or 0) +1
+                    
+                    else
+                        self.times[k] = 0
+                        
+                    end
+                end
+            end
+
             return self:get_direction():magnitude() > 0
         end,
 
-        just_pressed = function ()
-            local joysticks = lj.getJoysticks()
+        just_pressed = function (self, what)
+            return self.times[what] == 1
         end,
 
-        holding = function ()
-            
+        holding = function (self, what)
+            return self.times[what] > 0
         end
     }
 }

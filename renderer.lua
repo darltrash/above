@@ -2,6 +2,8 @@ local assets = require "assets"
 local fam = require "fam"
 local mat4 = require "lib.mat4"
 local vector = require "lib.vec3"
+local mimi = require "lib.mimi"
+local log = require "lib.log"
 
 local render_list = {}
 local grab_list = {}
@@ -46,7 +48,31 @@ local uniforms = {
 	}
 }
 
+local materials = assert(mimi.load("assets/materials.mi"))
+local textures = {}
+local shaders = {}
+log.info("Loaded materials")
+
+for name, material in pairs(materials) do
+	if material.shader then
+		material.shader = assets["shd_"..material.shader]
+	end
+
+	if material.texture then
+		material.texture = assets["tex_"..material.texture]
+	end
+end
+
 local function render(call)
+	if call.material then
+		for _, name in ipairs(fam.split(call.material, ".")) do
+			local mat = materials[name]
+			if mat then
+				fam.copy_into(mat, call)
+			end
+		end
+	end
+
 	if not call.order then
 		call.order = 0
 
@@ -155,11 +181,14 @@ local function resize(w, h, scale)
 		readable = true,
 		filter = "linear"
 	}
+
+	uniforms.resolution = {w/scale, h/scale}
 end
 
 local function switch_canvas()
     lg.push("all")
         uniforms.back_color  = canvas_color
+		uniforms.back_color:setFilter("linear", "linear")
         uniforms.back_depth  = canvas_depth
         uniforms.back_normal = canvas_normal
 
@@ -178,9 +207,9 @@ local function switch_canvas()
         lg.clear(true, true, true)
         lg.setColor(COLOR_WHITE)
 
-        lg.setShader(assets.shader_copy)
-        assets.shader_copy:send("color", uniforms.back_color)
-        assets.shader_copy:send("normal", uniforms.back_normal)
+        lg.setShader(assets.shd_copy)
+        assets.shd_copy:send("color", uniforms.back_color)
+        assets.shd_copy:send("normal", uniforms.back_normal)
         lg.setDepthMode("always", true)
         lg.draw(uniforms.back_depth)
     lg.pop()
@@ -218,9 +247,11 @@ local function render_scene(w, h)
 		lg.setColor(fam.hex "#7e75ff")
 		lg.rectangle("fill", 0, 0, w, h)
 
-		lg.setShader(assets.shader)
+		lg.setShader(assets.shd_basic)
 
 		local vertices = 0
+
+		--assets.shader:send("dither_table", unpack(uniforms.dither_table))
 
 		local function render(call)
 			local color = call.color or COLOR_WHITE
@@ -260,7 +291,7 @@ local function render_scene(w, h)
 				v = call.range[2]
 			end
 
-			local shader = assets.shader
+			local shader = assets.shd_basic
 			if call.shader then
 				shader = call.shader
 				switch_canvas()
