@@ -86,22 +86,6 @@ varying vec3 lc_position;
         return position_vs.xyz / position_vs.w;
     }
 
-    uniform vec3 harmonics[9];
-
-    vec3 sh(vec3 sph[9], vec3 n) {
-        vec3 result = sph[0].rgb
-            + sph[1].rgb * n.x
-            + sph[2].rgb * n.y
-            + sph[3].rgb * n.z
-            + sph[4].rgb * n.x * n.z
-            + sph[5].rgb * n.z * n.y
-            + sph[6].rgb * n.y * n.x
-            + sph[7].rgb * (3.0 * n.z * n.z - 1.0)
-            + sph[8].rgb * n.x * n.x - n.y * n.y
-        ;
-        return max(result, vec3(0.0));
-    }
-
     float luma(vec3 color) {
         return dot(color, vec3(0.299, 0.587, 0.114));
     }
@@ -111,9 +95,26 @@ varying vec3 lc_position;
 
         float s_depth = Texel(back_depth, coords.xy).r;
         vec3 position = calculate_view_position(coords.xy, s_depth);
-        vec4 texture = Texel(back_color, coords.xy);
+        
+        float pi  = 3.1415926535898;
+        float pi2 = 6.2831853071796;
+    
+        float directions = 16.0; // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
+        float quality = 3.0; // BLUR QUALITY (Default 4.0 - More is better but slower)
+        float size = 8.0; 
+    
+        vec2 radius = size/resolution;
+        vec4 color = texture(back_color, coords.xy);
+        
+        for( float d=0.0; d<pi2; d+=pi2/directions) {
+            for(float i=1.0/quality; i<=1.0; i+=1.0/quality) {
+                color += texture(back_color, coords.xy+vec2(cos(d),sin(d))*radius*i);		
+            }
+        }
+        
+        color /= (quality + 1.0) * directions - 15.0;
 
-        love_Canvases[0] = texture;
+        love_Canvases[0] = color*0.8;
         love_Canvases[1] = vec4(vw_normal * 0.5 + 0.5, 1.0);
     }
 #endif

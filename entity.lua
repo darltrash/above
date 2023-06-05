@@ -23,7 +23,7 @@ local initializers = {
 
         entity.animation = 0
         entity.flip_x = 1
-        entity.atlas = assets.tex_deer_person
+        entity.atlas = assets.tex_hirsch
         entity.collider = {
             x=-0.2, y=0, z=0,
             w=0.4, h=0.8, d=0.1
@@ -79,24 +79,24 @@ end
 
 --------------------------------------------------------------
 
-local PLAYER_ANIMS = {
+local PLAYER_ANIMS = { -- 🚶+🦌
     {
-        {   0,   0, 112, 112, off = 0 },
-        { 112,   0, 112, 112, off = 1 },
-        {   0,   0, 112, 112, off = 0 },
-        { 224,   0, 112, 112, off = 1 },
+        {   0,   0, 56, 56, off = 0 },
+        {  56,   0, 56, 56, off = 1 },
+        {   0,   0, 56, 56, off = 0 },
+        { 112,   0, 56, 56, off = 1 },
     },
 
     {
-        {   0, 112, 112, 112, off = 0 },
-        { 112, 112, 112, 112, off = 1 },
-        {   0, 112, 112, 112, off = 0 },
-        { 224, 112, 112, 112, off = 1 },
+        {   0, 56, 56, 56, off = 0 },
+        {  56, 56, 56, 56, off = 1 },
+        {   0, 56, 56, 56, off = 0 },
+        { 112, 56, 56, 56, off = 1 },
     },
 
     {
-        {   0, 224, 112, 112, off = 0 },
-        { 112, 224, 112, 112, off = 1 },
+        {   0, 112, 56, 56, off = 0 },
+        { 112, 112, 56, 56, off = 1 },
     }
 }
 
@@ -117,13 +117,9 @@ local controllers = {
             entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*2)
         end
 
-        local anim = 0
         local mag = entity.velocity:magnitude()
         if mag > 0 then
-            anim = 1
-
-            local a = math.abs(math.sin(lt.getTime() * 15))
-            if a > 0.8 or a < 0.2 then
+            if math.floor(entity.animation % 2) == 0 then
                 assets.sfx_step:setVolume(lm.random(20, 70)/100)
                 assets.sfx_step:play()
             end

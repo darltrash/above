@@ -101,9 +101,8 @@ local sphere = vector(1, 4, 0)
 local sphere_vel = vector(0, 0, 0)
 local gravity = 0
 
-local map_name = ""
-local function load_map(what)
-	map_name = what
+function state.load_map(what)
+	state.map_name = what
 	if state.map_mesh then
 		state.map_mesh:release()
 		state.map_texture:release()
@@ -163,10 +162,11 @@ local function load_map(what)
 --		)
 	end
 
-	local data = ("assets/%s.png"):format(what)
+	local data = ("assets/tex/%s.png"):format(what)
 	if love.filesystem.getInfo(data) then
 		state.map.texture = lg.newImage(data)
 		state.map.mesh:setTexture(state.map.texture)
+		state.map.texture:setFilter("nearest", "nearest")
 	end
 
 	local triangles = {}
@@ -185,11 +185,26 @@ local function load_map(what)
 	)
 end
 
+local lovebird
+if settings.debug then
+	lovebird = require("lib.lovebird")
+	lovebird.whitelist = nil
+	lovebird.port = 1337
+
+	_G.STATE = state
+
+	log.info("Running on 0.0.0.0:%i", lovebird.port)
+end
+
 permanence.load(1)
 
-load_map(settings.level or "forest")
+state.load_map(settings.level or "forest")
 
 local avg_values = {}
+
+function love.load()
+	love.thread.newThread("require 'thread'\n"):start()
+end
 
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
@@ -271,9 +286,6 @@ function love.update(dt)
 	state.eye = vector.from_table(renderer.uniforms.view:multiply_vec4 { 0, 0, 0, 1 })
 
 	if settings.debug then -- SUPER COOL FEATURE!
-		local lovebird = require("lib.lovebird")
-		lovebird.whitelist = nil
-		lovebird.port = 1337
 		lovebird.update()
 	end
 
@@ -288,6 +300,7 @@ function love.update(dt)
 				mesh = state.map.mesh,
 				range = { buffer.first, buffer.last - buffer.first },
 				material = buffer.material,
+				texture = state.map_texture
 			}
 		end
 
@@ -400,6 +413,11 @@ function love.update(dt)
 			state.transition_callback()
 		end
 	end
+
+	local print_channel = love.thread.getChannel("print")
+	for x=1, print_channel:getCount() do
+		print(print_channel:pop())
+	end
 end
 
 function love.draw()
@@ -420,34 +438,36 @@ function love.draw()
 
 	local r = function()
 		lg.push("all")
-		assets.shd_post:send("color_a", fam.hex"#00093b")
-		assets.shd_post:send("color_b", fam.hex"#ff0080")
-		assets.shd_post:send("power",  0.2)
-		lg.setShader(assets.shd_post)
-		lg.scale(state.scale)
+			assets.shd_post:send("color_a", fam.hex"#00093b")
+			assets.shd_post:send("color_b", fam.hex"#ff0080")
+			assets.shd_post:send("power",  0.2)
 
-		local canvas = renderer.output()
-		canvas:setFilter("nearest")
-		lg.draw(canvas)
+			local color, normal, depth, light = renderer.output()
+			color:setFilter("nearest")
+			lg.setShader(assets.shd_post)
+			lg.scale(state.scale)
+			assets.shd_post:send("light", light)
+			assets.shd_post:send("resolution", {light:getDimensions()})
+			lg.draw(color)
 
-		lg.setShader()
-		lg.setBlendMode("alpha")
-		lg.setFont(assets.fnt_main)
-		for i, v in ipairs(state.debug_lines) do
-			lg.print(v, 4, 8 * (i - 1))
+			lg.setShader()
+			lg.setBlendMode("alpha")
+			lg.setFont(assets.fnt_main)
+			for i, v in ipairs(state.debug_lines) do
+				lg.print(v, 4, 8 * (i - 1))
 
-			state.debug_lines[i] = nil
-		end
+				state.debug_lines[i] = nil
+			end
 
-		ui:draw(w/state.scale, h/state.scale)
+			ui:draw(w/state.scale, h/state.scale)
 
-		lg.scale(2)
-		lg.setColor(0, 0, 0, state.escape * state.escape)
-		lg.rectangle("line", (w / (state.scale * 2)) - 73, 2, w, 12)
-		lg.setColor(0, 0, 0, 1)
-		lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
-		lg.setColor(1, 1, 1, state.escape * state.escape)
-		lg.print("QUITTER...", (w / (state.scale * 2)) - 70)
+			lg.scale(2)
+			lg.setColor(0, 0, 0, state.escape * state.escape)
+			lg.rectangle("line", (w / (state.scale * 2)) - 73, 2, w, 12)
+			lg.setColor(0, 0, 0, 1)
+			lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
+			lg.setColor(1, 1, 1, state.escape * state.escape)
+			lg.print("QUITTER...", (w / (state.scale * 2)) - 70)
 		lg.pop()
 	end
 

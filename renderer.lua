@@ -14,6 +14,7 @@ local canvas_flat
 local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
 local canvas_color,   canvas_normal,    canvas_depth   -- Current canvas
+local canvas_light_pass
 
 local canvas_switch
 
@@ -88,6 +89,8 @@ local function render(call)
 	end
 
 	table.insert(render_list, call)
+
+	return call
 end
 
 local function light(light)
@@ -126,8 +129,6 @@ local function resize(w, h, scale)
 		canvas_depth_b:release()
 	end
 
-	canvas_flat = lg.newCanvas(128, 128)
-
 	local function canvas(t)
 		local f = t.filter
 		t.filter = nil
@@ -141,6 +142,9 @@ local function resize(w, h, scale)
 
 		return c
 	end
+
+	canvas_flat = lg.newCanvas(128, 128)
+	canvas_flat:setFilter("nearest", "nearest")
 
 	-- ////////////// A CANVAS /////////////
 
@@ -179,6 +183,13 @@ local function resize(w, h, scale)
 		format = "depth24",
 		mipmaps = "manual",
 		readable = true,
+		filter = "linear"
+	}
+
+	-- ////////////// LIGHT PASS ///////////
+	canvas_light_pass  = canvas {
+		format = "rg11b10f",
+		mipmaps = "auto",
 		filter = "linear"
 	}
 
@@ -377,10 +388,17 @@ local function draw(w, h, state)
 	end
 
     render_scene(w, h)
+
+	lg.push("all")
+		lg.setCanvas(canvas_light_pass)
+		lg.setShader(assets.shd_light)
+		lg.clear(0, 0, 0, 0)
+		lg.draw(canvas_color)
+	lg.pop()
 end
 
 local function output()
-    return canvas_color, canvas_normal, canvas_depth
+    return canvas_color, canvas_normal, canvas_depth, canvas_light_pass
 end
 
 return {
