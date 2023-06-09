@@ -47,7 +47,7 @@
         float l = luma(c);
         c = mix(c, mix(color_a.rgb, color_b.rgb, l), power);
 
-        vec4 glow = light_pass(uv, 16.0, 3.0, 3.0) * 0.8;
+        vec4 glow = light_pass(uv, 16.0, 3.0, 8.0) * 0.8;
         glow = sqr(glow);
 
         return gammaCorrectColor (

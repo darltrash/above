@@ -10,6 +10,7 @@ love: # REQUIRES RSYNC, ZIP
 	rm -rf .temp/*
 	rsync -r --exclude-from=love_ignore * .temp
 	mv .temp/assets/*.txt .temp
+	echo HELLO I AM A NORMAL FILE > .temp/THIS_IS_A_RELEASE_BUILD
 	rm out/above.love
 	cd .temp/ && zip -r -9 ../out/above.love * 
 	@echo -e ${GREEN}///// BUILT LÖVE${NC}
@@ -46,6 +47,19 @@ appimage: love # REQUIRES RSYNC, WGET, GLIBC, ZIP, APPIMAGETOOL
 	@echo -e ${GREEN}///// BUILT 64 BIT APPIMAGE${NC}
 
 everything: love win32 win64 appimage
+
+itch: everything
+	rm -tf .temp/*
+	mkdir .temp/win32
+	unzip out/above.win32.zip -d .temp/win32
+	butler push .temp/win32 darltrash/above:win32
+
+	mkdir .temp/win64
+	unzip out/above.win64.zip -d .temp/win64
+	butler push .temp/win64 darltrash/above:win64
+
+	butler push out/above.appimage darltrash/above:linux64
+	butler push out/above.love darltrash/above:universal
 
 clear:
 	rm -rf out/

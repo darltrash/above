@@ -85,12 +85,12 @@ vector.unpack = function (self)
     return self.x, self.y, self.z
 end
 
-vector.magnitude_squared = function (self)
-    return self.x^2 + self.y^2 + self.z^2
+vector.magnitude2 = function (self)
+    return self.x*self.x + self.y*self.y + self.z*self.z
 end
 
 vector.magnitude = function (self)
-    return math.sqrt(self:magnitude_squared())
+    return math.sqrt(self:magnitude2())
 end
 
 vector.normalize = function (self)
@@ -107,6 +107,18 @@ end
 
 vector.dot = function (a, b)
     return a.x * b.x + a.y * b.y + a.z * b.z
+end
+
+vector.reflect = function (a, b)
+    return a - (b * vector.dot(a, b) * 2)
+end
+
+vector.cross = function (a, b)
+    return vector.new(
+		a.y * b.z - a.z * b.y,
+		a.z * b.x - a.x * b.z,
+		a.x * b.y - a.y * b.x
+	)
 end
 
 vector.sign = function (a)

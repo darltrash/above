@@ -4,6 +4,7 @@ local mat4 = require "lib.mat4"
 local vector = require "lib.vec3"
 local mimi = require "lib.mimi"
 local log = require "lib.log"
+local frustum = require "frustum"
 
 local render_list = {}
 local grab_list = {}
@@ -226,6 +227,7 @@ local function switch_canvas()
     lg.pop()
 end
 
+local max_calls = 15
 local function render_scene(w, h)
 	canvas_switch = false
 	canvas_color  = canvas_color_a
@@ -234,6 +236,35 @@ local function render_scene(w, h)
 
 	uniforms.projection = mat4.from_perspective(-45, -w/h, 0.01, 1000)
 	uniforms.inverse_proj = uniforms.projection:inverse()
+
+	local view_frustum = frustum.from_mat4(uniforms.projection * uniforms.view)
+
+	local lights = 0
+    do -- Lighting code
+		uniforms.ambient = fam.hex "#2c2683"
+		uniforms.light_positions = { unpack = true }
+		uniforms.light_colors = { unpack = true }
+
+		for index, light in ipairs(light_list) do
+			local pos = light.position:to_array()
+			pos.w = 1
+			
+			if view_frustum:vs_sphere(light.position, math.sqrt(light.color[4])) then
+				table.insert(uniforms.light_positions, pos)
+				table.insert(uniforms.light_colors, light.color)
+				lights = lights + 1
+			end
+
+            light_list[index] = nil
+		end
+
+		uniforms.light_amount = lights
+
+		if uniforms.light_amount == 0 then
+			uniforms.light_positions = nil
+			uniforms.light_colors = nil
+		end
+	end
 
 	-- Push the state, so now any changes will only happen locally
 	lg.push("all")	
@@ -265,6 +296,10 @@ local function render_scene(w, h)
 		--assets.shader:send("dither_table", unpack(uniforms.dither_table))
 
 		local function render(call)
+			if call.ignore then
+				return false
+			end
+
 			local color = call.color or COLOR_WHITE
 
 			local light_amount = uniforms.light_amount
@@ -325,79 +360,68 @@ local function render_scene(w, h)
 			uniforms.ambient = ambient
 
 			vertices = vertices + v
+
+			return true
 		end
 
 		local time = love.timer.getTime()
 
         ----------------------------------------------
 
+		local calls = 0
 		table.sort(render_list, function(a, b)
 			return a.order > b.order
 		end)
 
 		for index, call in ipairs(render_list) do
-			render(call)
+			if render(call) then
+				calls = calls + 1
+			end
 
             render_list[index] = nil
 		end
 
         ----------------------------------------------
 
+		local grab_calls = 0
 		table.sort(grab_list, function(a, b)
 			return a.order < b.order
 		end)
 
 		for index, call in ipairs(grab_list) do
-			render(call)
-
+			if render(call) then
+				grab_calls = grab_calls + 1
+			end
             grab_list[index] = nil
 		end
 	lg.pop()
 
-    return vertices
+    return vertices, calls, grab_calls, lights
 end
 
 local function draw(w, h, state)
-    if state.settings.debug then
+    local vertices, calls, grabs, lights = render_scene(w, h)
+
+	if state.settings.debug then
         state:debug("")
         state:debug("--- RENDERER -----")
-        state:debug("CALLS:  %i", #render_list)
-        state:debug("GRABS:  %i", #grab_list)
-        state:debug("LIGHTS: %i/%i", #light_list, 16)
+        state:debug("VERTS:  %i", vertices)
+        state:debug("CALLS:  %i", calls)
+        state:debug("GRABS:  %i", grabs)
+        state:debug("LIGHTS: %i/16", lights)
     end
-
-    do -- Lighting code
-		uniforms.ambient = fam.hex "#2c2683"
-		uniforms.light_positions = { unpack = true }
-		uniforms.light_colors = { unpack = true }
-		uniforms.light_amount = #light_list
-
-		for index, light in ipairs(light_list) do
-			local pos = light.position:to_array()
-			pos.w = 1
-			table.insert(uniforms.light_positions, pos)
-			table.insert(uniforms.light_colors, light.color)
-
-            light_list[index] = nil
-		end
-
-		if uniforms.light_amount == 0 then
-			uniforms.light_positions = nil
-			uniforms.light_colors = nil
-		end
-	end
-
-    render_scene(w, h)
 
 	lg.push("all")
 		lg.setCanvas(canvas_light_pass)
 		lg.setShader(assets.shd_light)
 		lg.clear(0, 0, 0, 0)
+		canvas_color:setFilter("linear", "linear")
 		lg.draw(canvas_color)
 	lg.pop()
 end
 
 local function output()
+	canvas_color:setFilter("nearest", "nearest")
     return canvas_color, canvas_normal, canvas_depth, canvas_light_pass
 end
 

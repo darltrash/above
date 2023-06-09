@@ -93,9 +93,35 @@ varying vec4 vx_color;
         return max(result, vec3(0.0));
     }
 
+    #define PI 3.1415926535898
+
+    float DistributionGGX(vec3 N, vec3 H, float a) {
+        float a2     = a*a;
+        float NdotH  = max(dot(N, H), 0.0);
+        float NdotH2 = NdotH*NdotH;
+        
+        float nom    = a2;
+        float denom  = (NdotH2 * (a2 - 1.0) + 1.0);
+        denom        = PI * denom * denom;
+        
+        return nom / denom;
+    }
+
+    vec3 fresnel_schlick(float t, vec3 F0) {
+        return F0 + (1.0 - F0) * pow(1.0 - t, 5.0);
+    }
+
+    float schlick_ior_fresnel(float ior, float ldh) {
+        float f0 = (ior - 1.0) / (ior + 1.0);
+        f0 *= f0;
+        float x = clamp(1.0 - ldh, 0.0, 1.0);
+        float x2 = x * x;
+        return (1.0 - f0) * (x2 * x2 * x) + f0;
+    }
+
     // Actual math
     void effect() {
-        // Lighting! (Diffuse + Rim)
+        // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
         vec4 lighting = ambient; //Texel(sky_texture, normal); // vec4(sh(harmonics, normal), 1.0)
 
@@ -104,11 +130,13 @@ varying vec4 vx_color;
             float intensity = sqrt(light_colors[i].a);
             vec4 color = vec4(normalize(light_colors[i].rgb) * intensity, intensity);
 
-            float dist = max(0.001, length(position - vw_position.xyz));
-            float power = sqr(linearstep(color.w, 0.0, dist));
+            float dist = max(0.0, length(position - vw_position.xyz));
+            float power = sqr(linearstep(color.a, 0.0, dist));
             
-            float shade = dot(normalize(vw_position.xyz - position), normal);
-            power *= mix(max(0.0, 1.0 - shade), 1, translucent);
+            vec3 direction = normalize(vw_position.xyz - position);
+
+            float shade = dot(normal, direction);
+            power *= mix(max(0.0, 1.0 - shade), 1.0, translucent);
 
             // Now we add our light's color to the light value
             lighting.rgb += normalize(color.rgb) * power;
@@ -119,7 +147,7 @@ varying vec4 vx_color;
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
-        vec4 o = Texel(MainTex, uv) * VaryingColor * lighting; // color
+        vec4 o = Texel(MainTex, uv) * VaryingColor * lighting;
         
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);

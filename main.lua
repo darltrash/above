@@ -7,10 +7,9 @@ local vector = require "lib.vec3"
 local json = require "lib.json"
 local log = require "lib.log"
 
-local bump = require "lib.bump"
-local fysx = require "fysx"
-
-local world = fysx.new()
+local slam = require "lib.slam"
+local lang = require "language"
+lang.by_locale()
 
 local noop = function()
 end
@@ -97,10 +96,6 @@ local state = {
 
 local camera_rotation = vector(0, 0, 0)
 
-local sphere = vector(1, 4, 0)
-local sphere_vel = vector(0, 0, 0)
-local gravity = 0
-
 function state.load_map(what)
 	state.map_name = what
 	if state.map_mesh then
@@ -108,15 +103,18 @@ function state.load_map(what)
 		state.map_texture:release()
 	end
 
-	state.colliders = bump.newWorld()
-
 	local map = exm.load(("assets/mod/%s.exm"):format(what), true)
 	state.map = map
 	local meta = json.decode(map.metadata)
 
+	local function transform(a)
+		return { a[1], a[3], -a[2] }
+	end
+
 	local meshes = {}
 	local last = {}
-	for index, mesh in ipairs(map.meshes) do -- Re-Batch stuff.
+	state.triangles = {}
+	for index, mesh in ipairs(map.meshes) do
 		if mesh.material == last.material
 			and mesh.first == last.last then
 			last.last = mesh.last
@@ -125,23 +123,41 @@ function state.load_map(what)
 			last = mesh
 		end
 	end
+	local origin = #map.meshes
 	map.meshes = meshes
+	log.info("Optimized level from %i meshes to %i", origin, #meshes)
+
+	for index, mesh in ipairs(map.meshes) do
+		if mesh.material:match("nocollide")==nil then
+			for i=mesh.first, math.min(#map.triangles, mesh.last) do
+				local triangle = map.triangles[i]
+
+				table.insert(state.triangles, {
+					transform(triangle[1].position),
+					transform(triangle[2].position),
+					transform(triangle[3].position)
+				})
+			end
+		end
+
+		if mesh.material:match("invisible") then
+			map.meshes[index] = map.meshes[#map.meshes]
+			map.meshes[#map.meshes] = nil
+		end
+	end
+	log.info("Added %i triangles to collision pool", #map.triangles)
 
 	state.map_lights = {}
 	for index, light in ipairs(meta.lights) do
 		table.insert(state.map_lights, {
 			position = vector(light.position[1], light.position[3], -light.position[2]),
-			color = { light.color[1], light.color[2], light.color[3], light.power }
+			color = { light.color[1], light.color[2], light.color[3], light.power*0.5 }
 		})
 	end
 
 	state.entities = { hash = {} }
 	for index, entity in ipairs(meta.objects) do
 		entities.init(state.entities, entity, state)
-	end
-
-	local function transform(a)
-		return { a[1], a[3], -a[2] }
 	end
 
 	for index, collider in ipairs(meta.trigger_areas) do
@@ -151,15 +167,6 @@ function state.load_map(what)
 				size = vector.from_array(transform(collider.size))
 			}
 		end
-
---		local position = vector.from_array(collider.position)
---		local scale = vector.from_array(collider.size)
---
---		state.colliders:add(
---			collider,
---			position.x, position.z, -position.y,
---			scale.x, scale.z, scale.y
---		)
 	end
 
 	local data = ("assets/tex/%s.png"):format(what)
@@ -168,16 +175,6 @@ function state.load_map(what)
 		state.map.mesh:setTexture(state.map.texture)
 		state.map.texture:setFilter("nearest", "nearest")
 	end
-
-	local triangles = {}
-	for _, triangle in ipairs(map.triangles) do
-		table.insert(triangles, {
-			transform(triangle[1].position),
-			transform(triangle[2].position),
-			transform(triangle[3].position)
-		})
-	end
-	world:add_triangles(triangles, "level")
 
 	log.info(
 		"Loaded map '%s',\n>\tLIGHTS: %i, ENTITIES: %i, COLLS: %i",
@@ -201,10 +198,6 @@ permanence.load(1)
 state.load_map(settings.level or "forest")
 
 local avg_values = {}
-
-function love.load()
-	love.thread.newThread("require 'thread'\n"):start()
-end
 
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
@@ -234,7 +227,12 @@ end
 function love.mousemoved(x, y, dx, dy)
 end
 
+local timestep = 1/30
+local lag = timestep
+
 function love.update(dt)
+	lag = lag + dt
+
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)
 	input:update()
 	ui:update(dt)
@@ -312,12 +310,6 @@ function love.update(dt)
 			material = "water"
 		}
 
-		if input.just_pressed("action") then
-			sphere = state.entities.hash.player.position + vector(0, 4, 0)
-			sphere_vel = vector(0, 0, 0)
-
-		end
-
 		if settings.debug and state.camera_box then
 			renderer.render {
 				mesh = assets.mod_cube,
@@ -325,31 +317,6 @@ function love.update(dt)
 				model = mat4.from_transform(state.camera_box.position, 0, state.camera_box.size*2),
 			}
 		end
-
-		--gravity = gravity + dt
-
-		--[[
-		local velocity = sphere_vel + vector(0, -gravity, 0)
-		local next, penetration, normal = world:check(sphere, velocity * dt, 0.5)
-		sphere = next
-
-		if normal then
-			normal = vector.from_table(normal)
-			
-			if normal:dot(vector(0, 1, 0)) > 0.9 then
-				gravity = 0
-			end
-
-			sphere_vel = sphere_vel + normal * penetration * 5
-		end
-
-		renderer.render {
-			mesh = assets.sphere,
-			unshaded = true,
-			color = fam.hex("#ff0095"),
-			model = mat4.from_transform(sphere, lt.getTime(), 0.5)
-		}
-		]]
 	end
 
 	if settings.fps_camera and settings.debug then
@@ -364,19 +331,6 @@ function love.update(dt)
 		state:debug("DELTA:  %ins", lt.getAverageDelta() * 1000000000)
 		state:debug("TARGET: %s", state.target_true:round())
 		state:debug("EYE:    %s", state.eye:round())
-
---		for k, v in ipairs(state.colliders:getItems()) do
---			local x, y, z, w, h, d = state.colliders:getCube(v)
---			local scale = vector(w, h, d)
---			local position = vector(x, y, z) + (scale / 2)
---
---			renderer.render {
---				mesh = assets.mod_cube,
---				model = mat4.from_transform(position, 0, scale),
---				color = { 1, 0, 1, 1 / 4 },
---				unshaded = true
---			}
---		end
 	end
 
 	for index, entity in ipairs(state.new_entities) do
@@ -385,6 +339,7 @@ function love.update(dt)
 	end
 
 	state.entities = entities.tick(state.entities, dt, state)
+	entities.render(state.entities, state, dt)
 
 	state.target = state.target:decay(state.target_true, 1, dt)
 
@@ -413,11 +368,6 @@ function love.update(dt)
 			state.transition_callback()
 		end
 	end
-
-	local print_channel = love.thread.getChannel("print")
-	for x=1, print_channel:getCount() do
-		print(print_channel:pop())
-	end
 end
 
 function love.draw()
@@ -434,6 +384,10 @@ function love.draw()
 		renderer.light(light)
 	end
 
+	if settings.debug then
+		state:debug("MAP:    %s", state.map_name)
+	end
+
 	renderer.draw(w, h, state)
 
 	local r = function()
@@ -444,7 +398,7 @@ function love.draw()
 
 			local color, normal, depth, light = renderer.output()
 			color:setFilter("nearest")
-			lg.setShader(assets.shd_post)
+			lg.setShader(assets.shd_post) -- TODO: Move to multi-pass blur!
 			lg.scale(state.scale)
 			assets.shd_post:send("light", light)
 			assets.shd_post:send("resolution", {light:getDimensions()})
@@ -467,7 +421,7 @@ function love.draw()
 			lg.setColor(0, 0, 0, 1)
 			lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
 			lg.setColor(1, 1, 1, state.escape * state.escape)
-			lg.print("QUITTER...", (w / (state.scale * 2)) - 70)
+			lg.print("OYASUMI!", (w / (state.scale * 2)) - 70)
 		lg.pop()
 	end
 

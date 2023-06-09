@@ -13,3 +13,6 @@ unshaded: yes
 [glass]
 #unshaded: yes
 shader: glass
+
+[invisible]
+ignore: yes

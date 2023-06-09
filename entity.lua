@@ -3,6 +3,7 @@ local vector = require "lib.vec3"
 local input = require "input"
 local fam = require "fam"
 local scripts = require "scripts"
+local slam = require "lib.slam"
 
 local assets = require "assets"
 local renderer = require "renderer"
@@ -25,8 +26,8 @@ local initializers = {
         entity.flip_x = 1
         entity.atlas = assets.tex_hirsch
         entity.collider = {
-            x=-0.2, y=0, z=0,
-            w=0.4, h=0.8, d=0.1
+            offset = vector(0, 0.5, 0),
+            radius = vector(0.2, 0.5, 0.1)
         }
 
         entity.tint = {1, 1, 1, 1}
@@ -34,6 +35,8 @@ local initializers = {
         entity.id = "player"
         entity.offset = vector(0, 0, 0)
         entity.animation_index = 1
+
+        entity.mass = true
     end,
 
     ["npc"] = function (entity, state, script)
@@ -57,17 +60,6 @@ local function init(entities, raw, state)
     local init = initializers[sections[1]]
     if init then
         init(entity, state, unpack(sections, 2))
-    end
-
-    if entity.position and entity.collider then
-        local x = entity.position.x - entity.collider.x
-        local y = entity.position.y - entity.collider.y
-        local z = entity.position.z - entity.collider.z
-
-        local w = entity.collider.w
-        local h = entity.collider.h
-        local d = entity.collider.d
-        state.colliders:add(entity, x, y, z, w, h, d)
     end
 
     if entity.id then
@@ -105,10 +97,10 @@ local controllers = {
         state.player = entity
         local dir = -input:get_direction()
 
-        entity.velocity = vector(0, 0, 0)
+        local velocity = vector(0, 0, 0)
 
         if (not entity.interacting_with) and require("ui").done then
-            entity.velocity = vector(dir.x, 0, dir.y) * 3.5
+            velocity = vector(dir.x, 0, dir.y) * 3.5
         end
 
         if not require("ui").done then
@@ -117,7 +109,7 @@ local controllers = {
             entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*2)
         end
 
-        local mag = entity.velocity:magnitude()
+        local mag = velocity:magnitude()
         if mag > 0 then
             if math.floor(entity.animation % 2) == 0 then
                 assets.sfx_step:setVolume(lm.random(20, 70)/100)
@@ -146,16 +138,16 @@ local controllers = {
         entity.sprite = anim[(math.floor(entity.animation)%#anim)+1]
         entity.scale.y = 1
         entity.offset.y = fam.lerp(entity.offset.y, -entity.sprite.off*0.14, dt*25)
+
+        if entity.collider.on_floor and input.holding("jump") then
+            velocity.y = velocity.y + 60
+        end
+
+        entity.velocity = entity.velocity + velocity
     end,
 }
 
 local function tick(entities, dt, state)
-    if state.settings.debug then
-        state:debug("")
-        state:debug("--- ENTITIES -----")
-        state:debug("ITEMS:  %i", #entities)
-    end
-
     local new_entities  = { hash = entities.hash }
 
     local player = new_entities.hash.player
@@ -247,28 +239,65 @@ local function tick(entities, dt, state)
 
             -- // TODO: Implement fixed timesteps
             if entity.velocity then -- Euler integration
-                local position = entity.position + entity.velocity * dt
-
-                if state.colliders:hasItem(entity) then
-                    local x, y, z = state.colliders:move(
-                        entity,
-                        position.x+entity.collider.x,
-                        position.y+entity.collider.y,
-                        position.z+entity.collider.z
-                    )
-
-                    position.x = x - entity.collider.x
-                    position.y = y - entity.collider.y
-                    position.z = z - entity.collider.z
+                if entity.mass then
+                    entity.velocity.y = entity.velocity.y - dt * 32
                 end
 
-                entity.position = position
+                if entity.collider then
+                    local p = entity.position + entity.collider.offset
+
+                    local new_position, new_velocity, planes =
+                        slam.check(p, entity.velocity * dt * 2, entity.collider.radius, state.triangles)
+
+                    entity.velocity = new_velocity / dt
+
+                    entity.collider.on_floor = false
+                    entity.collider.on_ceil  = false
+                    entity.collider.on_wall  = false
+
+                    for _, plane in ipairs(planes) do
+                        local i = plane.normal:dot(vector(0, -1, 0))
+
+                        if math.abs(i) > 0.1 then
+                            entity.collider.on_floor = i < 0
+                            entity.collider.on_ceil  = i > 0
+                        else
+                            entity.collider.on_wall  = true
+                        end
+                    end
+
+                    if state.settings.debug then
+                        renderer.render {
+                            mesh = assets.mod_sphere,
+                            model = mat4.from_transform(new_position, 0, entity.collider.radius),
+                            color = {1, 0, 1, 1/4},
+                            unshaded = true
+                        }
+                    end
+                end
+                
+                entity.position = entity.position + entity.velocity * dt
+                entity.velocity = vector(0, 0, 0)
             end
 
             if entity.camera_target then
                 state.target_true = entity.position
             end
+        end
+	end
 
+    return new_entities
+end
+
+local function render(entities, state, delta)
+    if state.settings.debug then
+        state:debug("")
+        state:debug("--- ENTITIES -----")
+        state:debug("ITEMS:  %i", #entities)
+    end
+
+	for _, entity in ipairs(entities) do
+		if entity.position then
             local invisible = entity.invisible
             if not invisible then
                 local pos = entity.position:copy()
@@ -284,7 +313,7 @@ local function tick(entities, dt, state)
                 }
 
                 if entity.flip_x and entity.scale then
-                    entity.scale.x = fam.decay(entity.scale.x, entity.flip_x, 3, dt)
+                    entity.scale.x = fam.decay(entity.scale.x, entity.flip_x, 3, delta)
                 end
 
                 if entity.sprite then
@@ -313,16 +342,18 @@ local function tick(entities, dt, state)
                         culling = "none",
                         translucent = true,
                         unshaded = true,
-                        title = entity.title,
+                        entity = entity,
                         
                         model = mat4.from_transform(pos, 0, 3),
 
                         texture = function (call)
                             lg.setFont(assets.fnt_main)
-                            if call.title then
-                                local w = 64 - (assets.fnt_main:getWidth(call.title)/2)
-                                local h = 64 - (assets.fnt_main:getHeight()/2)
-                                lg.print(call.title, w, h)
+                            local h = 64 - (assets.fnt_main:getHeight()/2)
+
+                            if call.entity.title then
+                                local title = call.entity.title
+                                local w = 64 - (assets.fnt_main:getWidth(title)/2)
+                                lg.print(title, w, h)
                             end
                             --lg.rectangle("fill", 0, 0, 2000, 2000)
                         end,
@@ -355,11 +386,10 @@ local function tick(entities, dt, state)
             end
         end
 	end
-
-    return new_entities
 end
 
 return {
+    render = render,
     tick = tick,
     init = init
 }

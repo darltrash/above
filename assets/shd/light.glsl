@@ -13,11 +13,8 @@
 
     vec4 effect(vec4 color, Image tex, vec2 uv, vec2 screen_coords) {
         vec4 o = texture(tex, uv) * color;
+        o.rgb *= o.a;
         
-        if (luma(o.rgb) > threshold)
-            return o;
-
-        return vec4(0.0, 0.0, 0.0, 0.0);
+        return normalize(o) * smoothstep(0.7, 1.0, luma(o.rgb)) * length(o.rgb*1.1);
     }
-
 #endif

@@ -83,10 +83,13 @@ local function decode(txt, out)
 			if value == "yes" or value == "no" then
 				current[name] = value == "yes"
 			else
-				current[name] =
+				local a =
 					tonumber(value)
 					or value:match("^\"(.*)\"$")
 					or value
+
+				current[name] = a
+				
 			end
 
 			goto continue

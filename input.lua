@@ -15,11 +15,7 @@ local modes = {
             left   = {"a", "left"},
             right  = {"d", "right"},
             action = {"return", "z"},
-
-            camera_up    = {"9"},
-            camera_down  = {"9"},
-            camera_left  = {"q"},
-            camera_right = {"e"}
+            jump   = {"space", "x"}
         },
 
         get_direction = function (self)

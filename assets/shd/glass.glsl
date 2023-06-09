@@ -101,17 +101,18 @@ varying vec3 lc_position;
     
         float directions = 16.0; // BLUR DIRECTIONS (Default 16.0 - More is better but slower)
         float quality = 3.0; // BLUR QUALITY (Default 4.0 - More is better but slower)
-        float size = 8.0; 
+        float size = 8.0;
     
         vec2 radius = size/resolution;
         vec4 color = texture(back_color, coords.xy);
         
-        for( float d=0.0; d<pi2; d+=pi2/directions) {
+        for(float d=0.0; d<pi2; d+=pi2/directions) {
             for(float i=1.0/quality; i<=1.0; i+=1.0/quality) {
-                color += texture(back_color, coords.xy+vec2(cos(d),sin(d))*radius*i);		
+                vec2 offset = vec2(cos(d), sin(d)) * radius * i;
+                color += texture(back_color, coords.xy + offset);		
             }
         }
-        
+
         color /= (quality + 1.0) * directions - 15.0;
 
         love_Canvases[0] = color*0.8;
