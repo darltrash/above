@@ -376,6 +376,9 @@ slam.check = function(position, velocity, radius, query, substeps, data)
 
     return position, position - base, contacts
 end
-slam.__call = slam.check
+
+slam.__call = function (_, ...)
+    slam.check(...)
+end
 
 return setmetatable(slam, slam)

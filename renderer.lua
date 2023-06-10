@@ -28,14 +28,6 @@ local CLIP_NONE = {0, 0, 1, 1}
 -- shaders AND automatically update them to reduce boilerplate.
 local uniform_map = {}
 local uniforms = {
-	dither_table = {
-		unpack = true,
-		0.0625, 0.5625, 0.1875, 0.6875, 
-		0.8125, 0.3125, 0.9375, 0.4375, 
-		0.2500, 0.7500, 0.1250, 0.6250, 
-		1.0000, 0.5000, 0.8750, 0.3750,
-	},
-
 	harmonics = {
 		unpack = true,
 		{ 0.7953949,  0.4405923,  0.5459412},

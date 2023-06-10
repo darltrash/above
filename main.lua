@@ -114,37 +114,34 @@ function state.load_map(what)
 	local meshes = {}
 	local last = {}
 	state.triangles = {}
+	local vertex_map = map.mesh:getVertexMap()
 	for index, mesh in ipairs(map.meshes) do
-		if mesh.material == last.material
-			and mesh.first == last.last then
-			last.last = mesh.last
+		if mesh.material:match("invisible") then
+			map.meshes[index] = map.meshes[#map.meshes]
+			map.meshes[#map.meshes] = nil
 		else
-			table.insert(meshes, mesh)
-			last = mesh
+			if mesh.material == last.material
+				and mesh.first == last.last then
+				last.last = mesh.last
+			else
+				table.insert(meshes, mesh)
+				last = mesh
+			end
+		end
+
+		if not mesh.material:match("nocollide") then
+			for i=mesh.first, mesh.last-1, 3 do
+				table.insert(state.triangles, {
+					{map.mesh:getVertexAttribute(vertex_map[i+0], 1)},
+					{map.mesh:getVertexAttribute(vertex_map[i+1], 1)},
+					{map.mesh:getVertexAttribute(vertex_map[i+2], 1)}
+				})
+			end
 		end
 	end
 	local origin = #map.meshes
 	map.meshes = meshes
 	log.info("Optimized level from %i meshes to %i", origin, #meshes)
-
-	for index, mesh in ipairs(map.meshes) do
-		if mesh.material:match("nocollide")==nil then
-			for i=mesh.first, math.min(#map.triangles, mesh.last) do
-				local triangle = map.triangles[i]
-
-				table.insert(state.triangles, {
-					transform(triangle[1].position),
-					transform(triangle[2].position),
-					transform(triangle[3].position)
-				})
-			end
-		end
-
-		if mesh.material:match("invisible") then
-			map.meshes[index] = map.meshes[#map.meshes]
-			map.meshes[#map.meshes] = nil
-		end
-	end
 	log.info("Added %i triangles to collision pool", #map.triangles)
 
 	state.map_lights = {}
@@ -160,14 +157,14 @@ function state.load_map(what)
 		entities.init(state.entities, entity, state)
 	end
 
-	for index, collider in ipairs(meta.trigger_areas) do
-		if collider.name:match("camera_box") then
-			state.camera_box = {
-				position = vector.from_array(transform(collider.position)),
-				size = vector.from_array(transform(collider.size))
-			}
-		end
-	end
+	--for index, collider in ipairs(meta.trigger_areas) do
+	--	if collider.name:match("camera_box") then
+	--		state.camera_box = {
+	--			position = vector.from_array(transform(collider.position)),
+	--			size = vector.from_array(transform(collider.size))
+	--		}
+	--	end
+	--end
 
 	local data = ("assets/tex/%s.png"):format(what)
 	if love.filesystem.getInfo(data) then
@@ -230,8 +227,43 @@ end
 local timestep = 1/30
 local lag = timestep
 
+--[[
+	 let n = 0;
+ while (lag > timestep && n < 5) {
+  // good idea to store old transforms first.
+  // make sure to collect input outside of this to avoid delay.
+  tick(timestep);
+  lag -= timestep;
+  n++;
+ }
+
+ // drain the lag if we're underrunning too badly so we don't death spiral
+ if (n >= 5) {
+  lag = 0;
+ }
+};
+
+]]
+
 function love.update(dt)
 	lag = lag + dt
+	local n = 0
+	while (lag > timestep) do
+		lag = lag - timestep
+
+		for index, entity in ipairs(state.new_entities) do
+			entities.init(state.entities, entity, state)
+			state.new_entities[index] = nil
+		end
+
+		state.entities = entities.tick(state.entities, timestep, state)
+		
+		n = n + 1
+		if n == 5 then
+			lag = 0
+			break
+		end
+	end
 
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)
 	input:update()
@@ -333,13 +365,8 @@ function love.update(dt)
 		state:debug("EYE:    %s", state.eye:round())
 	end
 
-	for index, entity in ipairs(state.new_entities) do
-		entities.init(state.entities, entity, state)
-		state.new_entities[index] = nil
-	end
-
-	state.entities = entities.tick(state.entities, dt, state)
-	entities.render(state.entities, state, dt)
+	local alpha = fam.clamp(lag / timestep, 0, 1)
+	entities.render(state.entities, state, dt, alpha)
 
 	state.target = state.target:decay(state.target_true, 1, dt)
 

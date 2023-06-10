@@ -1,0 +1,34 @@
+Hello everyone! This is a guide for contributors 
+to write their own translations!
+
+Each translation is a single lua file which 
+contains a set of strings and other thingies
+
+To get started, you need to know your iso639-1
+language code, which you can get from here:
+https://www.loc.gov/standards/iso639-2/php/code_list.php
+
+Now you'll create a copy of the en.lua file
+stored in this same folder, then translate each 
+string's contents, NOT THE NAMES.
+
+Then you'll rename it to your output two-letter
+language code, for example:
+- en.lua for english
+- es.lua for spanish
+- ... and so on!
+
+Then you can just send me a PR with your 
+translation to my repository here as a file in 
+the language folder:
+https://github.com/darltrash/above
+
+Ooooor, you can store it in the game's folder as
+a file like "language_<CODE>.lua", and the game 
+engine should be able to load it as normal :)
+
+(This means you dont need to download the source
+code or have a debug binary, but instead just a
+regular ol' release binary)
+
+Thanks for reading!

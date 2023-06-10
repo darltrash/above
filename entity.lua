@@ -11,6 +11,8 @@ local permanence = require "permanence"
 
 ---------------------------------------------------------------
 
+local coyote_time = 1
+
 local initializers = {
     ["player"] = function (entity, state)
         entity.controller = "player"
@@ -27,7 +29,11 @@ local initializers = {
         entity.atlas = assets.tex_hirsch
         entity.collider = {
             offset = vector(0, 0.5, 0),
-            radius = vector(0.2, 0.5, 0.1)
+            radius = vector(0.2, 0.5, 0.1),
+
+            floor_time = 0,
+            ceil_time = 0,
+            wall_time = 0
         }
 
         entity.tint = {1, 1, 1, 1}
@@ -106,7 +112,7 @@ local controllers = {
         if not require("ui").done then
             entity.tint[4] = 0
         else
-            entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*2)
+            entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*5)+(1/8)
         end
 
         local mag = velocity:magnitude()
@@ -139,11 +145,13 @@ local controllers = {
         entity.scale.y = 1
         entity.offset.y = fam.lerp(entity.offset.y, -entity.sprite.off*0.14, dt*25)
 
-        if entity.collider.on_floor and input.holding("jump") then
-            velocity.y = velocity.y + 60
-        end
+        if entity.collider.floor_time == coyote_time then
+            if input.holding("jump") then
+                entity.velocity.y = 50
+            end
 
-        entity.velocity = entity.velocity + velocity
+            entity.velocity = entity.velocity + velocity
+        end
     end,
 }
 
@@ -167,6 +175,18 @@ local function tick(entities, dt, state)
     end
 
 	for _, entity in ipairs(new_entities) do
+        if entity.scale then
+            entity.past_scale = entity.scale:copy()
+        end
+
+        if entity.rotation then
+            entity.past_rotation = entity.rotation:copy()
+        end
+
+        if entity.position then
+            entity.past_position = entity.position:copy()
+        end
+
         -- PROCESS SEMI-SPATIAL MUSIC/AUDIO 
 		if entity.music then
 			entity.music:setLooping(true)
@@ -230,40 +250,46 @@ local function tick(entities, dt, state)
                 entity.interaction_anim = fam.decay(entity.interaction_anim or 0, interaction, 1, dt)
             end    
 
-            -- This controls any element that has a "controller",
-            -- like the player, the monsters, etc
-            local control = controllers[entity.controller]
-            if control then
-                control(entity, dt, state)
-            end
-
             -- // TODO: Implement fixed timesteps
             if entity.velocity then -- Euler integration
+
+                -- FIX FORCE MATH!
                 if entity.mass then
-                    entity.velocity.y = entity.velocity.y - dt * 32
+                    entity.gravity = (entity.gravity or 0) + 10 * dt
+                    entity.velocity.y = entity.velocity.y - (entity.gravity^2)
+
+                    -- entity.velocity.y = entity.velocity.y - dt * 32
                 end
 
                 if entity.collider then
                     local p = entity.position + entity.collider.offset
+                    local v = entity.velocity * dt * 2
 
                     local new_position, new_velocity, planes =
-                        slam.check(p, entity.velocity * dt * 2, entity.collider.radius, state.triangles)
+                        slam.check(p, v, entity.collider.radius, state.triangles)
 
                     entity.velocity = new_velocity / dt
 
-                    entity.collider.on_floor = false
-                    entity.collider.on_ceil  = false
-                    entity.collider.on_wall  = false
+                    entity.collider.floor_time = math.max(0, (entity.collider.floor_time or 0) - dt)
+                    entity.collider.ceil_time  = math.max(0, (entity.collider.ceil_time  or 0) - dt)
+                    entity.collider.wall_time  = math.max(0, (entity.collider.wall_time  or 0) - dt)
 
                     for _, plane in ipairs(planes) do
                         local i = plane.normal:dot(vector(0, -1, 0))
 
                         if math.abs(i) > 0.1 then
-                            entity.collider.on_floor = i < 0
-                            entity.collider.on_ceil  = i > 0
+                            if i < 0 then
+                                entity.collider.floor_time = coyote_time
+                            else
+                                entity.collider.ceil_time = coyote_time
+                            end
                         else
-                            entity.collider.on_wall  = true
+                            entity.collider.wall_time = coyote_time
                         end
+                    end
+
+                    if entity.collider.floor_time == coyote_time then
+                        entity.gravity = 0
                     end
 
                     if state.settings.debug then
@@ -280,8 +306,11 @@ local function tick(entities, dt, state)
                 entity.velocity = vector(0, 0, 0)
             end
 
-            if entity.camera_target then
-                state.target_true = entity.position
+            -- This controls any element that has a "controller",
+            -- like the player, the monsters, etc
+            local control = controllers[entity.controller]
+            if control then
+                control(entity, dt, state)
             end
         end
 	end
@@ -289,7 +318,7 @@ local function tick(entities, dt, state)
     return new_entities
 end
 
-local function render(entities, state, delta)
+local function render(entities, state, delta, alpha)
     if state.settings.debug then
         state:debug("")
         state:debug("--- ENTITIES -----")
@@ -300,15 +329,29 @@ local function render(entities, state, delta)
 		if entity.position then
             local invisible = entity.invisible
             if not invisible then
-                local pos = entity.position:copy()
+                local pos, rot, scl = 0, 0, 1
+
+                pos = entity.position:lerp(entity.past_position or entity.position, 1.0-alpha)
+
+                if entity.rotation then
+                    rot = entity.rotation:lerp(entity.past_rotation or entity.rotation, 1.0-alpha)
+                end
+
+                if entity.scale then
+                    scl = entity.scale:lerp(entity.past_scale or entity.scale, 1.0-alpha)
+                end
+
+                if entity.camera_target then
+                    state.target_true = pos:copy()
+                end
+
                 if entity.offset then
                     pos = pos - entity.offset
                 end
                 
                 local call = {
                     color = entity.tint,
-                    model = mat4.from_transform(
-                        pos, entity.rotation or 0, entity.scale or 1),
+                    model = mat4.from_transform(pos, rot, scl),
                     mesh = entity.mesh
                 }
 
