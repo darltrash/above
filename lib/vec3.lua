@@ -203,6 +203,38 @@ vector.round = function(a, b)
         )
 end
 
+vector.min = function (a, b)
+    b = b or 1
+    return is_vector(b) and 
+        vector.new(
+            math.min(a.x, b.x),
+            math.min(a.y, b.y),
+            math.min(a.z, b.z)
+        )
+        or
+        vector.new(
+            math.min(a.x, b),
+            math.min(a.y, b),
+            math.min(a.z, b)
+        )
+end
+
+vector.max = function (a, b)
+    b = b or 1
+    return is_vector(b) and 
+        vector.new(
+            math.max(a.x, b.x),
+            math.max(a.y, b.y),
+            math.max(a.z, b.z)
+        )
+        or
+        vector.new(
+            math.max(a.x, b),
+            math.max(a.y, b),
+            math.max(a.z, b)
+        )
+end
+
 
 vector.__call = function (self, ...)
     return self:copy()

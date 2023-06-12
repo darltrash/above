@@ -259,7 +259,12 @@ local function render_scene(w, h)
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
 
-		for index, light in ipairs(light_list) do
+		for i=1, 16 do -- ONLY 16 LIGHTS MAX!
+			local light = light_list[i]
+			if not light then
+				break
+			end
+			
 			local pos = light.position:to_array()
 			pos.w = 1
 			
@@ -269,7 +274,7 @@ local function render_scene(w, h)
 				lights = lights + 1
 			end
 
-            light_list[index] = nil
+            light_list[i] = nil
 		end
 
 		uniforms.light_amount = lights

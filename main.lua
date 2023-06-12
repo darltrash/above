@@ -120,7 +120,24 @@ function state.load_map(what)
 			if mesh.material == last.material
 				and mesh.first == last.last then
 				last.last = mesh.last
+
+				for i=mesh.first, mesh.last-1 do
+					local v = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
+					last.box.min = last.box.min:min(v)
+					last.box.max = last.box.max:max(v)
+				end
 			else
+				mesh.box = {
+					min = vector(0, 0, 0),
+					max = vector(0, 0, 0)
+				}
+
+				for i=mesh.first, mesh.last-1 do
+					local v = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
+					mesh.box.min = mesh.box.min:min(v)
+					mesh.box.max = mesh.box.max:max(v)
+				end
+
 				table.insert(meshes, mesh)
 				last = mesh
 			end
@@ -309,6 +326,7 @@ function love.update(dt)
 				mesh = state.map.mesh,
 				range = { buffer.first, buffer.last - buffer.first },
 				material = buffer.material,
+				box = buffer.box,
 				texture = state.map_texture
 			}
 		end
