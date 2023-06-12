@@ -1,5 +1,6 @@
 local exm = require "lib.iqm"
 local iqm = require "lib.log"
+local log = require "lib.log"
 
 -- Here comes the 
 --                disgusting hack!
@@ -7,7 +8,8 @@ local iqm = require "lib.log"
 local loaders = {
     mod = function (what)
         -- WHOOPS! might as well change this later on... :)
-        return exm.load("assets/mod/"..what..".exm").mesh
+        -- Edit: The later on has come, it is here.
+        return exm.load("assets/mod/"..what..".exm")
     end,
 
     mus = function (what)
@@ -33,6 +35,7 @@ local ret = setmetatable({
 }, {
     __index = function (self, index)
         self[index] = loaders[index:sub(1, 3)](index:sub(5))
+        log.info("'%s' loaded and cached!", index)
         return self[index]
     end
 })

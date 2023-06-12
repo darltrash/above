@@ -5,6 +5,7 @@ local vector = require "lib.vec3"
 local mimi = require "lib.mimi"
 local log = require "lib.log"
 local frustum = require "frustum"
+local json = require "lib.json"
 
 local render_list = {}
 local grab_list = {}
@@ -57,6 +58,11 @@ for name, material in pairs(materials) do
 	end
 end
 
+
+local function transform(a)
+	return vector(a[1], a[3], -a[2])
+end
+
 local function render(call)
 	if call.material then
 		for _, name in ipairs(fam.split(call.material, ".")) do
@@ -67,15 +73,31 @@ local function render(call)
 		end
 	end
 
-	if not call.order then
-		call.order = 0
+	local m = call.mesh
+	if type(m)=="table" then
+		if call.model then
+			local function a(m)
+				m.w = 1
+				return vector.from_table(call.model:multiply_vec4(m))
+			end
 
-        -- TODO: FIX THIS BULLSHIT:
-		-- if call.model then
-		-- 	local position = call.model:multiply_vec4({0, 0, 0, 1})
-		-- 	call.order = state.eye:dist(position)
-		-- end
+			call.box = {
+				min = a(m.bounds.base.min),
+				max = a(m.bounds.base.max)
+			}
+		end
+
+		call.mesh = m.mesh
 	end
+
+	if call.box then
+		local origin = (call.box.max + call.box.min) / 2
+		local eye = vector.from_table(uniforms.view:multiply_vec4({0, 0, 0, 1}))
+
+		call.order = vector.dist(eye, origin)
+	end
+
+	call.order = call.order or 0
 
 	if call.shader then
 		return table.insert(grab_list, call)
@@ -288,6 +310,11 @@ local function render_scene(w, h)
 		--assets.shader:send("dither_table", unpack(uniforms.dither_table))
 
 		local function render(call)
+			-- If it has a visibility box, and the box is not visible on screen
+			if call.box and not view_frustum:vs_aabb(call.box.min, call.box.max) then
+				return false -- Then just ignore it, do not render something not visible
+			end
+
 			if call.ignore then
 				return false
 			end
@@ -305,6 +332,11 @@ local function render_scene(w, h)
 			uniforms.model = call.model or mat4
 			uniforms.translucent = call.translucent and 1 or 0
 
+			local mesh = call.mesh
+			if type(mesh) == "table" then
+				mesh = mesh.mesh
+			end
+
 			if call.texture then
 				if type(call.texture) == "function" then
 					lg.push("all")
@@ -315,17 +347,17 @@ local function render_scene(w, h)
 						call:texture()
 					lg.pop()
 
-					call.mesh:setTexture(canvas_flat)
+					mesh:setTexture(canvas_flat)
 
 				else
-					call.mesh:setTexture(call.texture)
+					mesh:setTexture(call.texture)
 
 				end
 			end
 
-			local v = call.mesh:getVertexCount()
+			local v = mesh:getVertexCount()
 			if call.range then
-				call.mesh:setDrawRange(unpack(call.range))
+				mesh:setDrawRange(unpack(call.range))
 				v = call.range[2]
 			end
 
@@ -344,9 +376,9 @@ local function render_scene(w, h)
 			uniform_update(shader)
 			lg.setShader(shader)
 
-			lg.draw(call.mesh)
+			lg.draw(mesh)
 
-			call.mesh:setDrawRange()
+			mesh:setDrawRange()
 
 			uniforms.light_amount = light_amount
 			uniforms.ambient = ambient

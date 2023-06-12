@@ -116,10 +116,7 @@ function state.load_map(what)
 	state.triangles = {}
 	local vertex_map = map.mesh:getVertexMap()
 	for index, mesh in ipairs(map.meshes) do
-		if mesh.material:match("invisible") then
-			map.meshes[index] = map.meshes[#map.meshes]
-			map.meshes[#map.meshes] = nil
-		else
+		if not mesh.material:match("invisible") then
 			if mesh.material == last.material
 				and mesh.first == last.last then
 				last.last = mesh.last
@@ -142,7 +139,7 @@ function state.load_map(what)
 	local origin = #map.meshes
 	map.meshes = meshes
 	log.info("Optimized level from %i meshes to %i", origin, #meshes)
-	log.info("Added %i triangles to collision pool", #map.triangles)
+	log.info("Added %i/%i triangles to collision pool", #state.triangles, #map.triangles)
 
 	state.map_lights = {}
 	for index, light in ipairs(meta.lights) do
@@ -174,8 +171,8 @@ function state.load_map(what)
 	end
 
 	log.info(
-		"Loaded map '%s',\n>\tLIGHTS: %i, ENTITIES: %i, COLLS: %i",
-		what, #state.map_lights, #state.entities, #meta.trigger_areas
+		"Loaded map '%s': LIGHTS: %i, ENTITIES: %i",
+		what, #state.map_lights, #state.entities
 	)
 end
 
@@ -226,24 +223,6 @@ end
 
 local timestep = 1/30
 local lag = timestep
-
---[[
-	 let n = 0;
- while (lag > timestep && n < 5) {
-  // good idea to store old transforms first.
-  // make sure to collect input outside of this to avoid delay.
-  tick(timestep);
-  lag -= timestep;
-  n++;
- }
-
- // drain the lag if we're underrunning too badly so we don't death spiral
- if (n >= 5) {
-  lag = 0;
- }
-};
-
-]]
 
 function love.update(dt)
 	lag = lag + dt

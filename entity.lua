@@ -292,14 +292,8 @@ local function tick(entities, dt, state)
                         entity.gravity = 0
                     end
 
-                    if state.settings.debug then
-                        renderer.render {
-                            mesh = assets.mod_sphere,
-                            model = mat4.from_transform(new_position, 0, entity.collider.radius),
-                            color = {1, 0, 1, 1/4},
-                            unshaded = true
-                        }
-                    end
+                    entity.collider._past_position = entity.collider._position
+                    entity.collider._position = new_position
                 end
                 
                 entity.position = entity.position + entity.velocity * dt
@@ -331,14 +325,14 @@ local function render(entities, state, delta, alpha)
             if not invisible then
                 local pos, rot, scl = 0, 0, 1
 
-                pos = entity.position:lerp(entity.past_position or entity.position, 1.0-alpha)
+                pos = (entity.past_position or entity.position):lerp(entity.position, alpha)
 
                 if entity.rotation then
-                    rot = entity.rotation:lerp(entity.past_rotation or entity.rotation, 1.0-alpha)
+                    rot = (entity.past_rotation or entity.rotation):lerp(entity.rotation, alpha)
                 end
 
                 if entity.scale then
-                    scl = entity.scale:lerp(entity.past_scale or entity.scale, 1.0-alpha)
+                    scl = (entity.past_scale or entity.scale):lerp(entity.scale, alpha)
                 end
 
                 if entity.camera_target then
@@ -378,8 +372,19 @@ local function render(entities, state, delta, alpha)
                     renderer.render(call)
                 end
 
-                if state.settings.debug then
-                    local pos = entity.position-vector(0, 0.3, 0)
+                if state.settings.debug and false then
+                    local c = entity.collider
+                    if c and c._position then
+                        local _pos = (c._past_position or c._position):lerp(c._position, alpha)
+                        renderer.render {
+                            mesh = assets.mod_sphere,
+                            model = mat4.from_transform(_pos, 0, c.radius),
+                            color = {1, 0, 1, 1/4},
+                            unshaded = true
+                        }
+                    end
+
+                    local pos = pos-vector(0, 0.3, 0)
 
                     renderer.render {
                         culling = "none",
