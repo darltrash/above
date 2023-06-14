@@ -4,6 +4,7 @@ local input = require "input"
 local fam = require "fam"
 local scripts = require "scripts"
 local slam = require "lib.slam"
+local log = require "lib.log"
 
 local assets = require "assets"
 local renderer = require "renderer"
@@ -11,10 +12,12 @@ local permanence = require "permanence"
 
 ---------------------------------------------------------------
 
-local coyote_time = 1
+local coyote_time = 1/8
 
 local initializers = {
     ["player"] = function (entity, state)
+        log.info("deer are quite strange actually")
+
         entity.controller = "player"
         entity.velocity = vector(0, 0, 0)
         entity.scale = vector(0, 0, 0)
@@ -106,28 +109,35 @@ local controllers = {
         local velocity = vector(0, 0, 0)
 
         if (not entity.interacting_with) and require("ui").done then
-            velocity = vector(dir.x, 0, dir.y) * 3.5
+            velocity = vector(dir.x, 0, dir.y) * 3
+
+            local mag = velocity:magnitude()
+            if mag > 0 then
+                if math.floor(entity.animation % 2) == 0 then
+                    assets.sfx_step:setVolume(lm.random(20, 70)/100)
+                    assets.sfx_step:play()
+                end
+    
+                if entity.animation == 0 then
+                    entity.animation = 1
+                end
+                entity.animation = entity.animation + dt * mag * 1.2
+            else
+                entity.animation = 0
+            end
+
+            if entity.collider.floor_time > 0 then
+                if input.holding("jump") then
+                    velocity.y = 10
+                    entity.gravity = 0
+                end
+            end
         end
 
         if not require("ui").done then
             entity.tint[4] = 0
         else
             entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*5)+(1/8)
-        end
-
-        local mag = velocity:magnitude()
-        if mag > 0 then
-            if math.floor(entity.animation % 2) == 0 then
-                assets.sfx_step:setVolume(lm.random(20, 70)/100)
-                assets.sfx_step:play()
-            end
-
-            if entity.animation == 0 then
-                entity.animation = 1
-            end
-            entity.animation = entity.animation + dt * mag * 1.4
-        else
-            entity.animation = 0
         end
 
         if math.abs(dir.x) > 0 then
@@ -142,16 +152,12 @@ local controllers = {
 
         local anim = PLAYER_ANIMS[entity.animation_index]
         entity.sprite = anim[(math.floor(entity.animation)%#anim)+1]
-        entity.scale.y = 1
+
+        entity.scale.y = fam.lerp(entity.scale.y, entity.sprite.sx or 1, dt*20)
+
         entity.offset.y = fam.lerp(entity.offset.y, -entity.sprite.off*0.14, dt*25)
 
-        if entity.collider.floor_time == coyote_time then
-            if input.holding("jump") then
-                entity.velocity.y = 50
-            end
-
-            entity.velocity = entity.velocity + velocity
-        end
+        entity.velocity = entity.velocity + velocity
     end,
 }
 
@@ -247,6 +253,7 @@ local function tick(entities, dt, state)
                     interaction = 0
                 end
 
+                entity._interaction_anim = entity.interaction_anim or 0
                 entity.interaction_anim = fam.decay(entity.interaction_anim or 0, interaction, 1, dt)
             end    
 
@@ -256,7 +263,7 @@ local function tick(entities, dt, state)
                 -- FIX FORCE MATH!
                 if entity.mass then
                     entity.gravity = (entity.gravity or 0) + 10 * dt
-                    entity.velocity.y = entity.velocity.y - (entity.gravity^2)
+                    entity.velocity.y = entity.velocity.y - entity.gravity
 
                     -- entity.velocity.y = entity.velocity.y - dt * 32
                 end
@@ -297,7 +304,7 @@ local function tick(entities, dt, state)
                 end
                 
                 entity.position = entity.position + entity.velocity * dt
-                entity.velocity = vector(0, 0, 0)
+                entity.velocity = entity.velocity:lerp(0, dt*20)
             end
 
             -- This controls any element that has a "controller",
@@ -411,8 +418,8 @@ local function render(entities, state, delta, alpha)
                 end
 
                 if entity.interaction_anim then
-                    local e = entity.interaction_anim
-                    local pos = entity.position+vector(0, 0.1+(e*e*0.8), 0)
+                    local e = fam.lerp(entity._interaction_anim, entity.interaction_anim, alpha)
+                    local pos = pos+vector(0, 0.1+(e*e*0.8), 0)
                     local a = e
                     if a > 0.99 then
                         a = 1

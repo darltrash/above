@@ -1,9 +1,7 @@
--- NEW TECH ON THE WAY
-
 -- frustum.lua: A simple frustum* library
 
 --[[
-    Copyright (c) 2022 Nelson Lopez
+    Copyright (c) 2023 Nelson Lopez
 
     This software is provided 'as-is', without any express or implied warranty.
     In no event will the authors be held liable for any damages arising from the use of this software.
@@ -33,8 +31,8 @@ end
 
 frustum.is_frustum = is_frustum
 
-frustum.new = function()
-    return setmetatable({}, frustum)
+frustum.new = function(a)
+    return setmetatable(a or {}, frustum)
 end
 
 frustum.from_mat4 = function(a, infinite)
@@ -50,44 +48,44 @@ frustum.from_mat4 = function(a, infinite)
     end
 
     b.left = h {
-        a = a[4] + a[1],
-        b = a[8] + a[5],
+        a = a[4]  + a[1],
+        b = a[8]  + a[5],
         c = a[12] + a[9],
         d = a[16] + a[13]
     }
 
     b.right = h {
-        a = a[4] - a[1],
-        b = a[8] - a[5],
+        a = a[4]  - a[1],
+        b = a[8]  - a[5],
         c = a[12] - a[9],
         d = a[16] - a[13]
     }
 
     b.bottom = h {
-        a = a[4] + a[2],
-        b = a[8] + a[6],
+        a = a[4]  + a[2],
+        b = a[8]  + a[6],
         c = a[12] + a[10],
         d = a[16] + a[14]
     }
 
     b.top = h {
-        a = a[4] - a[2],
-        b = a[8] - a[6],
+        a = a[4]  - a[2],
+        b = a[8]  - a[6],
         c = a[12] - a[10],
         d = a[16] - a[14]
     }
 
     b.near = h {
-        a = a[4] + a[3],
-        b = a[8] + a[7],
+        a = a[4]  + a[3],
+        b = a[8]  + a[7],
         c = a[12] + a[11],
         d = a[16] + a[15]
     }
 
     if not infinite then
         b.far = h {
-            a = a[4] - a[3],
-            b = a[8] - a[7],
+            a = a[4]  - a[3],
+            b = a[8]  - a[7],
             c = a[12] - a[11],
             d = a[16] - a[15]
         }
@@ -112,17 +110,21 @@ frustum.vs_point = function(self, vec)
         frustum.bottom,
         frustum.top,
         frustum.near,
-        frustum.far or false
+        frustum.far
     }
 
-    -- Skip the last test for infinite projections, it'll never fail.
     if not planes[6] then
-        table.remove(planes)
+        planes[#planes] = nil
     end
 
     local dot
     for i = 1, #planes do
-        dot = planes[i].a * x + planes[i].b * y + planes[i].c * z + planes[i].d
+        dot =
+            planes[i].a * x +
+            planes[i].b * y +
+            planes[i].c * z +
+            planes[i].d
+
         if dot <= 0 then
             return false
         end
@@ -137,17 +139,30 @@ frustum.vs_aabb = function(self, min, max)
         { vector(max) }
     }
 
+    local m = function(a, b)
+        if (a > b) then
+            return b, a
+        end
+
+        return a, b
+    end
+
+    -- Ensure min-max is respected, THE AABB SHALL BE RESPECTED.
+    box[1][1], box[2][1] = m(box[1][1], box[2][1])
+    box[1][2], box[2][2] = m(box[1][2], box[2][2])
+    box[1][3], box[2][3] = m(box[1][3], box[2][3])
+
     local planes = {
         self.left,
         self.right,
         self.bottom,
         self.top,
         self.near,
-        self.far or false
+        self.far
     }
 
     if not planes[6] then
-        table.remove(planes)
+        planes[#planes] = nil
     end
 
     for i = 1, #planes do
@@ -157,9 +172,10 @@ frustum.vs_aabb = function(self, min, max)
         local py = p.b > 0.0 and 2 or 1
         local pz = p.c > 0.0 and 2 or 1
 
-        local dot = (p.a * box[px][1]) +
-                    (p.b * box[py][2]) +
-                    (p.c * box[pz][3])
+        local dot =
+            p.a * box[px][1] +
+            p.b * box[py][2] +
+            p.c * box[pz][3]
 
         if dot < -p.d then
             return false
@@ -176,19 +192,16 @@ frustum.vs_sphere = function(self, position, radius)
         self.right,
         self.bottom,
         self.top,
-        self.near
+        self.far or self.near
     }
-
-    if self.far then
-        planes[5] = self.far
-    end
 
     local dot
     for i = 1, #planes do
-        dot = planes[i].a * x +
-              planes[i].b * y +
-              planes[i].c * z +
-              planes[i].d
+        dot =
+            planes[i].a * x +
+            planes[i].b * y +
+            planes[i].c * z +
+            planes[i].d
 
         if dot <= -radius then
             return false

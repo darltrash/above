@@ -44,6 +44,8 @@ do
 	settings.fps_camera = false
 end
 
+log.usecolor = not (love.system.getOS()=="Windows" or os.getenv("no_color"))
+
 if not settings.linear then
 	love.graphics.setDefaultFilter("nearest", "nearest")
 end
@@ -155,7 +157,7 @@ function state.load_map(what)
 	end
 	local origin = #map.meshes
 	map.meshes = meshes
-	log.info("Optimized level from %i meshes to %i", origin, #meshes)
+	log.info("Optimized level from %i meshes to %i, reduced to %i%%!", origin, #meshes, (#meshes/origin)*100)
 	log.info("Added %i/%i triangles to collision pool", #state.triangles, #map.triangles)
 
 	state.map_lights = {}
@@ -241,7 +243,24 @@ end
 local timestep = 1/30
 local lag = timestep
 
+local current = 0
+local max_deltas = 8
+local deltas = {}
+
 function love.update(dt)
+	current = current + 1
+
+	deltas[current] = dt
+	if current > max_deltas-1 then
+		current = 0
+	end
+
+	dt = 0
+	for _, delta in ipairs(deltas) do
+		dt = dt + delta
+	end
+	dt = dt / #deltas
+
 	lag = lag + dt
 	local n = 0
 	while (lag > timestep) do
@@ -257,18 +276,19 @@ function love.update(dt)
 		n = n + 1
 		if n == 5 then
 			lag = 0
+			log.info("CHOKING!")
 			break
 		end
 	end
 
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)
-	input:update()
+	input.update(dt)
 	ui:update(dt)
 
 	state.time = lt.getTime()
 
 	-- Useful for shaders :)
-	renderer.uniforms.time = (renderer.uniforms.time or 0) + dt
+	renderer.uniforms.time = state.time
 
 	local eye
 	do

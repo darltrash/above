@@ -1,8 +1,4 @@
--- fysx.lua: A simple 3D collision resolution engine
-
--- NOTE: THIS ONLY SUPPORTS SPHERE-TO-TRIANGLE COLLISION RESOLUTION
---       IT ALSO DOES NOT UNDERSTAND ANY REALISTIC PHYSICS CONCEPTS
---       IT'S ESSENTIALLY JUST A FRAMEWORK FOR A PHYSICS ENGINE
+-- hash.lua: A simple 3D hashing library :)
 
 --[[
     Copyright (c) 2023 Nelson Lopez
