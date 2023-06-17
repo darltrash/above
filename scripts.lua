@@ -62,14 +62,14 @@ return {
             entity.sprite[1] = 0
             entity.sprite[2] = 56
             entity.flip_x = -entity.flip_x
-            dialog:say "* Thanks for finding my yoyo :)\n\n\n\n   ^~dōmo arigatō gozaimasu!!!!"
+            dialog:say(language.NPC_CATBOY009)
         end
 
         entity.passthrough_routine = function ()
             if global.has_yoyo then
                 entity.sprite[1] = 112
-                dialog:say("* why do you have my yoyo.")
-                dialog:say("* give it to me.")
+                dialog:say(language.NPC_CATBOY007)
+                dialog:say(language.NPC_CATBOY008)
 
                 entity.passthrough_routine = final
                 return
@@ -78,13 +78,13 @@ return {
             global.talked_to_yoyoboy = true
 
             entity.flip_x = -entity.flip_x
-            local select = dialog:ask("* i lost my ^yoyo^ :(\n* could you help me find it?", {"yeah", "nope"})
+            local select = dialog:ask(language.NPC_CATBOY000, language.UI_BINARY_CHOICE)
             entity.flip_x = -entity.flip_x
             if select == 1 then
-                dialog:say("* it'd mean a lot to me...")
-                missions:add("Find Yoyo", "catboy_yoyo0")
+                dialog:say(language.NPC_CATBOY001)
+                missions:add(language.MISSION_FIND_YOYO, "catboy_yoyo0")
             else
-                dialog:say("* it's fine if you cant help me yet...")
+                dialog:say(language.NPC_CATBOY002)
             end
 
             entity.passthrough_routine = function ()
@@ -95,14 +95,14 @@ return {
                     entity.flip_x = -entity.flip_x
 
                     play_sound(assets.sfx_wow, 0.7)
-                    dialog:say("* WOW YOU FOUND MY YOYO????")
+                    dialog:say(language.NPC_CATBOY003)
                     entity.flip_x = -entity.flip_x
 
                     play_sound(assets.sfx_wow, 0.7, 1.2)
-                    dialog:say("* OH MEIN GOTT\n* CECI EST INCROYABLE\n* ~ABSOLUTE DESPACITO MOMENTO\n\n~^(very cool)")
+                    dialog:say(language.NPC_CATBOY004)
                     entity.flip_x = -entity.flip_x
                     entity.sprite[1] = 112
-                    dialog:say("* it's fine.")
+                    dialog:say(language.NPC_CATBOY005)
                     entity.sprite[1] = 0
 
                     entity.passthrough_routine = final
@@ -110,7 +110,7 @@ return {
                     return
                 end
                 entity.flip_x = -entity.flip_x
-                dialog:say("* thanks for trying...\n")
+                dialog:say(language.NPC_CATBOY006)
             end
         end
     end,
@@ -120,13 +120,13 @@ return {
         entity.passthrough_routine = function ()
             global.has_yoyo = true
             missions:remove("catboy_yoyo0")
-            if global.talked_to_yoyoboy then
-                missions:add("Give him the Yoyo.", "catboy_yoyo1")
+            if global.talked_to_yoyoboy then -- we have to translate these 
+                missions:add(language.MISSION_GIVE_YOYO, "catboy_yoyo1")
             end
             entity.invisible = true
 
             play_sound(assets.sfx_tada)
-            dialog:say("~You found the ^Yoyo!")
+            dialog:say(language.UI_YOU_FOUND_THE:format("Yoyo"))
             entity.delete = true
         end
     end

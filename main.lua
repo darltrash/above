@@ -7,15 +7,8 @@ local vector = require "lib.vec3"
 local json = require "lib.json"
 local log = require "lib.log"
 
-local slam = require "lib.slam"
 local lang = require "language"
 lang.by_locale()
-
-local noop = function()
-end
-
-
-log.usecolor = love.system.getOS ~= "Windows"
 
 -- // TODO: GET RID OF THIS HIDEOUS BEAST.
 local moonshine = require "lib.moonshine"
@@ -31,14 +24,14 @@ effect.scanlines.opacity = 0.1
 local settings = {}
 do
 	settings.low_end = os.getenv("ABOVE_LOW_END")
-	settings.debug = os.getenv("ABOVE_DEBUG")
-	settings.fps = os.getenv("ABOVE_FPS") or settings.debug
-	settings.linear = os.getenv("ABOVE_LINEAR") -- cursed mode
+	settings.debug   = os.getenv("ABOVE_DEBUG")
+	settings.fps     = os.getenv("ABOVE_FPS") or settings.debug
+	settings.linear  = os.getenv("ABOVE_LINEAR") -- cursed mode
 	settings.no_post = os.getenv("ABOVE_NO_POST") or settings.low_end
-	settings.volume = os.getenv("ABOVE_VOLUME")
+	settings.volume  = os.getenv("ABOVE_VOLUME")
 	settings.fullscreen = os.getenv("ABOVE_FULLSCREEN") and true or false
-	settings.scale = os.getenv("ABOVE_SCALE")
-	settings.vsync = tonumber(os.getenv("ABOVE_VSYNC")) or 1
+	settings.scale   = os.getenv("ABOVE_SCALE")
+	settings.vsync   = tonumber(os.getenv("ABOVE_VSYNC")) or 1
 
 	settings.level = settings.debug and os.getenv("ABOVE_LEVEL") or nil
 
@@ -55,7 +48,6 @@ love.window.setVSync(settings.vsync)
 love.window.setFullscreen(settings.fullscreen)
 
 -- GLOBALS!
-local MAX_LIGHTS = 16
 _G.lg = love.graphics
 _G.lm = love.math
 _G.la = love.audio
