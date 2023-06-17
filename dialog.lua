@@ -1,11 +1,16 @@
-local input = require "input"
-local fam   = require "fam"
-local utf8  = require "utf8"
-local assets= require "assets"
+local input  = require "input"
+local fam    = require "fam"
+local utf8   = require "utf8"
+local assets = require "assets"
 
 local dialog = {}
 dialog.text = ""
 dialog.speed = 1
+dialog.selected = 1
+dialog.selected_lerp = 1
+dialog.options = {}
+dialog.options_lerp = 0
+dialog.use_options = false
 
 dialog.say = function(self, text, speed, silent)
     self.text = text
@@ -13,21 +18,50 @@ dialog.say = function(self, text, speed, silent)
     self.busy = true
     self.silent = silent
     self.speed = speed or 1
+    self.use_options = false
     while self.busy do
         coroutine.yield()
     end
 end
 
+dialog.ask = function (self, text, options, speed, silent)
+    self.text = text
+    self.length = 0
+    self.busy = true
+    self.silent = silent
+    self.speed = speed or 1
+    if self.use_options then
+       self.options_lerp = 0
+    end
+    self.use_options = true
+    self.options = options
+    self.selected = 1
+    while self.busy do
+        coroutine.yield()
+    end
+
+    return self.selected
+end
+
 local a = 1
 local k = 0
 local ready
-dialog.update = function (self, dt)
+dialog.on_tick = function (self, dt)
     self.length = self.length or 0
 
-    local is_letter = self.text:sub(k, k):match("%a")
-    if k ~= math.floor(self.length) and is_letter then
-        assets.sfx_speech:stop()
-        assets.sfx_speech:play()
+    if k ~= math.floor(self.length) then
+        local c = self.text:sub(k, k)
+        local is_letter = c:match("%a")
+
+        if is_letter then
+            assets.sfx_speech:stop()
+            assets.sfx_speech:setPitch(1.0)
+            assets.sfx_speech:play()
+        elseif c == "*" then
+            assets.sfx_speech:stop()
+            assets.sfx_speech:setPitch(1 + (1/8))
+            assets.sfx_speech:play()
+        end
     end
 
     k = math.floor(self.length)
@@ -41,7 +75,41 @@ dialog.update = function (self, dt)
         self.busy = false
     end
 
+    local k = dialog.use_options and ready
+    if k then
+        if input.just_pressed("up") then
+            dialog.selected = dialog.selected - 1
+            if dialog.selected == 0 then
+                dialog.selected = #dialog.options
+            end
+
+            assets.sfx_done:play()
+        end
+
+        if input.just_pressed("down") then
+            dialog.selected = dialog.selected + 1
+            if dialog.selected > #dialog.options then
+                dialog.selected = 1
+            end
+
+            assets.sfx_done:play()
+        end
+    end
+end
+
+dialog.update = function (self, dt)
+    local k = dialog.use_options and ready
+
+    local n = k and 1 or 0
+
     a = fam.decay(a, self.busy and 0 or 1, 1.5, dt)
+
+    dialog.options_lerp = fam.lerp(dialog.options_lerp, n, 8 * dt)
+    if dialog.options_lerp > 0.99 then
+        dialog.options_lerp = 1
+    end
+
+    dialog.selected_lerp = fam.lerp(dialog.selected_lerp, dialog.selected, 32 * dt)
 end
 
 local W, H = 300, 300
@@ -52,42 +120,28 @@ local function sub(s,i,j)
     return string.sub(s,i,j-1)
 end
 
---printw = (text, x, y, w, c) ->
---	tx = x 
---	ty = y
---	sw = false
---	for word in text\gmatch "%S+"
---		tw = print word, 0, -300, 0
---		if (tx+tw) >= (x+w)
---			tx = x
---			ty += 7
---
---		for char in word\gmatch "."
---			if char == "~"
---			 	sw = not sw
---
---			tx += print char, tx, ty, c
---		tx += 6
-
-local function printw(text, x, y, w, c)
+local function printw(text, x, y, color, highlight)
     local tx = x
     local ty = y
     local sw = false
+    local sh = false
 
     for char in text:gmatch(utf8.charpattern) do
         if char == "~" then
             sw = not sw
-        end
-
-        lg.print(char, tx, ty)
-        tx = tx + assets.fnt_main:getWidth(char)
-
-        if char == "\n" then
+        elseif char == "^" then
+            sh = not sh
+        elseif char == "\n" then
             tx = x
             ty = ty + assets.fnt_main:getHeight()
+        elseif string.byte(char) < 32 then
+        else
+            lg.setColor(sh and highlight or color)
+            local i = sw and math.sin((lt.getTime() * 5) + tx) or 0
+            lg.print(char, tx, ty+i)
+            tx = tx + assets.fnt_main:getWidth(char)
         end
     end
-
 end
 
 dialog.draw = function(self)
@@ -98,17 +152,33 @@ dialog.draw = function(self)
         local m = 4
         local mm = 4
         
-        lg.setColor(fam.hex("#0d0025", (1.1-a) ^ 2))
+        local n = (1.1-a) ^ 2
+
+        local DARK = fam.hex("#0d0025", n)
+        lg.setColor(DARK)
         lg.rectangle("fill", 1+m, y+m, (W-2)-(m*2), (H-y)-1-(m*2), 5)
 
         local tx = 8+m+mm
         local ty = y+m+mm+5
 
-        lg.setColor(fam.hex("#dadada", (1.1-a) ^ 2))
+        local LIGHT = fam.hex("#dadada", n)
+        local HIGHLIGHT = fam.hex("#bc81ff", n)
+        lg.setColor(LIGHT)
         if ready and (math.floor((lt.getTime() * 2)%2)==0) then
             lg.circle("fill", W-m-mm-10, y+((H-y)-1-2-(mm*3))-2, 4, 3) -- i'm using a circle as a triangle
         end
-        printw(sub(self.text, 1, self.length), tx, ty, W-5)
+        printw(sub(self.text, 1, self.length), tx, ty, LIGHT, HIGHLIGHT)
+
+        lg.setColor(fam.hex("#0d0025", dialog.options_lerp))
+        lg.rectangle("fill", W-100-m, y+m, 100, (H-y)-1-(m*2), 5)
+
+        lg.setColor(fam.hex("#2f1b55", dialog.options_lerp))
+        lg.rectangle("fill", W-100-m, y+m+(dialog.selected_lerp*12)+2, 100, 12)
+
+        lg.setColor(fam.hex("#dadada", dialog.options_lerp))
+        for i, v in ipairs(dialog.options) do
+            lg.print(v, (W-100-m)+8, y+m+(i*12))
+        end
     lg.pop()
 end
 

@@ -4,8 +4,19 @@ local dialog     = require "dialog"
 local permanence = require "permanence"
 local assets     = require "assets"
 local language   = require "language"
+local missions   = require "missions"
+
+local global = {}
 
 return {
+    passthrough = function (entity, dt, state)
+        entity:passthrough_routine(dt, state)
+    end,
+
+    dialog_passthrough = function (entity, dt, state)
+        
+    end,
+
     conga_man = function (entity, dt, state)
         local timer = 0
         entity.flip_x = 1
@@ -54,5 +65,69 @@ return {
         entity.scale = vector(1, 1, 1)
         entity.interact = "campfire"
         entity.routine = "conga_man"
+    end,
+
+    catboy_lost_his_yoyo = function (entity, dt, state)
+        entity.scale = vector(1, 1, 1)
+        entity.sprite = { 0, 0, 56, 56 }
+        entity.atlas = assets.tex_catboy
+        entity.interact = "passthrough"
+        entity.flip_x = 1
+
+        local final = function ()
+            dialog:say "* Thanks for finding my yoyo :)"
+        end
+
+        entity.passthrough_routine = function ()
+            if global.has_yoyo then
+                dialog:say("* why do you have my yoyo.")
+                dialog:say("* give it to me.")
+
+                entity.passthrough_routine = final
+                final()
+                return
+            end
+
+            global.talked_to_yoyoboy = true
+
+            entity.flip_x = -entity.flip_x
+            local select = dialog:ask("* i lost my ^yoyo^ :(\n* could you help me find it?", {"yeah", "nope"})
+            entity.flip_x = -entity.flip_x
+            if select == 1 then
+                dialog:say("* it'd mean a lot to me...")
+                missions:add("Find Yoyo", "catboy_yoyo0")
+            else
+                dialog:say("* it's fine if you cant help me yet...")
+            end
+
+            entity.passthrough_routine = function ()
+                if global.has_yoyo then
+                    missions:remove("catboy_yoyo1")
+
+                    dialog:say("* WOW YOU FOUND MY YOYO????")
+                    dialog:say("* OH MEIN GOTT\n* CECI EST INCROYABLE\n* ~ABSOLUTE DESPACITO MOMENTO\n\n~^(very cool)")
+                    dialog:say("* it's fine.")
+
+                    entity.passthrough_routine = final
+                    final()
+                    return
+                end
+                entity.flip_x = -entity.flip_x
+                dialog:say("* thanks for trying...\n")
+            end
+        end
+    end,
+
+    catboy_yoyo = function (entity)
+        entity.interact = "passthrough"
+        entity.passthrough_routine = function ()
+            dialog:say("~You found the ^Yoyo!")
+            global.has_yoyo = true
+            missions:remove("catboy_yoyo0")
+            if global.talked_to_yoyoboy then
+                missions:add("Give him the yoyo.", "catboy_yoyo1")
+            end
+            entity.delete = 1
+        end
     end
 }

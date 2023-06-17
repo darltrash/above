@@ -4,6 +4,8 @@ local fam    = require "fam"
 local input  = require "input"
 local language = require "language"
 
+local missions = require "missions"
+
 math.randomseed(os.time())
 
 local ui = {
@@ -14,14 +16,19 @@ local canvas = lg.newCanvas(300, 300)
 
 local x, y = 0, 0
 local real_x, real_y = 0, 0
-local mode = false
+local mode = ""
 local selection = 0
 local dired = false
 local alpha = 0
 local scale = 0
 
+ui.on_tick = function (self, dt)
+    dialog:on_tick(dt)
+end
+
 ui.update = function (self, dt)
     dialog:update(dt)
+    missions:update(dt)
 
     local dir = input.get_direction()
     if math.abs(dir.y) > 0.2 and mode~="intro" and not ui.done then
@@ -89,6 +96,7 @@ ui.draw = function (self, w, h)
         lg.clear(0, 0, 0, 0)
 
         dialog:draw()
+        missions:draw()
 
         --lg.setColor(1, 1, 1, 1/4)
         --lg.rectangle("line", 1, 1, 299, 299)
@@ -116,7 +124,7 @@ ui.draw = function (self, w, h)
     lg.pop()
 
     local scale = math.floor(math.min(w, h)/300)
-    lg.draw(canvas, w/2, h/2, 0.01, scale, scale, 150, 150)
+    lg.draw(canvas, w/2, h/2, 0, scale, scale, 150, 150)
 end
 
 return ui

@@ -58,11 +58,6 @@ for name, material in pairs(materials) do
 	end
 end
 
-
-local function transform(a)
-	return vector(a[1], a[3], -a[2])
-end
-
 local function render(call)
 	if call.material then
 		for _, name in ipairs(fam.split(call.material, ".")) do

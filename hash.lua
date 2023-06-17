@@ -35,7 +35,7 @@ local function index(x, y, z) -- 16 bits per axis
     local bx = bit.lshift(floor(x+32767), 0)
     local by = bit.lshift(floor(y+32767), 16)
     local bz = bit.lshift(floor(z+32767), 32)
-    return bit.bor(bx, bit.bor(by, bz))
+    return bit.bor(bx, bit.bor(by, bz)) 
 end
 
 local function triangle_aabb(t)

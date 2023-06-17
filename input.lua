@@ -5,12 +5,10 @@ local lm = love.mouse
 local lg = love.graphics
 local lj = love.joystick
 
-local timestep = 1/30
-
 local modes = {
     desktop = {
         name = "desktop",
-        times = { any = 0 },
+        times = {},
         map = {
             up     = {"w", "up"},
             down   = {"s", "down"},
@@ -43,19 +41,21 @@ local modes = {
             return vector:normalize()
         end,
 
-        update = function (self, delta)
+        update = function (self)
             local done
-            for name, keys in pairs(self.map) do
-                if lk.isDown(unpack(keys)) then
-                    self.times[name] = (self.times[name] or 0) + delta
+            for k, v in pairs(self.map) do
+                if lk.isDown(unpack(v)) then
+                    self.times[k] = (self.times[k] or 0) +1
                     done = true
+                
                 else
-                    self.times[name] = 0
+                    self.times[k] = 0
+                    
                 end
             end
             
             if done then
-                self.times.any = self.times.any + delta
+                self.times.any = (self.times.any or 0) +1
             else
                 self.times.any = 0
             end
@@ -64,19 +64,17 @@ local modes = {
         end,
 
         just_pressed = function (self, what)
-            local n = self.times[what]
-            return n < timestep and n > 0 and n
+            return self.times[what] == 1
         end,
 
         holding = function (self, what)
-            local n = self.times[what] or 0
-            return n > 0 and n
+            return self.times[what] > 0
         end
     },
 
     joysticks = {
         name = "joystick",
-        times = { any = 0 },
+        times = {},
         map = {
             action = {1},
         },
@@ -93,13 +91,13 @@ local modes = {
             return out
         end,
 
-        update = function (self, delta)
+        update = function (self)
             local joysticks = lj.getJoysticks()
 
             if #joysticks > 0 then
                 for k, v in pairs(self.map) do
                     if joysticks[1]:isDown(unpack(v)) then
-                        self.times[k] = (self.times[k] or 0) + delta
+                        self.times[k] = (self.times[k] or 0) +1
                     
                     else
                         self.times[k] = 0
@@ -112,22 +110,20 @@ local modes = {
         end,
 
         just_pressed = function (self, what)
-            local n = self.times[what]
-            return n < timestep and n > 0 and n
+            return self.times[what] == 1
         end,
 
         holding = function (self, what)
-            local n = self.times[what] or 0
-            return n > 0 and n
+            return self.times[what] > 0
         end
     }
 }
 local current = modes.desktop
 
 return {
-    update = function (delta)
+    update = function ()
         for _, mode in pairs(modes) do
-            if mode:update(delta) then
+            if mode:update() then
                 current = mode
             end
         end

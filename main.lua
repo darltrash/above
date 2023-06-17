@@ -14,6 +14,7 @@ lang.by_locale()
 local noop = function()
 end
 
+
 log.usecolor = love.system.getOS ~= "Windows"
 
 -- // TODO: GET RID OF THIS HIDEOUS BEAST.
@@ -60,6 +61,7 @@ _G.lm = love.math
 _G.la = love.audio
 _G.lt = love.timer
 _G.lf = love.filesystem
+_G.ls = love.system
 
 la.setVolume(tonumber(settings.volume) or 1)
 
@@ -108,10 +110,6 @@ function state.load_map(what)
 	local map = exm.load(("assets/mod/%s.exm"):format(what), true)
 	state.map = map
 	local meta = json.decode(map.metadata)
-
-	local function transform(a)
-		return { a[1], a[3], -a[2] }
-	end
 
 	local meshes = {}
 	local last = {}
@@ -230,10 +228,6 @@ function love.keypressed(k)
 		log.info("Fullscreen %s", settings.fullscreen and "enabled" or "disabled")
 		love.window.setFullscreen(settings.fullscreen)
 		love.resize(lg.getDimensions())
-	elseif (k == "f3") then -- DO NOT USE THIS
-		settings.fps_camera = not settings.fps_camera
-		love.mouse.setGrabbed(settings.fps_camera)
-		love.mouse.setRelativeMode(settings.fps_camera)
 	end
 end
 
@@ -251,7 +245,7 @@ function love.update(dt)
 	current = current + 1
 
 	deltas[current] = dt
-	if current > max_deltas-1 then
+	if current == max_deltas then
 		current = 0
 	end
 
@@ -264,6 +258,8 @@ function love.update(dt)
 	lag = lag + dt
 	local n = 0
 	while (lag > timestep) do
+		input.update()
+
 		lag = lag - timestep
 
 		for index, entity in ipairs(state.new_entities) do
@@ -272,6 +268,7 @@ function love.update(dt)
 		end
 
 		state.entities = entities.tick(state.entities, timestep, state)
+		ui:on_tick(timestep)
 		
 		n = n + 1
 		if n == 5 then
@@ -282,7 +279,6 @@ function love.update(dt)
 	end
 
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)
-	input.update(dt)
 	ui:update(dt)
 
 	state.time = lt.getTime()
@@ -292,7 +288,7 @@ function love.update(dt)
 
 	local eye
 	do
-		eye = vector(0, 2, -6) + state.target
+		eye = (vector(0, 2, -6) * state.zoom) + state.target
 
 		if state.camera_box then
 			local p = state.camera_box.position
@@ -303,9 +299,7 @@ function love.update(dt)
 		end
 	end
 
-	state.eye = eye --vector.lerp(state.eye or eye, eye, dt * 4)
-
-	renderer.uniforms.view = mat4.look_at(state.eye, state.target+vector(0, 0.5, 0), { y = 1 })
+	renderer.uniforms.view = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
 
 	if settings.fps_camera then
 		renderer.uniforms.view = mat4.look_at(state.target, state.target+camera_rotation, { y = 1 })
@@ -326,7 +320,7 @@ function love.update(dt)
 		)
 
 		renderer.uniforms.view = renderer.uniforms.view *
-			mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, state.zoom)
+			mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, 1)
 	end
 
 	state.eye = vector.from_table(renderer.uniforms.view:multiply_vec4 { 0, 0, 0, 1 })
@@ -377,9 +371,13 @@ function love.update(dt)
 	end
 
 	if settings.debug then
-		state:debug("DELTA:  %ins", lt.getAverageDelta() * 1000000000)
-		state:debug("TARGET: %s", state.target_true:round())
-		state:debug("EYE:    %s", state.eye:round())
+		state:debug("DELTA:  %ins", dt * 1000000000)
+		state:debug("TSTEP:  %ins", timestep * 1000000000)
+		--state:debug("TARGET: %s", state.target_true:round())
+		--state:debug("EYE:    %s", state.eye:round())
+		state:debug("OS:     %s x%s", ls.getOS(), ls.getProcessorCount())
+		state:debug("SCALE:  %i", state.scale)
+		state:debug("SIZE:   %ix%i", lg.getDimensions())
 	end
 
 	local alpha = fam.clamp(lag / timestep, 0, 1)
@@ -413,6 +411,8 @@ function love.update(dt)
 		end
 	end
 end
+
+log.info("Resolution is [%ix%i]", lg.getDimensions())
 
 function love.draw()
 	-- If the canvas hasnt been created yet
