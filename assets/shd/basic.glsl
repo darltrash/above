@@ -1,4 +1,4 @@
-#pragma langauge glsl3
+#pragma language glsl3
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
@@ -69,7 +69,7 @@ varying vec4 vx_color;
 
         ivec2 p = ivec2(mod(position, 4.0));
         
-        float a = step(p.x, 3);
+        float a = step(float(p.x), 3.0);
         float limit = mix(0.0, dither_table[p.y][p.x], a);
 
         return step(limit, brightness);

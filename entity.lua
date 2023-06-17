@@ -132,22 +132,22 @@ local controllers = {
                     entity.gravity = 0
                 end
             end
+
+            if math.abs(dir.x) > 0 then
+                --entity.scale.x = 1
+                entity.flip_x = -fam.sign(dir.x)
+                entity.animation_index = 3
+            elseif dir.y > 0 then
+                entity.animation_index = 2
+            elseif dir.y < 0 then
+                entity.animation_index = 1
+            end
         end
 
         if not require("ui").done then
             entity.tint[4] = 0
         else
             entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*5)+(1/8)
-        end
-
-        if math.abs(dir.x) > 0 then
-            --entity.scale.x = 1
-            entity.flip_x = -fam.sign(dir.x)
-            entity.animation_index = 3
-        elseif dir.y > 0 then
-            entity.animation_index = 2
-        elseif dir.y < 0 then
-            entity.animation_index = 1
         end
 
         local anim = PLAYER_ANIMS[entity.animation_index]
