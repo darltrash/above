@@ -8,6 +8,17 @@ local missions   = require "missions"
 
 local global = {}
 
+local play_sound = function (snd, volume, pitch)
+    snd:stop()
+    snd:setVolume(volume or 1)
+    snd:setPitch(pitch or 1)
+    snd:play()
+    
+    while snd:isPlaying() do
+        coroutine.yield()
+    end
+end
+
 return {
     passthrough = function (entity, dt, state)
         entity:passthrough_routine(dt, state)
@@ -15,19 +26,6 @@ return {
 
     dialog_passthrough = function (entity, dt, state)
         
-    end,
-
-    conga_man = function (entity, dt, state)
-        local timer = 0
-        entity.flip_x = 1
-        while true do
-            timer = timer + dt * 0.2
-            if timer > 1 then
-                entity.flip_x = -entity.flip_x
-                timer = 0
-            end
-            coroutine.yield()
-        end
     end,
 
     campfire = function (entity, dt, state)
@@ -53,20 +51,6 @@ return {
         entity.scale.y = entity.scale.y * 1.1
     end,
 
-    wait_and_close = function ()
-        fam.wait(15)
-        assets.mus_prism:setPitch(0.5)
-        os.execute("zenity --error --text=\"[ERROR] main.lua:462: No more space!\"")
-        love.event.quit()
-    end,
-
-    test0 = function (entity, dt, state)
-        entity.sprite = { 0, 32, 32, 32 }
-        entity.scale = vector(1, 1, 1)
-        entity.interact = "campfire"
-        entity.routine = "conga_man"
-    end,
-
     catboy_lost_his_yoyo = function (entity, dt, state)
         entity.scale = vector(1, 1, 1)
         entity.sprite = { 0, 0, 56, 56 }
@@ -75,16 +59,19 @@ return {
         entity.flip_x = 1
 
         local final = function ()
-            dialog:say "* Thanks for finding my yoyo :)"
+            entity.sprite[1] = 0
+            entity.sprite[2] = 56
+            entity.flip_x = -entity.flip_x
+            dialog:say "* Thanks for finding my yoyo :)\n\n\n\n   ^~dōmo arigatō gozaimasu!!!!"
         end
 
         entity.passthrough_routine = function ()
             if global.has_yoyo then
+                entity.sprite[1] = 112
                 dialog:say("* why do you have my yoyo.")
                 dialog:say("* give it to me.")
 
                 entity.passthrough_routine = final
-                final()
                 return
             end
 
@@ -104,9 +91,19 @@ return {
                 if global.has_yoyo then
                     missions:remove("catboy_yoyo1")
 
+                    entity.sprite[1] = 56
+                    entity.flip_x = -entity.flip_x
+
+                    play_sound(assets.sfx_wow, 0.7)
                     dialog:say("* WOW YOU FOUND MY YOYO????")
+                    entity.flip_x = -entity.flip_x
+
+                    play_sound(assets.sfx_wow, 0.7, 1.2)
                     dialog:say("* OH MEIN GOTT\n* CECI EST INCROYABLE\n* ~ABSOLUTE DESPACITO MOMENTO\n\n~^(very cool)")
+                    entity.flip_x = -entity.flip_x
+                    entity.sprite[1] = 112
                     dialog:say("* it's fine.")
+                    entity.sprite[1] = 0
 
                     entity.passthrough_routine = final
                     final()
@@ -121,13 +118,16 @@ return {
     catboy_yoyo = function (entity)
         entity.interact = "passthrough"
         entity.passthrough_routine = function ()
-            dialog:say("~You found the ^Yoyo!")
             global.has_yoyo = true
             missions:remove("catboy_yoyo0")
             if global.talked_to_yoyoboy then
-                missions:add("Give him the yoyo.", "catboy_yoyo1")
+                missions:add("Give him the Yoyo.", "catboy_yoyo1")
             end
-            entity.delete = 1
+            entity.invisible = true
+
+            play_sound(assets.sfx_tada)
+            dialog:say("~You found the ^Yoyo!")
+            entity.delete = true
         end
     end
 }

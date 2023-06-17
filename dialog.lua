@@ -11,6 +11,7 @@ dialog.selected_lerp = 1
 dialog.options = {}
 dialog.options_lerp = 0
 dialog.use_options = false
+dialog.length = 0
 
 dialog.say = function(self, text, speed, silent)
     self.text = text
@@ -47,8 +48,7 @@ local a = 1
 local k = 0
 local ready
 dialog.on_tick = function (self, dt)
-    self.length = self.length or 0
-
+    local speed = 1
     if k ~= math.floor(self.length) then
         local c = self.text:sub(k, k)
         local is_letter = c:match("%a")
@@ -57,15 +57,17 @@ dialog.on_tick = function (self, dt)
             assets.sfx_speech:stop()
             assets.sfx_speech:setPitch(1.0)
             assets.sfx_speech:play()
+            speed = 1
         elseif c == "*" then
             assets.sfx_speech:stop()
             assets.sfx_speech:setPitch(1 + (1/8))
             assets.sfx_speech:play()
+            speed = 5
         end
     end
 
     k = math.floor(self.length)
-    self.length = math.min(self.length + dt * 18 * self.speed, #self.text)
+    self.length = math.min(self.length + dt * 18 * speed * self.speed, #self.text)
 
     ready = math.floor(self.length) == #self.text
     if ready and input.just_pressed("action") and self.busy then
@@ -99,7 +101,6 @@ end
 
 dialog.update = function (self, dt)
     local k = dialog.use_options and ready
-
     local n = k and 1 or 0
 
     a = fam.decay(a, self.busy and 0 or 1, 1.5, dt)
