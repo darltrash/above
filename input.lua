@@ -19,7 +19,7 @@ local modes = {
         },
 
         get_direction = function (self)
-            local vector = vector(0, 0)
+            local vector = vector(0, 0, 0)
             local m = self.map
 
             if lk.isDown(unpack(m.up)) then

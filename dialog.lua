@@ -13,16 +13,21 @@ dialog.options_lerp = 0
 dialog.use_options = false
 dialog.length = 0
 
-dialog.say = function(self, text, speed, silent)
+dialog.say = function(self, text, speed, silent, center)
     self.text = text
     self.length = 0
     self.busy = true
     self.silent = silent
     self.speed = speed or 1
     self.use_options = false
+    self.center = center
     while self.busy do
         coroutine.yield()
     end
+end
+
+dialog.display = function (self, text, speed)
+    self:say(text, speed, false, true)
 end
 
 dialog.ask = function (self, text, options, speed, silent)
@@ -121,9 +126,17 @@ local function sub(s,i,j)
     return string.sub(s,i,j-1)
 end
 
-local function printw(text, x, y, color, highlight)
+local function printw(text, x, y, w, h, color, highlight, center)
     local tx = x
     local ty = y
+
+    if center then
+        tx = x + ((w/2) - (assets.fnt_main:getWidth(text:gsub('[%*%^]', ''))/2))
+        ty = y + ((h/2) - (assets.fnt_main:getHeight()/2))
+    end
+
+    local ox = tx
+    local oy = ty
     local sw = false
     local sh = false
 
@@ -133,7 +146,7 @@ local function printw(text, x, y, color, highlight)
         elseif char == "^" then
             sh = not sh
         elseif char == "\n" then
-            tx = x
+            tx = ox
             ty = ty + assets.fnt_main:getHeight()
         elseif string.byte(char) < 32 then
         else
@@ -165,10 +178,16 @@ dialog.draw = function(self)
         local LIGHT = fam.hex("#dadada", n)
         local HIGHLIGHT = fam.hex("#bc81ff", n)
         lg.setColor(LIGHT)
+
         if ready and (math.floor((lt.getTime() * 2)%2)==0) then
-            lg.circle("fill", W-m-mm-10, y+((H-y)-1-2-(mm*3))-2, 4, 3) -- i'm using a circle as a triangle
+            lg.circle("fill", W-m-mm-10, y+((H-y)-1-2-(mm*3))-2, 4, 3) -- i'm using a circle as a triangle (ho)
         end
-        printw(sub(self.text, 1, self.length), tx, ty, LIGHT, HIGHLIGHT)
+
+        printw(
+            sub(self.text, 1, self.length), tx, ty,
+            (W-2)-(m*4)-(mm*3), (H-y)-(m*4)-(mm*2),
+            LIGHT, HIGHLIGHT, self.center
+        )
 
         lg.setColor(fam.hex("#0d0025", dialog.options_lerp))
         lg.rectangle("fill", W-100-m, y+m, 100, (H-y)-1-(m*2), 5)

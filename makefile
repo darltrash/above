@@ -1,3 +1,5 @@
+.DEFAULT_GOAL := run
+
 $(shell mkdir -p out)
 $(shell mkdir -p cache)
 $(shell mkdir -p .temp)
@@ -52,20 +54,24 @@ itch: everything
 	rm -tf .temp/*
 	mkdir .temp/win32
 	unzip out/above.win32.zip -d .temp/win32
-	butler push .temp/win32 darltrash/above:win32
+	butler push .temp/win32 darltrash/meadows:win32
 
 	mkdir .temp/win64
 	unzip out/above.win64.zip -d .temp/win64
-	butler push .temp/win64 darltrash/above:win64
+	butler push .temp/win64 darltrash/meadows:win64
 
-	butler push out/above.appimage darltrash/above:linux64
-	butler push out/above.love darltrash/above:universal
+	butler push out/above.appimage darltrash/meadows:linux64
+	butler push out/above.love darltrash/meadows:universal
 
 clear:
 	rm -rf out/
 	rm -rf .temp
 
 LOVE ?= love
+
+maps: # REQUIRES BLENDER 2.90+
+	chmod +x assets/blender_export.sh
+	./assets/blender_export.sh
 
 run: # REQUIRES LÖVE AND LOVE :)
 	$(LOVE) .

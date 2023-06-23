@@ -40,8 +40,12 @@ local uniforms = {
 		{-0.1569444, -0.0954703, -0.1485053},
 		{ 0.5646247,  0.2161586,  0.1402643},
 		{ 0.2137442, -0.0547578, -0.3061700}
-	}
+	},
+
+	perlin = assets.tex_perlin
 }
+
+uniforms.perlin:setFilter("linear", "linear")
 
 local materials = assert(mimi.load("assets/materials.mi"))
 local textures = {}
@@ -70,6 +74,15 @@ local function render(call)
 
 	local m = call.mesh
 	if type(m)=="table" then
+		call.mesh = m.mesh
+
+		call.box = {
+			min = m.bounds.base.min,
+			max = m.bounds.base.max
+		}
+	end
+
+	if call.box then
 		if call.model then
 			local function a(m)
 				m.w = 1
@@ -77,24 +90,27 @@ local function render(call)
 			end
 
 			call.box = {
-				min = a(m.bounds.base.min),
-				max = a(m.bounds.base.max)
+				min = a(call.box.min),
+				max = a(call.box.max)
 			}
 		end
 
-		call.mesh = m.mesh
-	end
-
-	if call.box then
 		local origin = (call.box.max + call.box.min) / 2
 		local eye = vector.from_table(uniforms.view:multiply_vec4({0, 0, 0, 1}))
 
 		call.order = vector.dist(eye, origin)
+
+		--render {
+		--	mesh = assets.mod_cube.mesh,
+		--	unshaded = true,
+		--	model = mat4.from_transform((call.box.min+call.box.max) / 2, 0, call.box.max - call.box.min)
+		--}
 	end
+
 
 	call.order = call.order or 0
 
-	if call.shader then
+	if call.grab then
 		return table.insert(grab_list, call)
 	end
 
@@ -236,7 +252,6 @@ local function switch_canvas()
     lg.pop()
 end
 
-local max_calls = 15
 local function render_scene(w, h)
 	canvas_switch = false
 	canvas_color  = canvas_color_a
@@ -250,7 +265,7 @@ local function render_scene(w, h)
 
 	local lights = 0
     do -- Lighting code
-		uniforms.ambient = fam.hex "#2c2683"
+		uniforms.ambient = fam.hex "#30298f"
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
 
@@ -316,7 +331,7 @@ local function render_scene(w, h)
 			end
 
 			if call.ignore then
-				return false
+				return false -- BYE
 			end
 
 			local color = call.color or COLOR_WHITE
@@ -330,7 +345,7 @@ local function render_scene(w, h)
 
 			uniforms.clip = call.clip or CLIP_NONE
 			uniforms.model = call.model or mat4
-			uniforms.translucent = call.translucent and 1 or 0
+			uniforms.translucent = call.translucent or 0
 
 			local mesh = call.mesh
 			if type(mesh) == "table" then
@@ -361,9 +376,8 @@ local function render_scene(w, h)
 				v = call.range[2]
 			end
 
-			local shader = assets.shd_basic
-			if call.shader then
-				shader = call.shader
+			local shader = call.shader or assets.shd_basic
+			if call.grab then
 				switch_canvas()
 			end
 
@@ -387,8 +401,6 @@ local function render_scene(w, h)
 
 			return true
 		end
-
-		local time = love.timer.getTime()
 
         ----------------------------------------------
 

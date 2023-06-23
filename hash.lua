@@ -21,40 +21,44 @@
     3. This notice may not be removed or altered from any source distribution.
 ]]
 
-local world = { }
-world.__index = world
+local hash = { }
+hash.__index = hash
 
 local vector = require "lib.vec3"
 local slam = require "lib.slam"
 
 local floor = math.floor
 local ceil = math.ceil
+local min = math.min
+local max = math.max
 
 -- Enough for most games theoretically
 local function index(x, y, z) -- 16 bits per axis
-    local bx = bit.lshift(floor(x+32767), 0)
-    local by = bit.lshift(floor(y+32767), 16)
-    local bz = bit.lshift(floor(z+32767), 32)
-    return bit.bor(bx, bit.bor(by, bz)) 
+    --local bx = bit.lshift(floor(x)+32767, 0)
+    --local by = bit.lshift(floor(y)+32767, 16)
+    --local bz = bit.lshift(floor(z)+32767, 32)
+    --return bit.bor(bx, bit.bor(by, bz))
+
+    return ("%ix%ix%i"):format(x, y, z )
 end
 
 local function triangle_aabb(t)
-    return 
-        math.min(t[1].x, t[2].x, t[3].x),
-        math.min(t[1].y, t[2].y, t[3].y),
-        math.min(t[1].z, t[2].z, t[3].z),
+    return
+        min(t[1].x, t[2].x, t[3].x),
+        min(t[1].y, t[2].y, t[3].y),
+        min(t[1].z, t[2].z, t[3].z),
       
-        math.max(t[1].x, t[2].x, t[3].x),
-        math.max(t[1].y, t[2].y, t[3].y),
-        math.max(t[1].z, t[2].z, t[3].z)
+        max(t[1].x, t[2].x, t[3].x),
+        max(t[1].y, t[2].y, t[3].y),
+        max(t[1].z, t[2].z, t[3].z)
 end
 
 local function vec(a)
-    return {
-        x = a.x or a[1],
-        y = a.y or a[2],
-        z = a.z or a[3]
-    }
+    return vector.new (
+        a.x or a[1],
+        a.y or a[2],
+        a.z or a[3]
+    )
 end
 
 local function remove(list, what) -- performs a swap
@@ -67,19 +71,19 @@ local function remove(list, what) -- performs a swap
     end
 end
 
-world.new = function (grid_size)
+hash.new = function (grid_size)
     return setmetatable(
         {
             meshes = {},
 
             grid_size = grid_size or 1,
             hash = {},
-        }, world
+        }, hash
     )
 end
 
 -- inclusive: creates a chunk if it does not exist yet
-world.query = function (self, x, y, z, w, h, d, inclusive)
+hash.query = function (self, x, y, z, w, h, d, inclusive)
     local sx = floor(x / self.grid_size)
     local sy = floor(y / self.grid_size)
     local sz = floor(z / self.grid_size)
@@ -117,7 +121,7 @@ world.query = function (self, x, y, z, w, h, d, inclusive)
     end
 end
 
-world.query_list = function (self, x, y, z, w, h, d)
+hash.query_list = function (self, x, y, z, w, h, d)
     local sx = floor(x / self.grid_size)
     local sy = floor(y / self.grid_size)
     local sz = floor(z / self.grid_size)
@@ -134,8 +138,8 @@ world.query_list = function (self, x, y, z, w, h, d)
                 local a = self.hash[index(x, y, z)]
 
                 if a then
-                    for _, v in ipairs(a) do
-                        table.insert(list, v)
+                    for _, triangle in ipairs(a) do
+                        table.insert(list, triangle)
                     end
                 end
             end
@@ -147,7 +151,7 @@ end
 
 -- Expects table of tables, like {{x=X, y=Y, z=Z}, ...}
 --                            or {{X, Y, Z}, ...} in that order
-world.add_triangles = function (self, triangles, name)
+hash.add_triangles = function (self, triangles, name)
     local mesh = self.meshes[name] or {}
     if name then
         self.meshes[name] = mesh
@@ -155,27 +159,29 @@ world.add_triangles = function (self, triangles, name)
 
     -- this all looks insanely slow :(
     for _, triangle in ipairs(triangles) do -- Creates a copy of each triangle
-        table.insert(mesh, {
-            vector.from_table(vec(triangle[1])),
-            vector.from_table(vec(triangle[2])),
-            vector.from_table(vec(triangle[3]))
-        })
+        local tri = {
+            vec(triangle[1]),
+            vec(triangle[2]),
+            vec(triangle[3])
+        }
+        tri.aabb = {triangle_aabb(tri)}
+        table.insert(mesh, tri)
     end
 
     for _, triangle in ipairs(mesh) do
-        local x, y, z, w, h, d = triangle_aabb(triangle)
+        local x, y, z, w, h, d = unpack(triangle.aabb)
         for list in self:query(x, y, z, w, h, d, true) do
             table.insert(list, triangle)
         end
     end
 end
 
-world.get_mesh = function (self, name)
+hash.get_mesh = function (self, name)
     return assert(self.meshes[name],
         "Mesh '"..name.."' does not exist in the world!")
 end
 
-world.del_triangles = function (self, name)
+hash.del_triangles = function (self, name)
     local mesh = self:get_triangles(name)
     
     -- the complexity for this garbage is incredible.
@@ -188,16 +194,19 @@ world.del_triangles = function (self, name)
     self.meshes[name] = nil
 end
 
-local function query(min, max, velocity, world)
-    return world:get_mesh("level") --world:query_list(min.x, min.y, min.z, max.x, max.y, max.z)
+local function query(min, max, velocity, self)
+    --local size = max-min
+    --return self:query_list(min.x, min.y, min.z, size.x, size.y, size.z)
+
+    return self:get_mesh("level")
 end
 
-world.check = function (self, position, velocity, radius, substeps)
+hash.check = function (self, position, velocity, radius, substeps)
     return slam.check(position, velocity, radius, query, substeps, self)
 end
 
-return setmetatable(world, {
+return setmetatable(hash, {
     __call = function (self, ...)
-        return world.new(...)
+        return hash.new(...)
     end
 })

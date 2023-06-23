@@ -12,7 +12,8 @@ local permanence = require "permanence"
 
 ---------------------------------------------------------------
 
-local coyote_time = 1/8
+local coyote_time = 1/8 
+
 
 local initializers = {
     ["player"] = function (entity, state)
@@ -192,7 +193,7 @@ local function tick(entities, dt, state)
         if entity.position then
             entity.past_position = entity.position:copy()
         end
-
+        
         -- PROCESS SEMI-SPATIAL MUSIC/AUDIO 
 		if entity.music then
 			entity.music:setLooping(true)
@@ -273,7 +274,7 @@ local function tick(entities, dt, state)
                     local v = entity.velocity * dt * 2
 
                     local new_position, new_velocity, planes =
-                        slam.check(p, v, entity.collider.radius, state.triangles)
+                        state.hash:check(p, v, entity.collider.radius)
 
                     entity.velocity = new_velocity / dt
 
@@ -362,7 +363,7 @@ local function render(entities, state, delta, alpha)
 
                 if entity.sprite then
                     call.culling = "none"
-                    call.translucent = true
+                    call.translucent = 0.5
 
                     call.texture = entity.atlas or assets.tex_main
                     call.clip = {
@@ -395,7 +396,6 @@ local function render(entities, state, delta, alpha)
 
                     renderer.render {
                         culling = "none",
-                        translucent = true,
                         unshaded = true,
                         entity = entity,
                         
@@ -425,17 +425,15 @@ local function render(entities, state, delta, alpha)
                         a = 1
                     end
 
+                    local rot = vector(0, 0, 0)
+                    rot.z = math.sin(lt.getTime()*3)*0.2
+
                     renderer.render {
                         color = {1, 1, 1, a*a},
-                        model = mat4.from_transform(pos, math.sin(lt.getTime()*3)*0.2, 0.5),
-                        translucent = true,
-                        texture = assets.tex_ui,
-                        clip = {
-                            0, 0,
-                            64 / assets.tex_ui:getWidth(),
-                            64 / assets.tex_ui:getHeight()
-                        },
-                        mesh = assets.mod_quad
+                        model = mat4.from_transform(pos, rot, 1),
+                        translucent = 0.5,
+                        mesh = assets.mod_bubble.mesh,
+                        material = "general",
                     }
                 end
             end

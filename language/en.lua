@@ -19,6 +19,8 @@ return {
     -- here to be like "BUENAS GRACIAS ES AMIGO GRANDE SOY DE"
     NPC_CATBOY009 = "* Thanks for finding my yoyo :)\n\n\n\n   ^~dōmo arigatō gozaimasu!!!!", 
 
+    NPC_CATBOY010 = "~You are ^disgusting!",
+
     MISSION_FIND_YOYO = "Find the Yoyo.",
     MISSION_GIVE_YOYO = "Give him the Yoyo.",
 }

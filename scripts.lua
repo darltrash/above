@@ -25,14 +25,14 @@ return {
     end,
 
     dialog_passthrough = function (entity, dt, state)
-        
+        -- UNUSED
     end,
 
     campfire = function (entity, dt, state)
         entity.interact_amount = (entity.interact_amount or 0) + 1
 
         if entity.interact_amount == 3 then
-            dialog:say(language.NPC_CONGA_MAN02, 0.7, true)
+            dialog:say(language.NPC_CONGA_MAN02, 0.7, true) -- Clip: this whole thing is unused, right?
 
             assets.mus_prism:setVolume(0.1)
             assets.mus_prism:setLooping(true)
@@ -70,8 +70,11 @@ return {
                 entity.sprite[1] = 112
                 dialog:say(language.NPC_CATBOY007)
                 dialog:say(language.NPC_CATBOY008)
+                play_sound(assets.sfx_tada, 1, 0.8)
+                dialog:say(language.NPC_CATBOY010)
 
                 entity.passthrough_routine = final
+                final()
                 return
             end
 
@@ -126,7 +129,7 @@ return {
             entity.invisible = true
 
             play_sound(assets.sfx_tada)
-            dialog:say(language.UI_YOU_FOUND_THE:format("Yoyo"))
+            dialog:display(language.UI_YOU_FOUND_THE:format("Yoyo"))
             entity.delete = true
         end
     end

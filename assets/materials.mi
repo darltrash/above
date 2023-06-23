@@ -1,5 +1,6 @@
 [water]
 shader: water
+grab: yes
 
 [paper]
 translucent: yes
@@ -13,6 +14,19 @@ unshaded: yes
 [glass]
 #unshaded: yes
 shader: glass
+grab: yes
+
+[grass]
+shader: grass
+translucent: yes
+
+[grassful]
+ignore: yes
 
 [invisible]
 ignore: yes
+
+[magic]
+shader: magic
+texture: white
+culling: none

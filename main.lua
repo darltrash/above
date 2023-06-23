@@ -33,7 +33,7 @@ do
 	settings.scale   = os.getenv("ABOVE_SCALE")
 	settings.vsync   = tonumber(os.getenv("ABOVE_VSYNC")) or 1
 
-	settings.level = settings.debug and os.getenv("ABOVE_LEVEL") or nil
+	settings.level = os.getenv("ABOVE_LEVEL") or nil
 
 	settings.fps_camera = false
 end
@@ -87,10 +87,35 @@ local state = {
 
 	debug = function(self, str, ...)
 		table.insert(self.debug_lines, str:format(...))
-	end
+	end,
+
+	hash = require("hash").new()
 }
 
 local camera_rotation = vector(0, 0, 0)
+local grass = {}
+
+local lovebird
+
+if settings.debug then
+	lovebird = require("lib.lovebird")
+	lovebird.whitelist = nil
+	lovebird.port = 1337
+
+	_G.STATE = state
+
+	log.info("Running on 0.0.0.0:%i", lovebird.port)
+end
+
+local triarea = function (v1, v2, v3)
+	local edge1 = v2 - v1
+    local edge2 = v3 - v1
+    local crossProduct = edge1:cross(edge2)
+    local area = crossProduct:magnitude() / 2
+    return area
+end
+
+local grass_meshes = {}
 
 function state.load_map(what)
 	state.map_name = what
@@ -109,7 +134,69 @@ function state.load_map(what)
 	local vertex_map = map.mesh:getVertexMap()
 	for index, mesh in ipairs(map.meshes) do
 		if not mesh.material:match("invisible") then
-			if mesh.material == last.material
+			if mesh.material:match("grassful") then
+				last = {}
+				
+				for i=mesh.first, mesh.last-1, 3 do -- Triangles
+					local grass_mesh = {
+						box = {
+							min = vector(),
+							max = vector()
+						}
+					}
+					local triangles = {}
+
+					local function process(a)
+						grass_mesh.box.min = grass_mesh.box.min:min(a)
+						grass_mesh.box.max = grass_mesh.box.max:max(a)
+	
+						return a
+					end
+
+					local v1 = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
+					local v2 = vector(map.mesh:getVertexAttribute(vertex_map[i+1], 1))
+					local v3 = vector(map.mesh:getVertexAttribute(vertex_map[i+2], 1))
+
+					local c1 = map.mesh:getVertexAttribute(vertex_map[i+0], 5)
+					local c2 = map.mesh:getVertexAttribute(vertex_map[i+1], 5)
+					local c3 = map.mesh:getVertexAttribute(vertex_map[i+2], 5)
+
+					local area = triarea(v1, v2, v3)
+					for x=1, math.floor(area*50) do
+						local a = love.math.random(0, 100)/100
+						local b = love.math.random(0, 100)/100
+						local p = v1:lerp(v2, a):lerp(v3, b)
+						local c = fam.lerp(fam.lerp(c1, c2, a), c3, b)
+
+						local k = p * 0.25
+						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.5) * c
+
+						local v1 = process(p - vector(0.2, 0, 0)*c)
+						local v2 = process(p + vector(0.2, 0, 0)*c)
+						local v3 = process(p + vector(0, 1, 0) * i)
+
+						local top = fam.hex("#f66801", 1)
+						local bot = fam.hex("#ce0520", 1)
+
+						table.insert(triangles, { v1.x, v1.y, v1.z,  0, 0, 1,  bot[1], bot[2], bot[3], 1 })
+						table.insert(triangles, { v3.x, v3.y, v3.z,  0, 0, 1,  top[1], top[2], top[3], 1 })
+						table.insert(triangles, { v2.x, v2.y, v2.z,  0, 0, 1,  bot[1], bot[2], bot[3], 1 })
+					end
+
+					if #triangles > 10 then
+						grass_mesh.mesh = lg.newMesh(
+							{
+								{"VertexPosition", "float", 3},
+								{"VertexNormal", "float", 3},
+								{"VertexColor", "float", 4},
+							}, triangles, "triangles"
+						)
+
+						table.insert(grass_meshes, grass_mesh)
+					end
+				end
+
+			elseif mesh.material == last.material
 				and mesh.first == last.last then
 				last.last = mesh.last
 
@@ -118,6 +205,7 @@ function state.load_map(what)
 					last.box.min = last.box.min:min(v)
 					last.box.max = last.box.max:max(v)
 				end
+
 			else
 				mesh.box = {
 					min = vector(0, 0, 0),
@@ -132,6 +220,7 @@ function state.load_map(what)
 
 				table.insert(meshes, mesh)
 				last = mesh
+
 			end
 		end
 
@@ -150,11 +239,13 @@ function state.load_map(what)
 	log.info("Optimized level from %i meshes to %i, reduced to %i%%!", origin, #meshes, (#meshes/origin)*100)
 	log.info("Added %i/%i triangles to collision pool", #state.triangles, #map.triangles)
 
+	state.hash:add_triangles(state.triangles, "level")
+
 	state.map_lights = {}
 	for index, light in ipairs(meta.lights) do
 		table.insert(state.map_lights, {
 			position = vector(light.position[1], light.position[3], -light.position[2]),
-			color = { light.color[1], light.color[2], light.color[3], light.power*0.5 }
+			color = { light.color[1], light.color[2], light.color[3], light.power }
 		})
 	end
 
@@ -185,22 +276,9 @@ function state.load_map(what)
 	)
 end
 
-local lovebird
-if settings.debug then
-	lovebird = require("lib.lovebird")
-	lovebird.whitelist = nil
-	lovebird.port = 1337
-
-	_G.STATE = state
-
-	log.info("Running on 0.0.0.0:%i", lovebird.port)
-end
-
 permanence.load(1)
 
-state.load_map(settings.level or "forest")
-
-local avg_values = {}
+state.load_map(settings.level or "test0")
 
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
@@ -345,12 +423,9 @@ function love.update(dt)
 			material = "water"
 		}
 
-		if settings.debug and state.camera_box then
-			renderer.render {
-				mesh = assets.mod_cube,
-				color = fam.hex("#823be5", 1/4),
-				model = mat4.from_transform(state.camera_box.position, 0, state.camera_box.size*2),
-			}
+		for _, instance in ipairs(grass_meshes) do
+			instance.material = "grass"
+			renderer.render(instance)
 		end
 	end
 
@@ -363,10 +438,9 @@ function love.update(dt)
 	end
 
 	if settings.debug then
+		state:debug("MEMORY: %iKB", collectgarbage("count"))
 		state:debug("DELTA:  %ins", dt * 1000000000)
 		state:debug("TSTEP:  %ins", timestep * 1000000000)
-		--state:debug("TARGET: %s", state.target_true:round())
-		--state:debug("EYE:    %s", state.eye:round())
 		state:debug("OS:     %s x%s", ls.getOS(), ls.getProcessorCount())
 		state:debug("SCALE:  %i", state.scale)
 		state:debug("SIZE:   %ix%i", lg.getDimensions())
@@ -431,7 +505,6 @@ function love.draw()
 			assets.shd_post:send("color_a", fam.hex"#00093b")
 			assets.shd_post:send("color_b", fam.hex"#ff0080")
 			assets.shd_post:send("power",  0.2)
-
 			local color, normal, depth, light = renderer.output()
 			color:setFilter("nearest")
 			lg.setShader(assets.shd_post) -- TODO: Move to multi-pass blur!

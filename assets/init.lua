@@ -7,8 +7,6 @@ local log = require "lib.log"
 
 local loaders = {
     mod = function (what)
-        -- WHOOPS! might as well change this later on... :)
-        -- Edit: The later on has come, it is here.
         return exm.load("assets/mod/"..what..".exm")
     end,
 
@@ -25,10 +23,14 @@ local loaders = {
     end,
 
     tex = function (what)
-        return lg.newImage("assets/tex/"..what..".png")
+        local out = lg.newImage("assets/tex/"..what..".png")
+        out:setWrap("repeat", "repeat")
+        out:setFilter("nearest", "nearest")
+        return out
     end
 }
 
+local loaded = 1
 local ret = setmetatable({
     fnt_main = lg.newFont("assets/fnt_monogram.ttf", 16)
 
@@ -36,7 +38,12 @@ local ret = setmetatable({
     __index = function (self, index)
         self[index] = loaders[index:sub(1, 3)](index:sub(5))
         log.info("'%s' loaded and cached!", index)
+        loaded = loaded + 1
         return self[index]
+    end,
+
+    __len = function (self)
+        return loaded
     end
 })
 

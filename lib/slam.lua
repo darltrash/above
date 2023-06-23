@@ -232,13 +232,22 @@ local check_triangle = function(packet, p1, p2, p3, id)
     return packet
 end
 
+local vec = function (a)
+    return vector.is_vector(a) and a
+        or vector.new(
+            a.x or a[1],
+            a.y or a[2],
+            a.z or a[3]
+        )
+end
+
 local check_collision = function(packet, triangles, ids)
     local inv_radius = packet.e_inv_radius
 
     for index, triangle in ipairs(triangles) do
-        local v0 = vector.from_array(triangle[1])
-        local v1 = vector.from_array(triangle[2])
-        local v2 = vector.from_array(triangle[3])
+        local v0 = vec(triangle[1])
+        local v1 = vec(triangle[2])
+        local v2 = vec(triangle[3])
 
         check_triangle(
             packet,

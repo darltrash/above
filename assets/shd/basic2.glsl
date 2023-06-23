@@ -9,6 +9,7 @@ varying vec3 vw_normal;
 varying vec4 vx_color;
 
 #define sqr(a) (a*a)
+#define fma(a,b,c) ((a)*(b)+(c))
 
 // Spherical harmonics, cofactor and improved diffuse
 // by the people at excessive ❤ moé 
@@ -119,30 +120,36 @@ varying vec4 vx_color;
         return (1.0 - f0) * (x2 * x2 * x) + f0;
     }
 
+
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec4 lighting = ambient; //Texel(sky_texture, normal); // vec4(sh(harmonics, normal), 1.0)
+
+        vec4 diffuse = ambient;
 
         for(int i=0; i<light_amount; ++i) { // For each light
             vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
-            float intensity = sqrt(light_colors[i].a);
-            vec3 color = light_colors[i].rgb;
+            float intensity = sqrt(light_colors[i].a); // Encodes intensity
+            vec4 color = vec4(normalize(light_colors[i].rgb) * intensity, intensity);
+
+            // GSF diffuse
+            float base_ndl = dot(normal, normalize(position - vw_position.xyz));
+            float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
+
+            float roughness = 0.3;
+
+            float k = roughness * 0.5;
+            float ndl = mix(max(0.0, base_ndl), abs(base_ndl), translucent);
+            float sl = ndl / (ndl * (1.0 - k) + k);
+            float sv = ndi / (ndi * (1.0 - k) + k);
+            float gsf = sl * sv;
 
             float dist = length(position - vw_position.xyz);
-
-            float a = 0.5;
-            float b = intensity;
-            float falloff = 1.0 / (1.0 + a * dist + b * dist * dist);
-            
-            vec3 direction = normalize(vw_position.xyz - position);
-
-            float shade = dot(normal, direction);
-            falloff *= mix(max(0.0, 1.0 - shade), 1.0, translucent);
+            float falloff =  sqr(linearstep(color.a, 0.0, dist)) * 5.0;
 
             // Now we add our light's color to the light value
-            lighting.rgb += color * falloff * 3.0;
+            diffuse.rgb += normalize(color.rgb) * gsf * falloff;
         }
 
         // This helps us make the models just use a single portion of the 
@@ -150,7 +157,7 @@ varying vec4 vx_color;
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
-        vec4 o = Texel(MainTex, uv) * VaryingColor * lighting;
+        vec4 o = Texel(MainTex, uv) * VaryingColor * diffuse;
         
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);

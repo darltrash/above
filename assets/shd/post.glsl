@@ -33,7 +33,7 @@
         
         vec4 light_pass = texture(light, uv);
 
-        for( float d=0.0; d<pi2; d+=pi2/directions) {
+        for(float d=0.0; d<pi2; d+=pi2/directions) {
             for(float i=1.0/quality; i<=1.0; i+=1.0/quality) {
                 light_pass += texture(light, uv+vec2(cos(d),sin(d))*radius*i);		
             }
@@ -48,10 +48,12 @@
         c = mix(c, mix(color_a.rgb, color_b.rgb, l), power);
 
         vec4 glow = light_pass(uv, 16.0, 3.0, 8.0) * 0.8;
-        glow = sqr(glow);
+
+        vec3 o = c + sqr(glow.rgb);
+        o += length(o) * 0.05;
 
         return gammaCorrectColor (
-            vec4(tonemap_aces(c+glow.rgb), 1.0)
+            vec4(tonemap_aces(o), 1.0)
         );
     }
 
