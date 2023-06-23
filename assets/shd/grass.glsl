@@ -91,7 +91,7 @@ varying vec4 vx_color;
             float dist = length(position - vw_position.xyz);
 
             float a = 0.5;
-            float b = intensity;
+            float b = 1.0;
             float falloff = 1.0 / (1.0 + a * dist + b * dist * dist);
             
             vec3 direction = normalize(vw_position.xyz - position);
