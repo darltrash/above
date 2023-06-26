@@ -127,12 +127,11 @@ varying vec4 vx_color;
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec4 lighting = ambient; //Texel(sky_texture, normal); // vec4(sh(harmonics, normal), 1.0)
+        vec3 lighting = ambient.rgb * ambient.a; //Texel(sky_texture, normal); // vec4(sh(harmonics, normal), 1.0)
 
         for(int i=0; i<light_amount; ++i) { // For each light
             vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
-            float intensity = sqrt(light_colors[i].a);
-            vec3 color = light_colors[i].rgb;
+            vec3 color = light_colors[i].rgb * light_colors[i].a;
 
             float dist = length(position - vw_position.xyz);
 
@@ -143,7 +142,7 @@ varying vec4 vx_color;
             float base_ndl = dot(normal, normalize(position - vw_position.xyz));
             float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
 
-            float roughness = 0.3;
+            float roughness = 0.8;
 
             float k = roughness * 0.5;
             float ndl = max(0.0, base_ndl);
@@ -152,7 +151,7 @@ varying vec4 vx_color;
             float gsf = mix(sl * sv, 1.0, translucent);
 
             // Now we add our light's color to the light value
-            lighting.rgb += color * inv_sqr_law * gsf * intensity * 0.25;
+            lighting += color * inv_sqr_law * gsf;
         }
 
         // This helps us make the models just use a single portion of the 
@@ -160,7 +159,7 @@ varying vec4 vx_color;
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
-        vec4 o = Texel(MainTex, uv) * VaryingColor * lighting;
+        vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(lighting, 1.0);
         
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);

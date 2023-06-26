@@ -10,11 +10,11 @@ texture: general
 
 [unshaded]
 unshaded: yes
-glow: 6
+glow: 40
 
 [glow]
 unshaded: yes
-glow: 6
+glow: 40
 
 [glass]
 #unshaded: yes

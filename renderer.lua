@@ -280,7 +280,7 @@ local function render_to(target)
 
 	local lights = 0
     do -- Lighting code
-		uniforms.ambient = fam.hex "#30298f"
+		uniforms.ambient = fam.hex("#30298f", 20)
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
 

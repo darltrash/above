@@ -49,11 +49,11 @@
 
         vec4 glow = light_pass(uv, 16.0, 3.0, 8.0) * 0.8;
 
-        vec3 o = c + sqr(glow.rgb);
+        vec3 o = c + sqr(glow.rgb * 0.01);
         o += length(o) * 0.05;
 
         return gammaCorrectColor (
-            vec4(tonemap_aces(o * exp2(0.5)), 1.0)
+            vec4(tonemap_aces(o * exp2(-3.5)), 1.0)
         );
     }
 
