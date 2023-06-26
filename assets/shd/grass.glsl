@@ -90,16 +90,10 @@ varying vec4 vx_color;
 
             float dist = length(position - vw_position.xyz);
 
-            float a = 0.5;
-            float b = 1.0;
-            float falloff = 1.0 / (1.0 + a * dist + b * dist * dist);
+            float inv_sqr_law = 1.0 / max(0.1, sqr(dist));
             
-            vec3 direction = normalize(vw_position.xyz - position);
-
-            float shade = dot(normal, direction);
-
             // Now we add our light's color to the light value
-            lighting.rgb += color * falloff * 3.0;
+            lighting.rgb += color * inv_sqr_law * intensity * 0.25;
         }
 
         // Evrathing togetha

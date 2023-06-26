@@ -117,6 +117,36 @@ end
 
 local grass_meshes = {}
 
+local function render_level()
+	-- THE WATAH
+	local pos = state.target:copy()
+	pos.y = -1.5
+
+	-- MAP STUFF
+	for _, buffer in ipairs(state.map.meshes) do
+		renderer.render {
+			mesh = state.map.mesh,
+			range = { buffer.first, buffer.last - buffer.first },
+			material = buffer.material,
+			box = buffer.box,
+			texture = state.map_texture
+		}
+	end
+
+	renderer.render {
+		mesh = assets.mod_water,
+		color = fam.hex("#a46cff"),
+		model = mat4.from_transform(pos, 0, 60),
+		order = math.huge,
+		material = "water"
+	}
+
+	for _, instance in ipairs(grass_meshes) do
+		instance.material = "grass"
+		renderer.render(instance)
+	end
+end
+
 function state.load_map(what)
 	state.map_name = what
 	if state.map_mesh then
@@ -127,17 +157,33 @@ function state.load_map(what)
 	local map = exm.load(("assets/mod/%s.exm"):format(what), true)
 	state.map = map
 	local meta = json.decode(map.metadata)
+	
+	local function color_lerp(a, b, t)
+		local a = fam.hex(a)
+		local b = fam.hex(b)
+		
+		return {
+			fam.lerp(a[1], b[1], t),
+			fam.lerp(a[2], b[2], t),
+			fam.lerp(a[3], b[3], t),
+		}
+	end
 
 	local meshes = {}
 	local last = {}
 	state.triangles = {}
 	local vertex_map = map.mesh:getVertexMap()
 	for index, mesh in ipairs(map.meshes) do
-		if not mesh.material:match("invisible") then
-			if mesh.material:match("grassful") then
-				last = {}
-				
-				for i=mesh.first, mesh.last-1, 3 do -- Triangles
+		if mesh.material:match("grassful") then
+			for i=mesh.first, mesh.last-1, 3 do -- Triangles
+				local v1 = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
+				local v2 = vector(map.mesh:getVertexAttribute(vertex_map[i+1], 1))
+				local v3 = vector(map.mesh:getVertexAttribute(vertex_map[i+2], 1))
+
+				local n = vector.normalize(vector.cross(v2 - v1, v3 - v1))
+				local floor_dot = n:dot(vector(0, 1, 0))
+
+				if floor_dot > 0.9 then
 					local grass_mesh = {
 						box = {
 							min = vector(),
@@ -153,15 +199,12 @@ function state.load_map(what)
 						return a
 					end
 
-					local v1 = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
-					local v2 = vector(map.mesh:getVertexAttribute(vertex_map[i+1], 1))
-					local v3 = vector(map.mesh:getVertexAttribute(vertex_map[i+2], 1))
-
 					local c1 = map.mesh:getVertexAttribute(vertex_map[i+0], 5)
 					local c2 = map.mesh:getVertexAttribute(vertex_map[i+1], 5)
 					local c3 = map.mesh:getVertexAttribute(vertex_map[i+2], 5)
 
 					local area = triarea(v1, v2, v3)
+
 					for x=1, math.floor(area*50) do
 						local a = love.math.random(0, 100)/100
 						local b = love.math.random(0, 100)/100
@@ -171,12 +214,12 @@ function state.load_map(what)
 						local k = p * 0.25
 						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.5) * c
 
-						local v1 = process(p - vector(0.2, 0, 0)*c)
-						local v2 = process(p + vector(0.2, 0, 0)*c)
+						local v1 = process(p - vector(0.2, 0, 0)*(0.2+c))
+						local v2 = process(p + vector(0.2, 0, 0)*(0.2+c))
 						local v3 = process(p + vector(0, 1, 0) * i)
 
-						local top = fam.hex("#f66801", 1)
-						local bot = fam.hex("#ce0520", 1)
+						local top = color_lerp("#01f67c", "#32ac69", i)
+						local bot = fam.hex("#32ac69", 1)
 
 						table.insert(triangles, { v1.x, v1.y, v1.z,  0, 0, 1,  bot[1], bot[2], bot[3], 1 })
 						table.insert(triangles, { v3.x, v3.y, v3.z,  0, 0, 1,  top[1], top[2], top[3], 1 })
@@ -195,8 +238,11 @@ function state.load_map(what)
 						table.insert(grass_meshes, grass_mesh)
 					end
 				end
+			end
+		end
 
-			elseif mesh.material == last.material
+		if not mesh.material:match("invisible") then
+			if mesh.material == last.material
 				and mesh.first == last.last then
 				last.last = mesh.last
 
@@ -274,11 +320,14 @@ function state.load_map(what)
 		"Loaded map '%s': LIGHTS: %i, ENTITIES: %i",
 		what, #state.map_lights, #state.entities
 	)
+
+	render_level()
+	--renderer.generate_ambient()
 end
 
 permanence.load(1)
 
-state.load_map(settings.level or "test0")
+state.load_map(settings.level or "lamppost")
 
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
@@ -356,78 +405,58 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = state.time
 
-	local eye
-	do
-		eye = (vector(0, 2, -6) * state.zoom) + state.target
+	if true then
+		local eye
+		do
+			eye = (vector(0, 2, -6) * state.zoom) + state.target
 
-		if state.camera_box then
-			local p = state.camera_box.position
-			local s = state.camera_box.size:round() - 2 -- margin
+			if state.camera_box then
+				local p = state.camera_box.position
+				local s = state.camera_box.size:round() - 2 -- margin
 
-			eye.x = fam.clamp(eye.x, p.x - s.x, p.x + s.x)
-			eye.z = fam.clamp(eye.z, p.z + s.z, p.z - s.z)
-		end
-	end
-
-	renderer.uniforms.view = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
-
-	if settings.fps_camera then
-		renderer.uniforms.view = mat4.look_at(state.target, state.target+camera_rotation, { y = 1 })
-	end
-	
-	renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
-
-	do -- Cool camera movement effect
-		local offset = vector(
-			lm.noise(lt.getTime() * 0.1, lt.getTime() * 0.3),
-			lm.noise(lt.getTime() * 0.2, lt.getTime() * 0.1),
-			0
-		)
-
-		local rot = vector(
-			0, 0,
-			lm.noise(lt.getTime() * 0.12, lt.getTime() * 0.1) - 0.5
-		)
-
-		renderer.uniforms.view = renderer.uniforms.view *
-			mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, 1)
-	end
-
-	state.eye = vector.from_table(renderer.uniforms.view:multiply_vec4 { 0, 0, 0, 1 })
-
-	if settings.debug then -- SUPER COOL FEATURE!
-		lovebird.update()
-	end
-
-	do
-		-- THE WATAH
-		local pos = state.target:copy()
-		pos.y = -1.5
-
-		-- MAP STUFF
-		for _, buffer in ipairs(state.map.meshes) do
-			renderer.render {
-				mesh = state.map.mesh,
-				range = { buffer.first, buffer.last - buffer.first },
-				material = buffer.material,
-				box = buffer.box,
-				texture = state.map_texture
-			}
+				eye.x = fam.clamp(eye.x, p.x - s.x, p.x + s.x)
+				eye.z = fam.clamp(eye.z, p.z + s.z, p.z - s.z)
+			end
 		end
 
-		renderer.render {
-			mesh = assets.mod_water,
-			color = fam.hex("#a46cff"),
-			model = mat4.from_transform(pos, 0, 60),
-			order = math.huge,
-			material = "water"
-		}
+		state.view_matrix = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
 
-		for _, instance in ipairs(grass_meshes) do
-			instance.material = "grass"
-			renderer.render(instance)
+
+		state.shadow_view_matrix = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
+
+
+		if settings.fps_camera then
+			state.view_matrix = mat4.look_at(state.target, state.target+camera_rotation, { y = 1 })
 		end
+		
+		renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
+
+		do -- Cool camera movement effect
+			local offset = vector(
+				lm.noise(lt.getTime() * 0.1, lt.getTime() * 0.3),
+				lm.noise(lt.getTime() * 0.2, lt.getTime() * 0.1),
+				0
+			)
+
+			local rot = vector(
+				0, 0,
+				lm.noise(lt.getTime() * 0.12, lt.getTime() * 0.1) - 0.5
+			)
+
+			state.view_matrix = state.view_matrix *
+				mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, 1)
+		end
+
+		state.eye = vector.from_table(state.view_matrix:multiply_vec4 { 0, 0, 0, 1 })
+
+		if settings.debug then -- SUPER COOL FEATURE!
+			lovebird.update()
+		end
+
+		render_level()
 	end
+
+	--state.view_matrix = mat4.look_at(0, {x = 1}, {y = 1})
 
 	if settings.fps_camera and settings.debug then
 		state:debug("FPS CAMERA IS ON!")
@@ -498,14 +527,15 @@ function love.draw()
 		state:debug("MAP:    %s", state.map_name)
 	end
 
-	renderer.draw(w, h, state)
+	local color, normal, depth, light = renderer.draw({
+		view = state.view_matrix
+	}, state)
 
 	local r = function()
 		lg.push("all")
 			assets.shd_post:send("color_a", fam.hex"#00093b")
 			assets.shd_post:send("color_b", fam.hex"#ff0080")
 			assets.shd_post:send("power",  0.2)
-			local color, normal, depth, light = renderer.output()
 			color:setFilter("nearest")
 			lg.setShader(assets.shd_post) -- TODO: Move to multi-pass blur!
 			lg.scale(state.scale)

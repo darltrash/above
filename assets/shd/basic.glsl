@@ -46,6 +46,8 @@ varying vec4 vx_color;
 #ifdef PIXEL
     uniform Image MainTex;
 
+    uniform float glow;
+
     // Lighting!
     #define LIGHT_AMOUNT 16
     uniform vec4 ambient;
@@ -58,6 +60,8 @@ varying vec4 vx_color;
     uniform float time;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
+
+    uniform samplerCube cubemap;
 
     float dither4x4(vec2 position, float brightness) {
         mat4 dither_table = mat4(
@@ -132,17 +136,23 @@ varying vec4 vx_color;
 
             float dist = length(position - vw_position.xyz);
 
-            float a = 0.5;
-            float b = 1.0;
-            float falloff = 1.0 / (1.0 + a * dist + b * dist * dist);
+            float inv_sqr_law = 1.0 / max(0.6, sqr(dist));
             
             vec3 direction = normalize(vw_position.xyz - position);
 
-            float shade = dot(normal, direction);
-            falloff *= mix(max(0.0, 1.0 - shade), 1.0, translucent);
+            float base_ndl = dot(normal, normalize(position - vw_position.xyz));
+            float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
+
+            float roughness = 0.3;
+
+            float k = roughness * 0.5;
+            float ndl = max(0.0, base_ndl);
+            float sl = ndl / (ndl * (1.0 - k) + k);
+            float sv = ndi / (ndi * (1.0 - k) + k);
+            float gsf = mix(sl * sv, 1.0, translucent);
 
             // Now we add our light's color to the light value
-            lighting.rgb += color * falloff * 3.0;
+            lighting.rgb += color * inv_sqr_law * gsf * intensity * 0.25;
         }
 
         // This helps us make the models just use a single portion of the 
@@ -161,7 +171,7 @@ varying vec4 vx_color;
 
         vec3 n = normal * 0.5 + 0.5;
 
-        love_Canvases[0] = vec4(o.rgb, 1.0);
+        love_Canvases[0] = vec4(o.rgb * (1.0+glow), 1.0);
         love_Canvases[1] = vec4(n, 1.0);
     }
 #endif

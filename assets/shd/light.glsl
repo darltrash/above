@@ -15,6 +15,6 @@
         vec4 o = texture(tex, uv) * color;
         o.rgb *= o.a;
         
-        return normalize(o) * smoothstep(0.7, 1.0, luma(o.rgb)) * length(o.rgb*1.1);
+        return normalize(o) * smoothstep(2.0, 4.0, luma(o.rgb)) * length(o.rgb*1.1);
     }
 #endif

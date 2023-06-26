@@ -15,10 +15,10 @@ local canvas_flat
 
 local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
-local canvas_color,   canvas_normal,    canvas_depth   -- Current canvas
+local 				  canvas_normals_c, canvas_depth_c
 local canvas_light_pass
 
-local canvas_switch
+local cuberes = 256
 
 -- CONSTANTS
 local COLOR_WHITE = {1, 1, 1, 1}
@@ -82,31 +82,17 @@ local function render(call)
 		}
 	end
 
-	if call.box then
-		if call.model then
-			local function a(m)
-				m.w = 1
-				return vector.from_table(call.model:multiply_vec4(m))
-			end
-
-			call.box = {
-				min = a(call.box.min),
-				max = a(call.box.max)
-			}
+	if call.box and call.model then
+		local function a(m)
+			m.w = 1
+			return vector.from_table(call.model:multiply_vec4(m))
 		end
 
-		local origin = (call.box.max + call.box.min) / 2
-		local eye = vector.from_table(uniforms.view:multiply_vec4({0, 0, 0, 1}))
-
-		call.order = vector.dist(eye, origin)
-
-		--render {
-		--	mesh = assets.mod_cube.mesh,
-		--	unshaded = true,
-		--	model = mat4.from_transform((call.box.min+call.box.max) / 2, 0, call.box.max - call.box.min)
-		--}
+		call.box = {
+			min = a(call.box.min),
+			max = a(call.box.max)
+		}
 	end
-
 
 	call.order = call.order or 0
 
@@ -159,8 +145,12 @@ local function resize(w, h, scale)
 		local f = t.filter
 		t.filter = nil
 
-		local w = math.floor(math.ceil(w/scale) * 2) / 2
-		local h = math.floor(math.ceil(h/scale) * 2) / 2
+		local w = t.width  or math.floor(math.ceil(w/scale) * 2) / 2
+		local h = t.height or math.floor(math.ceil(h/scale) * 2) / 2
+
+		t.width = nil
+		t.height = nil
+
 		local c = lg.newCanvas(w, h, t)
 		if f then
 			c:setFilter(f, f)
@@ -222,43 +212,68 @@ local function resize(w, h, scale)
 	uniforms.resolution = {w/scale, h/scale}
 end
 
-local function switch_canvas()
-    lg.push("all")
-        uniforms.back_color  = canvas_color
-		uniforms.back_color:setFilter("linear", "linear")
-        uniforms.back_depth  = canvas_depth
-        uniforms.back_normal = canvas_normal
+canvas_normals_c = lg.newCanvas(cuberes, cuberes, {
+	format = "rgb10a2",
+	mipmaps = "auto",
+})
 
-        canvas_switch = not canvas_switch
+canvas_depth_c = lg.newCanvas(cuberes, cuberes, {
+	format = "depth24",
+	mipmaps = "manual",
+	readable = true
+})
 
-        canvas_color = canvas_switch
-            and canvas_color_b or canvas_color_a
-        
-        canvas_depth  = canvas_switch
-            and canvas_depth_b or canvas_depth_a
+local function render_to(target)
+	local switch = false
+	target.canvas_color  = target.canvas_color_a
+	target.canvas_depth  = target.canvas_depth_a
+	target.canvas_normal = target.canvas_normals_a
 
-        canvas_normal = canvas_switch
-            and canvas_normals_b or canvas_normals_a
+	local function grab()
+		-- Does not have a swappable canvas, ignore.
+		if not target.canvas_color_b then
+			return
+		end
 
-        lg.setCanvas({ canvas_color, canvas_normal, depthstencil = canvas_depth })
-        lg.clear(true, true, true)
-        lg.setColor(COLOR_WHITE)
+		lg.push("all")
+			uniforms.back_color  = target.canvas_color
+			uniforms.back_depth  = target.canvas_depth
+			uniforms.back_normal = target.canvas_normal
 
-        lg.setShader(assets.shd_copy)
-        assets.shd_copy:send("color", uniforms.back_color)
-        assets.shd_copy:send("normal", uniforms.back_normal)
-        lg.setDepthMode("always", true)
-        lg.draw(uniforms.back_depth)
-    lg.pop()
-end
+			switch = not switch
+	
+			target.canvas_color = switch
+				and target.canvas_color_b or target.canvas_color_a
+			
+			target.canvas_depth = switch
+				and target.canvas_depth_b or target.canvas_depth_a
+	
+			target.canvas_normal = switch
+				and target.canvas_normals_b or target.canvas_normals_a
+	
+			lg.setCanvas {
+				{target.canvas_color, face=target.face},
+				{target.canvas_normal},
+				depthstencil = {target.canvas_depth}
+			}
 
-local function render_scene(w, h)
-	canvas_switch = false
-	canvas_color  = canvas_color_a
-	canvas_depth  = canvas_depth_a
-	canvas_normal = canvas_normals_a
+			lg.clear(true, true, true)
+			lg.setColor(COLOR_WHITE)
+	
+			lg.setShader(assets.shd_copy)
+			assets.shd_copy:send("color", uniforms.back_color)
+			assets.shd_copy:send("normal", uniforms.back_normal)
+			lg.setDepthMode("always", true)
+			lg.draw(uniforms.back_depth)
+		lg.pop()
+	end
 
-	uniforms.projection = mat4.from_perspective(-45, -w/h, 0.01, 1000)
+	local width, height = target.canvas_color:getDimensions()
+
+	uniforms.view = target.view
+
+	uniforms.projection = target.projection or mat4.from_perspective(-45, -width/height, 0.01, 300)
+
 	uniforms.inverse_proj = uniforms.projection:inverse()
 
 	local view_frustum = frustum.from_mat4(uniforms.projection * uniforms.view)
@@ -296,8 +311,12 @@ local function render_scene(w, h)
 	end
 
 	-- Push the state, so now any changes will only happen locally
-	lg.push("all")	
-		lg.setCanvas({ canvas_color, canvas_normal, depthstencil=canvas_depth })
+	lg.push("all")
+		lg.setCanvas {
+			{target.canvas_color, face=target.face},
+			{target.canvas_normal},
+			depthstencil = {target.canvas_depth}
+		}
 		lg.clear(true, true, true)
 
 		lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
@@ -316,7 +335,7 @@ local function render_scene(w, h)
 --		lg.rectangle("fill", -1, -1, 2, 2)
 
 		lg.setColor(fam.hex "#7e75ff")
-		lg.rectangle("fill", 0, 0, w, h)
+		lg.rectangle("fill", 0, 0, width, height)
 
 		lg.setShader(assets.shd_basic)
 
@@ -346,6 +365,7 @@ local function render_scene(w, h)
 			uniforms.clip = call.clip or CLIP_NONE
 			uniforms.model = call.model or mat4
 			uniforms.translucent = call.translucent or 0
+			uniforms.glow = call.glow or 0
 
 			local mesh = call.mesh
 			if type(mesh) == "table" then
@@ -378,10 +398,14 @@ local function render_scene(w, h)
 
 			local shader = call.shader or assets.shd_basic
 			if call.grab then
-				switch_canvas()
+				grab()
 			end
 
-			lg.setCanvas({ canvas_color, canvas_normal, depthstencil = canvas_depth})
+			lg.setCanvas {
+				{target.canvas_color, face=target.face},
+				{target.canvas_normal},
+				depthstencil = {target.canvas_depth}
+			}
 			lg.setDepthMode(call.depth or "less", true)
 			lg.setMeshCullMode(call.culling or "back")
 
@@ -402,11 +426,26 @@ local function render_scene(w, h)
 			return true
 		end
 
+		local function get_order(call)
+			if call.order then
+				return call.order
+			end
+
+			if call.box then
+				local origin = (call.box.max + call.box.min) / 2
+				local eye = vector.from_table(uniforms.view:multiply_vec4({0, 0, 0, 1}))
+		
+				return vector.dist(eye, origin)
+			end
+
+			return 0
+		end 
+
         ----------------------------------------------
 
 		local calls = 0
 		table.sort(render_list, function(a, b)
-			return a.order > b.order
+			return get_order(a) > get_order(b)
 		end)
 
 		for index, call in ipairs(render_list) do
@@ -414,29 +453,80 @@ local function render_scene(w, h)
 				calls = calls + 1
 			end
 
-            render_list[index] = nil
+            render_list[index] = target.no_cleanup
+				and render_list[index] or nil
 		end
 
         ----------------------------------------------
 
 		local grab_calls = 0
 		table.sort(grab_list, function(a, b)
-			return a.order < b.order
+			return get_order(a) < get_order(b)
 		end)
 
 		for index, call in ipairs(grab_list) do
 			if render(call) then
 				grab_calls = grab_calls + 1
 			end
-            grab_list[index] = nil
+
+			grab_list[index] = target.no_cleanup
+				and grab_list[index] or nil
 		end
 	lg.pop()
 
     return vertices, calls, grab_calls, lights
 end
 
-local function draw(w, h, state)
-    local vertices, calls, grabs, lights = render_scene(w, h)
+local function generate_cubemap(eye)
+	local format = { type = "cube", format = "rg11b10f", mipmaps = "auto" }
+
+	local target = {
+		canvas_color_a = lg.newCanvas(cuberes, cuberes, format),
+		canvas_depth_a = canvas_depth_c,
+		canvas_normals_a = canvas_normals_c,
+
+		projection = mat4.from_perspective(90, 1, 0.01, 300),
+
+		no_cleanup = true
+	}
+
+	local directions = {
+		vector(1, 0, 0), vector(-1, 0, 0), -- right vs left
+		vector(0, 1, 0), vector(0, -1, 0), -- bottom vs top
+		vector(0, 0, 1), vector(0, 0, -1), -- front vs back
+	}
+
+	for index, direction in ipairs(directions) do
+		if index == #directions then
+			target.no_cleanup = false
+		end
+
+		target.face = index
+		target.view = mat4.look_at(eye, eye+direction, { y = -1 })
+		
+		render_to(target)
+	end
+
+	return target
+end
+
+local function generate_ambient()
+	local target = generate_cubemap(vector(0, 5, 0))
+
+	uniforms.cubemap = target.canvas_color
+	uniforms.cubemap:setFilter("linear", "linear")
+end
+
+local function draw(target, state)
+	target.canvas_color_a   = canvas_color_a
+	target.canvas_depth_a   = canvas_depth_a
+	target.canvas_normals_a = canvas_normals_a
+
+	target.canvas_color_b   = canvas_color_b
+	target.canvas_depth_b   = canvas_depth_b
+	target.canvas_normals_b = canvas_normals_b
+
+    local vertices, calls, grabs, lights = render_to(target)
 
 	if state.settings.debug then
         state:debug("")
@@ -451,22 +541,25 @@ local function draw(w, h, state)
 		lg.setCanvas(canvas_light_pass)
 		lg.setShader(assets.shd_light)
 		lg.clear(0, 0, 0, 0)
-		canvas_color:setFilter("linear", "linear")
-		lg.draw(canvas_color)
+		target.canvas_color:setFilter("linear", "linear")
+		lg.draw(target.canvas_color)
 	lg.pop()
-end
 
-local function output()
-	canvas_color:setFilter("nearest", "nearest")
-    return canvas_color, canvas_normal, canvas_depth, canvas_light_pass
+	target.canvas_color:setFilter("nearest", "nearest")
+
+    return
+		target.canvas_color,
+		target.canvas_normal,
+		target.canvas_depth,
+		canvas_light_pass
 end
 
 return {
     draw = draw,
     render = render,
     light = light,
-    output = output,
     resize = resize,
 
     uniforms = uniforms,
+	generate_ambient = generate_ambient
 }

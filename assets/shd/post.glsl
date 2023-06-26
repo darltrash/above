@@ -29,7 +29,7 @@
 
     vec4 light_pass(vec2 uv, float directions, float quality, float size) {
         float pi2 = 6.2831853071796;
-        vec2 radius = size/resolution;
+        vec2 radius = (size/resolution) * 0.5;
         
         vec4 light_pass = texture(light, uv);
 
@@ -53,7 +53,7 @@
         o += length(o) * 0.05;
 
         return gammaCorrectColor (
-            vec4(tonemap_aces(o), 1.0)
+            vec4(tonemap_aces(o * exp2(0.5)), 1.0)
         );
     }
 

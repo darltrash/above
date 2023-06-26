@@ -3,13 +3,18 @@ shader: water
 grab: yes
 
 [paper]
-translucent: yes
+translucent: 1
 
 [general]
 texture: general
 
 [unshaded]
 unshaded: yes
+glow: 6
+
+[glow]
+unshaded: yes
+glow: 6
 
 [glass]
 #unshaded: yes
@@ -17,11 +22,7 @@ shader: glass
 grab: yes
 
 [grass]
-shader: grass
-translucent: yes
-
-[grassful]
-ignore: yes
+translucent: 1
 
 [invisible]
 ignore: yes
@@ -29,4 +30,8 @@ ignore: yes
 [magic]
 shader: magic
 texture: white
+culling: none
+
+[cubemap]
+shader: cubemap_test
 culling: none
