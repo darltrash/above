@@ -118,10 +118,6 @@ end
 local grass_meshes = {}
 
 local function render_level()
-	-- THE WATAH
-	local pos = state.target:copy()
-	pos.y = -1.5
-
 	-- MAP STUFF
 	for _, buffer in ipairs(state.map.meshes) do
 		renderer.render {
@@ -133,12 +129,16 @@ local function render_level()
 		}
 	end
 
+	-- THE WATAH
+	local pos = state.target:copy()
+	pos.y = -1.5
+	
 	renderer.render {
 		mesh = assets.mod_water,
 		color = fam.hex("#a46cff"),
 		model = mat4.from_transform(pos, 0, 60),
 		order = math.huge,
-		material = "water"
+		--material = "water"
 	}
 
 	for _, instance in ipairs(grass_meshes) do
@@ -214,12 +214,14 @@ function state.load_map(what)
 						local k = p * 0.25
 						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.5) * c
 
-						local v1 = process(p - vector(0.2, 0, 0)*(0.2+c))
-						local v2 = process(p + vector(0.2, 0, 0)*(0.2+c))
+						local r = lm.random(-1, 1)
+
+						local v1 = process(p - vector(0.2, 0, 0):rotate(r, vector(0, 1, 0))*(0.2+c))
+						local v2 = process(p + vector(0.2, 0, 0):rotate(r, vector(0, 1, 0))*(0.2+c))
 						local v3 = process(p + vector(0, 1, 0) * i)
 
-						local top = color_lerp("#01f67c", "#32ac69", i)
-						local bot = fam.hex("#32ac69", 1)
+						local top = color_lerp("#ffffff", "#dfdfdf", i)
+						local bot = fam.hex("#c9c9c9", 1)
 
 						table.insert(triangles, { v1.x, v1.y, v1.z,  0, 0, 1,  bot[1], bot[2], bot[3], 1 })
 						table.insert(triangles, { v3.x, v3.y, v3.z,  0, 0, 1,  top[1], top[2], top[3], 1 })

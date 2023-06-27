@@ -103,17 +103,12 @@ varying vec3 lc_position;
     void effect() {
         vec3 coords = ((cl_position.xyz / cl_position.w) + 1.0) * 0.5;
         float s_depth = Texel(back_depth, coords.xy).r;
+        float c_depth = cl_position.z / cl_position.w;
 
-        vec4 o = VaryingColor * ambient;
+        vec4 o = VaryingColor * vec4(ambient.rgb * ambient.a, 1.0);
         //o.rgb *= sh(harmonics, normalize(vw_normal));
 
-        if (s_depth != 1.0) {
-            vec3 scoords = calculate_view_position(coords.xy, s_depth);
-            float dist = clamp(distance(vw_position.xyz, scoords) / 16.0, 0.0, 1.0);
-            vec4 c = Texel(back_color, coords.xy);
-            o.rgb = mix(c.rgb, o.rgb, 1.0 - ((1.0 - dist) * 0.8));
-        }
-    
+        
         love_Canvases[0] = o;
         love_Canvases[1] = vec4(vw_normal * 0.5 + 0.5, 1.0);
     }

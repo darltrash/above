@@ -293,7 +293,7 @@ local function render_to(target)
 			local pos = light.position:to_array()
 			pos.w = 1
 			
-			if view_frustum:vs_sphere(light.position, math.sqrt(light.color[4])) then
+			if view_frustum:vs_sphere(light.position, light.color[4]) then
 				table.insert(uniforms.light_positions, pos)
 				table.insert(uniforms.light_colors, light.color)
 				lights = lights + 1
@@ -334,8 +334,9 @@ local function render_to(target)
 --
 --		lg.rectangle("fill", -1, -1, 2, 2)
 
-		lg.setColor(fam.hex "#7e75ff")
-		lg.rectangle("fill", 0, 0, width, height)
+		lg.setShader(assets.shd_sky2)
+		assets.shd_sky2:send("ambient", uniforms.ambient)
+		lg.rectangle("fill", -1, -1, 2, 2)
 
 		lg.setShader(assets.shd_basic)
 

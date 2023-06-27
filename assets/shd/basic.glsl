@@ -133,13 +133,12 @@ varying vec4 vx_color;
             vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
             vec3 color = light_colors[i].rgb * light_colors[i].a;
 
-            float dist = length(position - vw_position.xyz);
-
+            vec3 diff = position - vw_position.xyz;
+            float dist = max(0.0, length(diff));
             float inv_sqr_law = 1.0 / max(0.6, sqr(dist));
             
-            vec3 direction = normalize(vw_position.xyz - position);
-
-            float base_ndl = dot(normal, normalize(position - vw_position.xyz));
+            vec3 l = normalize(diff);
+            float base_ndl = dot(normal, l);
             float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
 
             float roughness = 0.8;

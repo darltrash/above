@@ -1,3 +1,4 @@
 .temp/
 out/
 cache/
+*.blend[0-9]
