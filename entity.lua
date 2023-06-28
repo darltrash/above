@@ -419,7 +419,7 @@ local function render(entities, state, delta, alpha)
 
                 if entity.interaction_anim then
                     local e = fam.lerp(entity._interaction_anim, entity.interaction_anim, alpha)
-                    local pos = pos+vector(0, 0.1+(e*e*0.8), 0)
+                    local pos = pos+vector(0, 0.1+(e*e*0.8), -0.05)
                     local a = e
                     if a > 0.99 then
                         a = 1
@@ -432,6 +432,7 @@ local function render(entities, state, delta, alpha)
                         color = {1, 1, 1, a*a},
                         model = mat4.from_transform(pos, rot, 1),
                         translucent = 0.5,
+                        glow = 10,
                         mesh = assets.mod_bubble.mesh,
                         material = "general",
                     }

@@ -8,6 +8,9 @@ varying vec4 vw_position;
 varying vec3 vw_normal;
 varying vec4 vx_color;
 
+varying vec4 wl_position;
+varying vec3 wl_normal;
+
 #define sqr(a) (a*a)
 
 // Spherical harmonics, cofactor and improved diffuse
@@ -33,7 +36,10 @@ varying vec4 vx_color;
 
     vec4 position( mat4 _, vec4 vertex_position ) {
         vw_position = view * model * vertex_position;
+        wl_position = model * vertex_position;
+
         vw_normal = cofactor(view * model) * VertexNormal;
+        wl_normal = cofactor(model) * VertexNormal;
 
         cl_position = projection * vw_position;
 
@@ -123,11 +129,20 @@ varying vec4 vx_color;
         return (1.0 - f0) * (x2 * x2 * x) + f0;
     }
 
+    const vec3 luma = vec3(0.299, 0.587, 0.114);
+
+    #define saturate(a) (clamp(a, 0.0, 1.0))
+    #define fma(a, b, c) ((a) * (b) + (c))
+
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 lighting = ambient.rgb * ambient.a; //Texel(sky_texture, normal); // vec4(sh(harmonics, normal), 1.0)
+        vec3 sample = textureLod(cubemap, wl_normal, 6.0).rgb;
+        float l = length(sample.rgb / 12.0) * 0.1;
+        vec3 diffuse = sqrt(sample) * sqr(l); // vec4(sh(harmonics, normal), 1.0)
+
+        float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
 
         for(int i=0; i<light_amount; ++i) { // For each light
             vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
@@ -135,11 +150,10 @@ varying vec4 vx_color;
 
             vec3 diff = position - vw_position.xyz;
             float dist = max(0.0, length(diff));
-            float inv_sqr_law = 1.0 / max(0.6, sqr(dist));
+            float inv_sqr_law = 1.0 / max(0.9, sqr(dist));
             
             vec3 l = normalize(diff);
             float base_ndl = dot(normal, l);
-            float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
 
             float roughness = 0.8;
 
@@ -150,7 +164,7 @@ varying vec4 vx_color;
             float gsf = mix(sl * sv, 1.0, translucent);
 
             // Now we add our light's color to the light value
-            lighting += color * inv_sqr_law * gsf;
+            diffuse += color * inv_sqr_law * gsf;
         }
 
         // This helps us make the models just use a single portion of the 
@@ -158,7 +172,7 @@ varying vec4 vx_color;
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
-        vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(lighting, 1.0);
+        vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse, 1.0);
         
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);

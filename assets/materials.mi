@@ -9,12 +9,12 @@ translucent: 1
 texture: general
 
 [unshaded]
-unshaded: yes
-glow: 40
+shader: unshaded
+glow: 90
 
 [glow]
-unshaded: yes
-glow: 40
+shader: unshaded
+glow: 90
 
 [glass]
 #unshaded: yes
@@ -35,3 +35,12 @@ culling: none
 [cubemap]
 shader: cubemap_test
 culling: none
+
+[sky]
+culling: front
+shader: sky2
+texture: sky_gradient
+
+[clouds]
+texture: clouds
+culling: front

@@ -13,6 +13,8 @@
     uniform float power;
     uniform vec2 resolution;
 
+    uniform float exposure;
+
     // Cool color correction, makes things look cooler.
     vec3 tonemap_aces(vec3 x) {
         float a = 2.51;
@@ -49,11 +51,11 @@
 
         vec4 glow = light_pass(uv, 16.0, 3.0, 8.0) * 0.8;
 
-        vec3 o = c + sqr(glow.rgb * 0.01);
-        o += length(o) * 0.01;
+        vec3 o = c + sqr(glow.rgb) * 2.0;
+        o += length(o) * 0.05;
 
         return gammaCorrectColor (
-            vec4(tonemap_aces(o * exp2(-3.5)), 1.0)
+            vec4(tonemap_aces(o * exp2(exposure)), 1.0)
         );
     }
 

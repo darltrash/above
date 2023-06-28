@@ -17,9 +17,7 @@ varying vec3 vw_position;
 #ifdef PIXEL
     precision highp float;
 
-    out vec4 out_color;
-
-    uniform vec4 u_sun_params;
+    uniform vec4 sun_params;
 
     const vec3 luma = vec3(0.299, 0.587, 0.114);
     const vec3 cameraPos = vec3(0.0, 0.0, 0.0);
@@ -100,14 +98,14 @@ varying vec3 vw_position;
     }
 
     vec4 effect(vec4 _, Image tex, vec2 uv, vec2 screen_coords) {
-        float sunfade = 1.0-clamp(1.0-exp((u_sun_params.y/450000.0)),0.0,1.0);
+        float sunfade = 1.0-clamp(1.0-exp((sun_params.y/450000.0)),0.0,1.0);
         float reileighCoefficient = reileigh - (1.0* (1.0-sunfade));
-        vec3 sunDirection = normalize(u_sun_params.xyz);
+        vec3 sunDirection = normalize(sun_params.xyz);
         float sunE = sunIntensity(dot(sunDirection, up));
 
         // extinction (absorbtion + out scattering)
         // rayleigh coefficients
-        vec3 betaR = simplifiedRayleigh() * reileighCoefficient;
+        vec3 betaR = totalRayleigh(lambda) * reileighCoefficient;
 
         // mie coefficients
         vec3 betaM = totalMie(lambda, K, turbidity) * mieCoefficient;
@@ -151,11 +149,11 @@ varying vec3 vw_position;
 
         vec3 color = log2(2.0/pow(luminance,4.0))*texColor;
 
-        vec3 retColor = pow(color,vec3(1.0/(1.2+(1.2*sunfade))));
+        vec3 retColor = pow(color, vec3(1.0/(1.2+(1.2*sunfade))));
 
         retColor = mix(retColor * 0.75, retColor, clamp(dot(direction, up) * 0.5 + 0.5, 0.0, 1.0));
         retColor *= retColor;
 
-        return vec4(pow(retColor * 0.75, vec3(2.2)), 1.0);
+        return vec4(pow(retColor * 0.75, vec3(2.2)) * 6.0, 1.0);
     }
 #endif

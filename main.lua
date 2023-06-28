@@ -89,6 +89,10 @@ local state = {
 		table.insert(self.debug_lines, str:format(...))
 	end,
 
+	render_target = {},
+
+	daytime = 0,
+
 	hash = require("hash").new()
 }
 
@@ -133,18 +137,24 @@ local function render_level()
 	local pos = state.target:copy()
 	pos.y = -1.5
 	
-	renderer.render {
-		mesh = assets.mod_water,
-		color = fam.hex("#a46cff"),
-		model = mat4.from_transform(pos, 0, 60),
-		order = math.huge,
-		--material = "water"
-	}
+	--renderer.render {
+	--	mesh = assets.mod_water,
+	--	color = fam.hex("#a46cff"),
+	--	model = mat4.from_transform(pos, 0, 60),
+	--	order = math.huge,
+	--	--material = "water"
+	--}
 
 	for _, instance in ipairs(grass_meshes) do
 		instance.material = "grass"
 		renderer.render(instance)
 	end
+
+	renderer.render {
+		mesh = assets.mod_clouds,
+		material = "clouds",
+		model = mat4.from_transform(0, { y = state.daytime * math.pi }, 10)
+	}
 end
 
 function state.load_map(what)
@@ -220,8 +230,8 @@ function state.load_map(what)
 						local v2 = process(p + vector(0.2, 0, 0):rotate(r, vector(0, 1, 0))*(0.2+c))
 						local v3 = process(p + vector(0, 1, 0) * i)
 
-						local top = color_lerp("#ffffff", "#dfdfdf", i)
-						local bot = fam.hex("#c9c9c9", 1)
+						local top = color_lerp("#ff5100", "#db5800", i)
+						local bot = fam.hex("#bd0000", 1)
 
 						table.insert(triangles, { v1.x, v1.y, v1.z,  0, 0, 1,  bot[1], bot[2], bot[3], 1 })
 						table.insert(triangles, { v3.x, v3.y, v3.z,  0, 0, 1,  top[1], top[2], top[3], 1 })
@@ -241,6 +251,7 @@ function state.load_map(what)
 					end
 				end
 			end
+			mesh.material = "invisible.nocollide"
 		end
 
 		if not mesh.material:match("invisible") then
@@ -329,7 +340,7 @@ end
 
 permanence.load(1)
 
-state.load_map(settings.level or "lamppost")
+state.load_map(settings.level or "untitled")
 
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
@@ -349,10 +360,16 @@ function love.keypressed(k)
 		log.info("Fullscreen %s", settings.fullscreen and "enabled" or "disabled")
 		love.window.setFullscreen(settings.fullscreen)
 		love.resize(lg.getDimensions())
+	elseif (k == "f3") then
+		settings.fps_camera = not settings.fps_camera
+		love.mouse.setRelativeMode(settings.fps_camera)
+		love.mouse.setGrabbed(settings.fps_camera)
 	end
 end
 
 function love.mousemoved(x, y, dx, dy)
+	camera_rotation.x = camera_rotation.x + dx * 0.001
+	camera_rotation.y = camera_rotation.y + dy * 0.001
 end
 
 local timestep = 1/30
@@ -407,10 +424,15 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = state.time
 
+	state.daytime = state.time * 0.01
+	renderer.uniforms.daytime = state.daytime
+
+	renderer.generate_ambient()
+
 	if true then
 		local eye
 		do
-			eye = (vector(0, 2, -6) * state.zoom) + state.target
+			eye = (vector(0, 1.5, -6) * state.zoom) + state.target
 
 			if state.camera_box then
 				local p = state.camera_box.position
@@ -423,12 +445,18 @@ function love.update(dt)
 
 		state.view_matrix = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
 
-
 		state.shadow_view_matrix = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
 
-
 		if settings.fps_camera then
-			state.view_matrix = mat4.look_at(state.target, state.target+camera_rotation, { y = 1 })
+			local pos = state.target + vector(0, 1, 0)
+
+			local rot = vector(
+				math.cos(camera_rotation.x),
+				-math.sin(camera_rotation.y),
+				math.sin(camera_rotation.x)
+			)
+
+			state.view_matrix = mat4.look_at(pos, pos+rot, { y = 1 })
 		end
 		
 		renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
@@ -449,8 +477,6 @@ function love.update(dt)
 				mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, 1)
 		end
 
-		state.eye = vector.from_table(state.view_matrix:multiply_vec4 { 0, 0, 0, 1 })
-
 		if settings.debug then -- SUPER COOL FEATURE!
 			lovebird.update()
 		end
@@ -462,6 +488,7 @@ function love.update(dt)
 
 	if settings.fps_camera and settings.debug then
 		state:debug("FPS CAMERA IS ON!")
+		state:debug("")
 	end
 
 	if settings.fps then
@@ -529,21 +556,22 @@ function love.draw()
 		state:debug("MAP:    %s", state.map_name)
 	end
 
-	local color, normal, depth, light = renderer.draw({
-		view = state.view_matrix
-	}, state)
+	state.render_target.view = state.view_matrix
+
+	local target = renderer.draw(state.render_target, state)
 
 	local r = function()
 		lg.push("all")
 			assets.shd_post:send("color_a", fam.hex"#00093b")
 			assets.shd_post:send("color_b", fam.hex"#ff0080")
 			assets.shd_post:send("power",  0.2)
-			color:setFilter("nearest")
+			target.canvas_color:setFilter("nearest")
 			lg.setShader(assets.shd_post) -- TODO: Move to multi-pass blur!
 			lg.scale(state.scale)
-			assets.shd_post:send("light", light)
-			assets.shd_post:send("resolution", {light:getDimensions()})
-			lg.draw(color)
+			assets.shd_post:send("light", target.canvas_light_pass)
+			assets.shd_post:send("resolution", {target.canvas_light_pass:getDimensions()})
+			assets.shd_post:send("exposure", target.exposure)
+			lg.draw(target.canvas_color)
 
 			lg.setShader()
 			lg.setBlendMode("alpha")

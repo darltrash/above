@@ -8,8 +8,10 @@ varying vec4 vw_position;
 varying vec3 vw_normal;
 varying vec4 vx_color;
 
+varying vec4 wl_position;
+varying vec3 wl_normal;
+
 #define sqr(a) (a*a)
-#define fma(a,b,c) ((a)*(b)+(c))
 
 // Spherical harmonics, cofactor and improved diffuse
 // by the people at excessive ❤ moé 
@@ -34,7 +36,10 @@ varying vec4 vx_color;
 
     vec4 position( mat4 _, vec4 vertex_position ) {
         vw_position = view * model * vertex_position;
+        wl_position = model * vertex_position;
+
         vw_normal = cofactor(view * model) * VertexNormal;
+        wl_normal = cofactor(model) * VertexNormal;
 
         cl_position = projection * vw_position;
 
@@ -46,6 +51,8 @@ varying vec4 vx_color;
 
 #ifdef PIXEL
     uniform Image MainTex;
+
+    uniform float glow;
 
     // Lighting!
     #define LIGHT_AMOUNT 16
@@ -59,6 +66,8 @@ varying vec4 vx_color;
     uniform float time;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
+
+    uniform samplerCube cubemap;
 
     float dither4x4(vec2 position, float brightness) {
         mat4 dither_table = mat4(
@@ -120,36 +129,110 @@ varying vec4 vx_color;
         return (1.0 - f0) * (x2 * x2 * x) + f0;
     }
 
+    const vec3 luma = vec3(0.299, 0.587, 0.114);
+
+    #define saturate(a) (clamp(a, 0.0, 1.0))
+    #define fma(a, b, c) ((a) * (b) + (c))
+    
+    float prefiltered_brdf(float ndv, float roughness) {
+        vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+        vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+        vec4 r = roughness * c0 + c1;
+        float a004 = min(r.x * r.x, exp2(-9.28 * ndv)) * r.x + r.y;
+        vec2 magic = vec2(-1.04, 1.04) * a004 + r.zw;
+        return magic.r + magic.g;
+    }
+
+    vec3 do_lighting(vec3 albedo, float roughness, float scattering, float metalness, float s_subsurface ){
+        vec3 n = normalize(vw_normal);
+        vec3 i = normalize(-vw_position.xyz);
+        float ndi = max(0.5, dot(n, i));
+
+        roughness = fma(saturate(roughness), 0.98, 0.01);
+        float skin = saturate(scattering);
+        metalness = saturate(metalness - skin);
+
+        float ior_base = 1.45;
+        float ior = fma(metalness, 100.0, ior_base);
+        float r2 = roughness * roughness;
+        float k = roughness * 0.5;
+
+        vec3 diffuse = vec3(0.0);
+        vec3 specular = vec3(0.0);
+        vec3 subsurface = vec3(0.0);
+
+        float sun_vis = 1.0; // sample_csm(surface.vs_position);
+        float shadow_limit = 0.0;
+
+        for(int i=0; i<light_amount; ++i) { // For each light
+            vec3 p = (view * vec4(light_positions[i], 1.0)).xyz;
+            vec3 diff = p - vw_position.xyz;
+
+            vec3 l = normalize(diff);
+            vec3 c = light_colors[i].rgb * light_colors[i].a;
+
+            float d = max(0.5, length(diff));
+            float inv_sqr_law = 1.0 / max(0.1, sqr(d));
+
+            float base_ndl = dot(n, l);
+            float ndl = max(0.0, base_ndl);
+            float sl = ndl / fma(ndl, (1.0 - k), k);
+            float sv = ndi / fma(ndi, (1.0 - k), k);
+            float gsf = mix(sl * sv, 1.0, translucent);
+
+            vec3 h = normalize(i + l);
+            float ndh = max(0.0, dot(n, h));
+            float ldh = max(0.0, dot(l, h));
+            float dist = ndh * ndh * (r2 - 1.0);
+            float d1 = 1.0 + dist;
+
+            // let ndf = r2 / (pi * d1 * d1) + schlick_ior_fresnel(ior, ldh);
+            float ndf = max(r2 / (PI * d1 * d1), schlick_ior_fresnel(ior, ldh)) * gsf;
+            vec3 v = c * mix(1.0, sun_vis, float(i == 0));
+            diffuse += v * max(shadow_limit, gsf); // limit contrast for now
+            subsurface += v * fma(base_ndl * ndi, 0.5, 0.5);
+            specular += (v * ndf * smoothstep(0.0, 0.25, ndl)) / max(4.0 * ndl * ndi, 0.001);
+        }
+
+        diffuse = mix(diffuse, subsurface * s_subsurface, skin);
+        float fresnel = schlick_ior_fresnel(ior, ndi);
+        float magic = prefiltered_brdf(ndi, roughness);
+        vec3 f0 = mix(vec3(0.04), fma(diffuse, albedo, albedo), fresnel) * magic * 0.01;
+
+        return fma(albedo, diffuse, specular * f0);
+    }
 
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
+        vec3 sample = textureLod(cubemap, wl_normal, 6.0).rgb;
+        float l = length(sample.rgb / 12.0) * 0.1;
+        vec3 diffuse = sqrt(sample) * sqr(l); // vec4(sh(harmonics, normal), 1.0)
 
-        vec4 diffuse = ambient;
+        float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
 
         for(int i=0; i<light_amount; ++i) { // For each light
             vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
-            float intensity = sqrt(light_colors[i].a); // Encodes intensity
-            vec4 color = vec4(normalize(light_colors[i].rgb) * intensity, intensity);
+            vec3 color = light_colors[i].rgb * light_colors[i].a;
 
-            // GSF diffuse
-            float base_ndl = dot(normal, normalize(position - vw_position.xyz));
-            float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
+            vec3 diff = position - vw_position.xyz;
+            float dist = max(0.0, length(diff));
+            float inv_sqr_law = 1.0 / max(0.6, sqr(dist));
+            
+            vec3 l = normalize(diff);
+            float base_ndl = dot(normal, l);
 
-            float roughness = 0.3;
+            float roughness = 0.8;
 
             float k = roughness * 0.5;
-            float ndl = mix(max(0.0, base_ndl), abs(base_ndl), translucent);
+            float ndl = max(0.0, base_ndl);
             float sl = ndl / (ndl * (1.0 - k) + k);
             float sv = ndi / (ndi * (1.0 - k) + k);
-            float gsf = sl * sv;
-
-            float dist = length(position - vw_position.xyz);
-            float falloff =  sqr(linearstep(color.a, 0.0, dist)) * 5.0;
+            float gsf = mix(sl * sv, 1.0, translucent);
 
             // Now we add our light's color to the light value
-            diffuse.rgb += normalize(color.rgb) * gsf * falloff;
+            diffuse += color * inv_sqr_law * gsf;
         }
 
         // This helps us make the models just use a single portion of the 
@@ -157,7 +240,7 @@ varying vec4 vx_color;
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
-        vec4 o = Texel(MainTex, uv) * VaryingColor * diffuse;
+        vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse, 1.0);
         
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);
@@ -168,7 +251,7 @@ varying vec4 vx_color;
 
         vec3 n = normal * 0.5 + 0.5;
 
-        love_Canvases[0] = vec4(o.rgb, 1.0);
+        love_Canvases[0] = vec4(o.rgb * (1.0+glow), 1.0);
         love_Canvases[1] = vec4(n, 1.0);
     }
 #endif
