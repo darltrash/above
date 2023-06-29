@@ -44,3 +44,5 @@ texture: sky_gradient
 [clouds]
 texture: clouds
 culling: front
+shader: unshaded
+glow: 10

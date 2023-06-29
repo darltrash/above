@@ -99,7 +99,7 @@ varying vec4 vx_color;
 
         vec3 n = normal * 0.5 + 0.5;
 
-        love_Canvases[0] = vec4(o.rgb*70.0, 1.0);
+        love_Canvases[0] = vec4(o.rgb*120.0, 1.0);
         love_Canvases[1] = vec4(n, 1.0);
     }
 #endif

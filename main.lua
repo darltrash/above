@@ -153,7 +153,8 @@ local function render_level()
 	renderer.render {
 		mesh = assets.mod_clouds,
 		material = "clouds",
-		model = mat4.from_transform(0, { y = state.daytime * math.pi }, 10)
+		model = mat4.from_transform(0, { y = state.daytime * math.pi }, 10),
+		color = {1, 1, 1, 1/4},
 	}
 end
 

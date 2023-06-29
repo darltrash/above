@@ -540,12 +540,15 @@ local function draw(target, state)
 		state:debug("LIGHTS: %i/16", lights)
 	end
 
---	local a = uniforms.cubemap
+	-- TODO: Implement Manta's incredible thingy 
+--	local luma = vector(0.299, 0.587, 0.114)
+--
+--	local a = target.canvas_color
 --	local k = a:newImageData(1, a:getMipmapCount(), 0, 0, 1, 1)
---	local brightness = vector(k:getPixel(0, 0)):magnitude()
-
---	local exp = -(brightness/30) - 2
---	target.exposure = fam.lerp(target.exposure or exp, exp, lt.getDelta())
+--	local brightness = vector(k:getPixel(0, 0)):dot(luma)
+--
+--	local exp = math.min(0, -(brightness/5))
+--	target.exposure = fam.lerp(target.exposure or exp, exp, lt.getDelta() * 40)
 
 	target.exposure = -5.5
 
