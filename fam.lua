@@ -43,7 +43,7 @@ fam.wait = function(ticks)
     end
 end
 
-fam.animate = function(ticks, callback)  -- fn(t)
+fam.animate = function(ticks, callback) -- fn(t)
     local start = lt.getTime()
 
     local i = 0

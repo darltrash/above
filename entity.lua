@@ -12,11 +12,11 @@ local permanence = require "permanence"
 
 ---------------------------------------------------------------
 
-local coyote_time = 1/8 
+local coyote_time = 1 / 8
 
 
 local initializers = {
-    ["player"] = function (entity, state)
+    ["player"] = function(entity, state)
         log.info("deer are quite strange actually")
 
         entity.controller = "player"
@@ -40,7 +40,7 @@ local initializers = {
             wall_time = 0
         }
 
-        entity.tint = {1, 1, 1, 1}
+        entity.tint = { 1, 1, 1, 1 }
 
         entity.id = "player"
         entity.offset = vector(0, 0, 0)
@@ -49,8 +49,8 @@ local initializers = {
         entity.mass = true
     end,
 
-    ["npc"] = function (entity, state, script)
-        entity.sprite = {0, 224, 32, 32}
+    ["npc"] = function(entity, state, script)
+        entity.sprite = { 0, 224, 32, 32 }
         entity.routine = script
         entity.scripts = {}
     end
@@ -83,27 +83,27 @@ end
 
 local PLAYER_ANIMS = { -- 🚶+🦌
     {
-        {   0,   0, 56, 56, off = 0 },
-        {  56,   0, 56, 56, off = 1 },
-        {   0,   0, 56, 56, off = 0 },
-        { 112,   0, 56, 56, off = 1 },
+        { 0,   0, 56, 56, off = 0 },
+        { 56,  0, 56, 56, off = 1 },
+        { 0,   0, 56, 56, off = 0 },
+        { 112, 0, 56, 56, off = 1 },
     },
 
     {
-        {   0, 56, 56, 56, off = 0 },
-        {  56, 56, 56, 56, off = 1 },
-        {   0, 56, 56, 56, off = 0 },
+        { 0,   56, 56, 56, off = 0 },
+        { 56,  56, 56, 56, off = 1 },
+        { 0,   56, 56, 56, off = 0 },
         { 112, 56, 56, 56, off = 1 },
     },
 
     {
-        {   0, 112, 56, 56, off = 0 },
+        { 0,   112, 56, 56, off = 0 },
         { 112, 112, 56, 56, off = 1 },
     }
 }
 
 local controllers = {
-    ["player"] = function (entity, dt, state)
+    ["player"] = function(entity, dt, state)
         state.player = entity
         local dir = -input:get_direction()
 
@@ -115,10 +115,10 @@ local controllers = {
             local mag = velocity:magnitude()
             if mag > 0 then
                 if math.floor(entity.animation % 2) == 0 then
-                    assets.sfx_step:setVolume(lm.random(20, 70)/100)
+                    assets.sfx_step:setVolume(lm.random(20, 70) / 100)
                     assets.sfx_step:play()
                 end
-    
+
                 if entity.animation == 0 then
                     entity.animation = 1
                 end
@@ -148,24 +148,24 @@ local controllers = {
         if not require("ui").done then
             entity.tint[4] = 0
         else
-            entity.tint[4] = fam.lerp(entity.tint[4], 1, dt*5)+(1/8)
+            entity.tint[4] = fam.lerp(entity.tint[4], 1, dt * 5) + (1 / 8)
         end
 
         local anim = PLAYER_ANIMS[entity.animation_index]
-        entity.sprite = anim[(math.floor(entity.animation)%#anim)+1]
+        entity.sprite = anim[(math.floor(entity.animation) % #anim) + 1]
 
-        entity.scale.y = fam.lerp(entity.scale.y, entity.sprite.sx or 1, dt*20)
+        entity.scale.y = fam.lerp(entity.scale.y, entity.sprite.sx or 1, dt * 20)
 
-        entity.offset.y = fam.lerp(entity.offset.y, -entity.sprite.off*0.14, dt*25)
+        entity.offset.y = fam.lerp(entity.offset.y, -entity.sprite.off * 0.14, dt * 25)
 
         entity.velocity = entity.velocity + velocity
     end,
 }
 
 local function tick(entities, dt, state)
-    local new_entities  = { hash = entities.hash }
+    local new_entities = { hash = entities.hash }
 
-    local player = new_entities.hash.player
+    local player       = new_entities.hash.player
 
     for _, entity in ipairs(entities) do
         if entity.delete then
@@ -181,7 +181,7 @@ local function tick(entities, dt, state)
         end
     end
 
-	for _, entity in ipairs(new_entities) do
+    for _, entity in ipairs(new_entities) do
         if entity.scale then
             entity.past_scale = entity.scale:copy()
         end
@@ -193,21 +193,21 @@ local function tick(entities, dt, state)
         if entity.position then
             entity.past_position = entity.position:copy()
         end
-        
-        -- PROCESS SEMI-SPATIAL MUSIC/AUDIO 
-		if entity.music then
-			entity.music:setLooping(true)
-			if entity.position then
-				local volume = entity.music_volume or 1
-				local area = entity.music_area or 8
-				local dist = math.max(0, area-state.target:dist(entity.position))/area
-				entity.music:setVolume(dist * dist * volume)
-			end
-			
-			if not entity.music:isPlaying() then
-				entity.music:play()
-			end
-		end
+
+        -- PROCESS SEMI-SPATIAL MUSIC/AUDIO
+        if entity.music then
+            entity.music:setLooping(true)
+            if entity.position then
+                local volume = entity.music_volume or 1
+                local area = entity.music_area or 8
+                local dist = math.max(0, area - state.target:dist(entity.position)) / area
+                entity.music:setVolume(dist * dist * volume)
+            end
+
+            if not entity.music:isPlaying() then
+                entity.music:play()
+            end
+        end
 
         if entity.routine then
             local routine = scripts[entity.routine]
@@ -233,7 +233,7 @@ local function tick(entities, dt, state)
             end
         end
 
-		if entity.position then
+        if entity.position then
             local dist = player.position:dist(entity.position)
 
             if player and entity.interact then
@@ -246,7 +246,7 @@ local function tick(entities, dt, state)
                         assets.sfx_done:play()
                         player.interacting_with = entity
                         entity.routine = entity.interact
-                        entity.interact_routine = #entity.scripts+1
+                        entity.interact_routine = #entity.scripts + 1
                     end
                 end
 
@@ -256,10 +256,9 @@ local function tick(entities, dt, state)
 
                 entity._interaction_anim = entity.interaction_anim or 0
                 entity.interaction_anim = fam.decay(entity.interaction_anim or 0, interaction, 1, dt)
-            end    
+            end
 
             if entity.velocity then -- Euler integration
-
                 -- TODO: FIX FORCE MATH!
                 if entity.mass then
                     entity.gravity = (entity.gravity or 0) + 10 * dt
@@ -269,17 +268,17 @@ local function tick(entities, dt, state)
                 end
 
                 if entity.collider then
-                    local p = entity.position + entity.collider.offset
-                    local v = entity.velocity * dt * 2
+                    local p                                  = entity.position + entity.collider.offset
+                    local v                                  = entity.velocity * dt * 2
 
                     local new_position, new_velocity, planes =
                         state.hash:check(p, v, entity.collider.radius)
 
-                    entity.velocity = new_velocity / dt
+                    entity.velocity                          = new_velocity / dt
 
-                    entity.collider.floor_time = math.max(0, (entity.collider.floor_time or 0) - dt)
-                    entity.collider.ceil_time  = math.max(0, (entity.collider.ceil_time  or 0) - dt)
-                    entity.collider.wall_time  = math.max(0, (entity.collider.wall_time  or 0) - dt)
+                    entity.collider.floor_time               = math.max(0, (entity.collider.floor_time or 0) - dt)
+                    entity.collider.ceil_time                = math.max(0, (entity.collider.ceil_time or 0) - dt)
+                    entity.collider.wall_time                = math.max(0, (entity.collider.wall_time or 0) - dt)
 
                     for _, plane in ipairs(planes) do
                         local i = plane.normal:dot(vector(0, -1, 0))
@@ -302,9 +301,9 @@ local function tick(entities, dt, state)
                     entity.collider._past_position = entity.collider._position
                     entity.collider._position = new_position
                 end
-                
+
                 entity.position = entity.position + entity.velocity * dt
-                entity.velocity = entity.velocity:lerp(0, dt*20)
+                entity.velocity = entity.velocity:lerp(0, dt * 20)
             end
 
             -- This controls any element that has a "controller",
@@ -314,7 +313,7 @@ local function tick(entities, dt, state)
                 control(entity, dt, state)
             end
         end
-	end
+    end
 
     return new_entities
 end
@@ -326,8 +325,8 @@ local function render(entities, state, delta, alpha)
         state:debug("ITEMS:  %i", #entities)
     end
 
-	for _, entity in ipairs(entities) do
-		if entity.position then
+    for _, entity in ipairs(entities) do
+        if entity.position then
             local invisible = entity.invisible
             if not invisible then
                 local pos, rot, scl = 0, 0, 1
@@ -349,7 +348,7 @@ local function render(entities, state, delta, alpha)
                 if entity.offset then
                     pos = pos - entity.offset
                 end
-                
+
                 local call = {
                     color = entity.tint,
                     model = mat4.from_transform(pos, rot, scl),
@@ -371,10 +370,10 @@ local function render(entities, state, delta, alpha)
                         entity.sprite[3] / call.texture:getWidth(),
                         entity.sprite[4] / call.texture:getHeight(),
                     }
-                    
+
                     call.mesh = assets.mod_quad
                 end
-            
+
                 if call.mesh then
                     renderer.render(call)
                 end
@@ -386,27 +385,27 @@ local function render(entities, state, delta, alpha)
                         renderer.render {
                             mesh = assets.mod_sphere,
                             model = mat4.from_transform(_pos, 0, c.radius),
-                            color = {1, 0, 1, 1/4},
+                            color = { 1, 0, 1, 1 / 4 },
                             unshaded = true
                         }
                     end
 
-                    local pos = pos-vector(0, 0.3, 0)
+                    local pos = pos - vector(0, 0.3, 0)
 
                     renderer.render {
                         culling = "none",
                         unshaded = true,
                         entity = entity,
-                        
+
                         model = mat4.from_transform(pos, 0, 3),
 
-                        texture = function (call)
+                        texture = function(call)
                             lg.setFont(assets.fnt_main)
-                            local h = 64 - (assets.fnt_main:getHeight()/2)
+                            local h = 64 - (assets.fnt_main:getHeight() / 2)
 
                             if call.entity.title then
                                 local title = call.entity.title
-                                local w = 64 - (assets.fnt_main:getWidth(title)/2)
+                                local w = 64 - (assets.fnt_main:getWidth(title) / 2)
                                 lg.print(title, w, h)
                             end
                             --lg.rectangle("fill", 0, 0, 2000, 2000)
@@ -418,17 +417,17 @@ local function render(entities, state, delta, alpha)
 
                 if entity.interaction_anim then
                     local e = fam.lerp(entity._interaction_anim, entity.interaction_anim, alpha)
-                    local pos = pos+vector(0, 0.1+(e*e*0.8), -0.05)
+                    local pos = pos + vector(0, 0.1 + (e * e * 0.8), -0.05)
                     local a = e
                     if a > 0.99 then
                         a = 1
                     end
 
                     local rot = vector(0, 0, 0)
-                    rot.z = math.sin(lt.getTime()*3)*0.2
+                    rot.z = math.sin(lt.getTime() * 3) * 0.2
 
                     renderer.render {
-                        color = {1, 1, 1, a*a},
+                        color = { 1, 1, 1, a * a },
                         model = mat4.from_transform(pos, rot, 1),
                         translucent = 0.5,
                         glow = 10,
@@ -438,7 +437,7 @@ local function render(entities, state, delta, alpha)
                 end
             end
         end
-	end
+    end
 end
 
 return {

@@ -33,15 +33,15 @@ local uniforms = {
 	harmonics = {
 		unpack = true,
 
-		{  0.7953949,  0.4405923,  0.5459412 },
-		{  0.3981450,  0.3526911,  0.6097158 },
+		{ 0.7953949,  0.4405923,  0.5459412 },
+		{ 0.3981450,  0.3526911,  0.6097158 },
 		{ -0.3424573, -0.1838151, -0.2715583 },
-		{ -0.2944621, -0.0560606,  0.0095193 },
+		{ -0.2944621, -0.0560606, 0.0095193 },
 		{ -0.1123051, -0.0513088, -0.1232869 },
 		{ -0.2645007, -0.2257996, -0.4785847 },
 		{ -0.1569444, -0.0954703, -0.1485053 },
-		{  0.5646247,  0.2161586,  0.1402643 },
-		{  0.2137442, -0.0547578, -0.3061700 }
+		{ 0.5646247,  0.2161586,  0.1402643 },
+		{ 0.2137442,  -0.0547578, -0.3061700 }
 	},
 
 	perlin = assets.tex_perlin
@@ -226,7 +226,7 @@ local function resize(w, h, scale)
 
 	-- ////////////// SHADOWMAP ////////////
 
-	canvas_shadowmap = canvas {
+	canvas_shadowmap    = canvas {
 		format = "depth24",
 		readable = true,
 		filter = "linear",
@@ -332,10 +332,8 @@ local function render_to(target)
 		uniforms.light_amount = lights
 
 		l_counter = 0
-
 	else
-		uniforms.ambient = {1, 1, 1, 1}
-
+		uniforms.ambient = { 1, 1, 1, 1 }
 	end
 
 	if lights == 0 then
@@ -397,11 +395,11 @@ local function render_to(target)
 			-- Off-screen texture generation callback
 			if type(call.texture) == "function" then
 				lg.push("all")
-					lg.reset()
-					lg.setCanvas(canvas_flat)
-					lg.clear(0, 0, 0, 0)
-					lg.setColor(1, 1, 1, 1)
-					call:texture()
+				lg.reset()
+				lg.setCanvas(canvas_flat)
+				lg.clear(0, 0, 0, 0)
+				lg.setColor(1, 1, 1, 1)
+				call:texture()
 				lg.pop()
 
 				mesh:setTexture(canvas_flat)
@@ -454,7 +452,7 @@ local function render_to(target)
 		if call.box then
 			local origin = (call.box.max + call.box.min) / 2
 
-			call.order =  vector.dist(eye, origin)
+			call.order = vector.dist(eye, origin)
 		end
 
 		return call.order
@@ -552,9 +550,9 @@ local function draw(target, state)
 	target.canvas_depth_b   = canvas_depth_b
 	target.canvas_normals_b = canvas_normals_b
 
-	local total_calls = 0
+	local total_calls       = 0
 	if target.shadow_view then
-		local shadow = {
+		local shadow                 = {
 			view = target.shadow_view,
 			projection = mat4.from_ortho(-10, 10, -10, 10, 0.01, 1000),
 
@@ -568,8 +566,8 @@ local function draw(target, state)
 			shader = assets.shd_unshaded
 		}
 
-		local vertices, calls, grabs  = render_to(shadow)
-		total_calls = total_calls + calls
+		local vertices, calls, grabs = render_to(shadow)
+		total_calls                  = total_calls + calls
 
 		if state.settings.debug then
 			state:debug("")
@@ -579,9 +577,9 @@ local function draw(target, state)
 			state:debug("GRABS:  %i", grabs)
 		end
 
-		uniforms.shadow_view = shadow.view
+		uniforms.shadow_view       = shadow.view
 		uniforms.shadow_projection = shadow.projection
-		uniforms.shadow_map  = shadow.canvas_depth
+		uniforms.shadow_map        = shadow.canvas_depth
 	end
 
 	local vertices, calls, grabs, lights = render_to(target)
@@ -603,12 +601,12 @@ local function draw(target, state)
 
 	-- Generate light threshold data :)
 	lg.push("all")
-		lg.setCanvas(canvas_light_pass)
-		lg.setShader(assets.shd_light)
-		assets.shd_light:send("exposure", target.exposure)
-		lg.clear(0, 0, 0, 0)
-		target.canvas_color:setFilter("linear", "linear")
-		lg.draw(target.canvas_color)
+	lg.setCanvas(canvas_light_pass)
+	lg.setShader(assets.shd_light)
+	assets.shd_light:send("exposure", target.exposure)
+	lg.clear(0, 0, 0, 0)
+	target.canvas_color:setFilter("linear", "linear")
+	lg.draw(target.canvas_color)
 	lg.pop()
 
 	target.canvas_color:setFilter("nearest", "nearest")

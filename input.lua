@@ -13,15 +13,15 @@ local modes = {
         name = "desktop",
         times = {},
         map = {
-            up     = {"w", "up"},
-            down   = {"s", "down"},
-            left   = {"a", "left"},
-            right  = {"d", "right"},
-            action = {"return", "z"},
-            jump   = {"space", "x"}
+            up     = { "w", "up" },
+            down   = { "s", "down" },
+            left   = { "a", "left" },
+            right  = { "d", "right" },
+            action = { "return", "z" },
+            jump   = { "space", "x" }
         },
 
-        get_direction = function (self)
+        get_direction = function(self)
             local vector = vector(0, 0, 0)
             local m = self.map
 
@@ -44,21 +44,19 @@ local modes = {
             return vector:normalize()
         end,
 
-        update = function (self)
+        update = function(self)
             local done
             for k, v in pairs(self.map) do
                 if lk.isDown(unpack(v)) then
-                    self.times[k] = (self.times[k] or 0) +1
+                    self.times[k] = (self.times[k] or 0) + 1
                     done = true
-                
                 else
                     self.times[k] = 0
-                    
                 end
             end
-            
+
             if done then
-                self.times.any = (self.times.any or 0) +1
+                self.times.any = (self.times.any or 0) + 1
             else
                 self.times.any = 0
             end
@@ -66,11 +64,11 @@ local modes = {
             return done
         end,
 
-        just_pressed = function (self, what)
+        just_pressed = function(self, what)
             return self.times[what] == 1
         end,
 
-        holding = function (self, what)
+        holding = function(self, what)
             return self.times[what] > 0
         end
     },
@@ -79,10 +77,10 @@ local modes = {
         name = "joystick",
         times = {},
         map = {
-            action = {1},
+            action = { 1 },
         },
 
-        get_direction = function (self)
+        get_direction = function(self)
             local joysticks = lj.getJoysticks()
             local out = vector(0, 0, 0)
 
@@ -94,17 +92,15 @@ local modes = {
             return out
         end,
 
-        update = function (self)
+        update = function(self)
             local joysticks = lj.getJoysticks()
 
             if #joysticks > 0 then
                 for k, v in pairs(self.map) do
                     if joysticks[1]:isDown(unpack(v)) then
-                        self.times[k] = (self.times[k] or 0) +1
-                    
+                        self.times[k] = (self.times[k] or 0) + 1
                     else
                         self.times[k] = 0
-                        
                     end
                 end
             end
@@ -112,11 +108,11 @@ local modes = {
             return self:get_direction():magnitude() > 0
         end,
 
-        just_pressed = function (self, what)
+        just_pressed = function(self, what)
             return self.times[what] == 1
         end,
 
-        holding = function (self, what)
+        holding = function(self, what)
             return self.times[what] > 0
         end
     }
@@ -124,7 +120,7 @@ local modes = {
 local current = modes.desktop
 
 return {
-    update = function ()
+    update = function()
         for _, mode in pairs(modes) do
             if mode:update() then
                 current = mode
@@ -132,19 +128,19 @@ return {
         end
     end,
 
-    get_direction = function ()
+    get_direction = function()
         return current:get_direction()
     end,
 
-    just_pressed = function (what)
+    just_pressed = function(what)
         return current:just_pressed(what)
     end,
 
-    holding = function (what)
+    holding = function(what)
         return current:holding(what)
     end,
 
-    current = function ()
+    current = function()
         return current
     end
 }

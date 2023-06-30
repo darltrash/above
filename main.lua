@@ -23,23 +23,23 @@ effect.scanlines.opacity = 0.1
 -- SOME SETTINGS (sadly it uses env vars)
 local settings = {}
 do
-	settings.low_end = os.getenv("ABOVE_LOW_END")
-	settings.debug   = os.getenv("ABOVE_DEBUG")
-	settings.fps     = os.getenv("ABOVE_FPS") or settings.debug
-	settings.linear  = os.getenv("ABOVE_LINEAR") -- cursed mode
-	settings.no_post = os.getenv("ABOVE_NO_POST") or settings.low_end
-	settings.volume  = os.getenv("ABOVE_VOLUME")
+	settings.low_end    = os.getenv("ABOVE_LOW_END")
+	settings.debug      = os.getenv("ABOVE_DEBUG")
+	settings.fps        = os.getenv("ABOVE_FPS") or settings.debug
+	settings.linear     = os.getenv("ABOVE_LINEAR") -- cursed mode
+	settings.no_post    = os.getenv("ABOVE_NO_POST") or settings.low_end
+	settings.volume     = os.getenv("ABOVE_VOLUME")
 	settings.fullscreen = os.getenv("ABOVE_FULLSCREEN") and true or false
-	settings.scale   = os.getenv("ABOVE_SCALE")
-	settings.vsync   = tonumber(os.getenv("ABOVE_VSYNC")) or 1
-	settings.profile = os.getenv("ABOVE_PROFILE")
+	settings.scale      = os.getenv("ABOVE_SCALE")
+	settings.vsync      = tonumber(os.getenv("ABOVE_VSYNC")) or 1
+	settings.profile    = os.getenv("ABOVE_PROFILE")
 
-	settings.level = os.getenv("ABOVE_LEVEL") or nil
+	settings.level      = os.getenv("ABOVE_LEVEL") or nil
 
 	settings.fps_camera = false
 end
 
-log.usecolor = not (love.system.getOS()=="Windows" or os.getenv("no_color"))
+log.usecolor = not (love.system.getOS() == "Windows" or os.getenv("no_color"))
 
 if not settings.linear then
 	love.graphics.setDefaultFilter("nearest", "nearest")
@@ -112,12 +112,12 @@ if settings.debug then
 	log.info("Running on 0.0.0.0:%i", lovebird.port)
 end
 
-local triarea = function (v1, v2, v3)
+local triarea = function(v1, v2, v3)
 	local edge1 = v2 - v1
-    local edge2 = v3 - v1
-    local crossProduct = edge1:cross(edge2)
-    local area = crossProduct:magnitude() / 2
-    return area
+	local edge2 = v3 - v1
+	local crossProduct = edge1:cross(edge2)
+	local area = crossProduct:magnitude() / 2
+	return area
 end
 
 local grass_meshes = {}
@@ -137,7 +137,7 @@ local function render_level()
 	-- THE WATAH
 	local pos = state.target:copy()
 	pos.y = 0
-	
+
 	--renderer.render {
 	--	mesh = assets.mod_water,
 	--	color = fam.hex("#a46cff"),
@@ -155,7 +155,7 @@ local function render_level()
 		mesh = assets.mod_clouds,
 		material = "clouds",
 		model = mat4.from_transform(0, { y = state.daytime * math.pi }, 10),
-		color = {1, 1, 1, 1/4},
+		color = { 1, 1, 1, 1 / 4 },
 	}
 end
 
@@ -169,11 +169,11 @@ function state.load_map(what)
 	local map = exm.load(("assets/mod/%s.exm"):format(what), true)
 	state.map = map
 	local meta = json.decode(map.metadata)
-	
+
 	local function color_lerp(a, b, t)
 		local a = fam.hex(a)
 		local b = fam.hex(b)
-		
+
 		return {
 			fam.lerp(a[1], b[1], t),
 			fam.lerp(a[2], b[2], t),
@@ -187,10 +187,10 @@ function state.load_map(what)
 	local vertex_map = map.mesh:getVertexMap()
 	for index, mesh in ipairs(map.meshes) do
 		if mesh.material:match("grassful") then
-			for i=mesh.first, mesh.last-1, 3 do -- Triangles
-				local v1 = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
-				local v2 = vector(map.mesh:getVertexAttribute(vertex_map[i+1], 1))
-				local v3 = vector(map.mesh:getVertexAttribute(vertex_map[i+2], 1))
+			for i = mesh.first, mesh.last - 1, 3 do -- Triangles
+				local v1 = vector(map.mesh:getVertexAttribute(vertex_map[i + 0], 1))
+				local v2 = vector(map.mesh:getVertexAttribute(vertex_map[i + 1], 1))
+				local v3 = vector(map.mesh:getVertexAttribute(vertex_map[i + 2], 1))
 
 				local n = vector.normalize(vector.cross(v2 - v1, v3 - v1))
 				local floor_dot = n:dot(vector(0, 1, 0))
@@ -207,19 +207,19 @@ function state.load_map(what)
 					local function process(a)
 						grass_mesh.box.min = grass_mesh.box.min:min(a)
 						grass_mesh.box.max = grass_mesh.box.max:max(a)
-	
+
 						return a
 					end
 
-					local c1 = map.mesh:getVertexAttribute(vertex_map[i+0], 5)
-					local c2 = map.mesh:getVertexAttribute(vertex_map[i+1], 5)
-					local c3 = map.mesh:getVertexAttribute(vertex_map[i+2], 5)
+					local c1 = map.mesh:getVertexAttribute(vertex_map[i + 0], 5)
+					local c2 = map.mesh:getVertexAttribute(vertex_map[i + 1], 5)
+					local c3 = map.mesh:getVertexAttribute(vertex_map[i + 2], 5)
 
 					local area = triarea(v1, v2, v3)
 
-					for x=1, math.floor(area*50) do
-						local a = love.math.random(0, 100)/100
-						local b = love.math.random(0, 100)/100
+					for x = 1, math.floor(area * 50) do
+						local a = love.math.random(0, 100) / 100
+						local b = love.math.random(0, 100) / 100
 						local p = v1:lerp(v2, a):lerp(v3, b)
 						local c = fam.lerp(fam.lerp(c1, c2, a), c3, b)
 
@@ -228,24 +228,24 @@ function state.load_map(what)
 
 						local r = lm.random(-1, 1)
 
-						local v1 = process(p - vector(0.2, 0, 0):rotate(r, vector(0, 1, 0))*(0.2+c))
-						local v2 = process(p + vector(0.2, 0, 0):rotate(r, vector(0, 1, 0))*(0.2+c))
+						local v1 = process(p - vector(0.2, 0, 0):rotate(r, vector(0, 1, 0)) * (0.2 + c))
+						local v2 = process(p + vector(0.2, 0, 0):rotate(r, vector(0, 1, 0)) * (0.2 + c))
 						local v3 = process(p + vector(0, 1, 0) * i)
 
 						local top = color_lerp("#ff5100", "#db5800", i)
 						local bot = fam.hex("#bd0000", 1)
 
-						table.insert(triangles, { v1.x, v1.y, v1.z,  0, 0, 1,  bot[1], bot[2], bot[3], 1 })
-						table.insert(triangles, { v3.x, v3.y, v3.z,  0, 0, 1,  top[1], top[2], top[3], 1 })
-						table.insert(triangles, { v2.x, v2.y, v2.z,  0, 0, 1,  bot[1], bot[2], bot[3], 1 })
+						table.insert(triangles, { v1.x, v1.y, v1.z, 0, 0, 1, bot[1], bot[2], bot[3], 1 })
+						table.insert(triangles, { v3.x, v3.y, v3.z, 0, 0, 1, top[1], top[2], top[3], 1 })
+						table.insert(triangles, { v2.x, v2.y, v2.z, 0, 0, 1, bot[1], bot[2], bot[3], 1 })
 					end
 
 					if #triangles > 10 then
 						grass_mesh.mesh = lg.newMesh(
 							{
-								{"VertexPosition", "float", 3},
-								{"VertexNormal", "float", 3},
-								{"VertexColor", "float", 4},
+								{ "VertexPosition", "float", 3 },
+								{ "VertexNormal",   "float", 3 },
+								{ "VertexColor",    "float", 4 },
 							}, triangles, "triangles"
 						)
 
@@ -261,43 +261,41 @@ function state.load_map(what)
 				and mesh.first == last.last then
 				last.last = mesh.last
 
-				for i=mesh.first, mesh.last-1 do
-					local v = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
+				for i = mesh.first, mesh.last - 1 do
+					local v = vector(map.mesh:getVertexAttribute(vertex_map[i + 0], 1))
 					last.box.min = last.box.min:min(v)
 					last.box.max = last.box.max:max(v)
 				end
-
 			else
 				mesh.box = {
 					min = vector(0, 0, 0),
 					max = vector(0, 0, 0)
 				}
 
-				for i=mesh.first, mesh.last-1 do
-					local v = vector(map.mesh:getVertexAttribute(vertex_map[i+0], 1))
+				for i = mesh.first, mesh.last - 1 do
+					local v = vector(map.mesh:getVertexAttribute(vertex_map[i + 0], 1))
 					mesh.box.min = mesh.box.min:min(v)
 					mesh.box.max = mesh.box.max:max(v)
 				end
 
 				table.insert(meshes, mesh)
 				last = mesh
-
 			end
 		end
 
 		if not mesh.material:match("nocollide") then
-			for i=mesh.first, mesh.last-1, 3 do
+			for i = mesh.first, mesh.last - 1, 3 do
 				table.insert(state.triangles, {
-					{map.mesh:getVertexAttribute(vertex_map[i+0], 1)},
-					{map.mesh:getVertexAttribute(vertex_map[i+1], 1)},
-					{map.mesh:getVertexAttribute(vertex_map[i+2], 1)}
+					{ map.mesh:getVertexAttribute(vertex_map[i + 0], 1) },
+					{ map.mesh:getVertexAttribute(vertex_map[i + 1], 1) },
+					{ map.mesh:getVertexAttribute(vertex_map[i + 2], 1) }
 				})
 			end
 		end
 	end
 	local origin = #map.meshes
 	map.meshes = meshes
-	log.info("Optimized level from %i meshes to %i, reduced to %i%%!", origin, #meshes, (#meshes/origin)*100)
+	log.info("Optimized level from %i meshes to %i, reduced to %i%%!", origin, #meshes, (#meshes / origin) * 100)
 	log.info("Added %i/%i triangles to collision pool", #state.triangles, #map.triangles)
 
 	state.hash:add_triangles(state.triangles, "level")
@@ -382,7 +380,7 @@ function love.mousemoved(x, y, dx, dy)
 	camera_rotation.y = camera_rotation.y + dy * 0.001
 end
 
-local timestep = 1/30
+local timestep = 1 / 30
 local lag = timestep
 
 local current = 0
@@ -418,7 +416,7 @@ function love.update(dt)
 
 		state.entities = entities.tick(state.entities, timestep, state)
 		ui:on_tick(timestep)
-		
+
 		n = n + 1
 		if n == 5 then
 			lag = 0
@@ -462,9 +460,9 @@ function love.update(dt)
 			end
 		end
 
-		state.view_matrix = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
+		state.view_matrix = mat4.look_at(eye, state.target + vector(0, 0.5, 0), { y = 1 })
 
-		state.shadow_view_matrix = mat4.look_at(state.target+vector(10, 10, -5), state.target, { y = 1 })
+		state.shadow_view_matrix = mat4.look_at(state.target + vector(10, 10, -5), state.target, { y = 1 })
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)
@@ -475,9 +473,9 @@ function love.update(dt)
 				math.sin(camera_rotation.x)
 			)
 
-			state.view_matrix = mat4.look_at(pos, pos+rot, { y = 1 })
+			state.view_matrix = mat4.look_at(pos, pos + rot, { y = 1 })
 		end
-		
+
 		renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
 
 		do -- Cool camera movement effect
@@ -582,35 +580,35 @@ function love.draw()
 
 	local r = function()
 		lg.push("all")
-			assets.shd_post:send("color_a", fam.hex"#00093b")
-			assets.shd_post:send("color_b", fam.hex"#ff0080")
-			assets.shd_post:send("power",  0.2)
-			target.canvas_color:setFilter("nearest")
-			lg.setShader(assets.shd_post) -- TODO: Move to multi-pass blur!
-			lg.scale(state.scale)
-			assets.shd_post:send("light", target.canvas_light_pass)
-			assets.shd_post:send("resolution", {target.canvas_light_pass:getDimensions()})
-			assets.shd_post:send("exposure", target.exposure)
-			lg.draw(target.canvas_color)
+		assets.shd_post:send("color_a", fam.hex "#00093b")
+		assets.shd_post:send("color_b", fam.hex "#ff0080")
+		assets.shd_post:send("power", 0.2)
+		target.canvas_color:setFilter("nearest")
+		lg.setShader(assets.shd_post) -- TODO: Move to multi-pass blur!
+		lg.scale(state.scale)
+		assets.shd_post:send("light", target.canvas_light_pass)
+		assets.shd_post:send("resolution", { target.canvas_light_pass:getDimensions() })
+		assets.shd_post:send("exposure", target.exposure)
+		lg.draw(target.canvas_color)
 
-			lg.setShader()
-			lg.setBlendMode("alpha")
-			lg.setFont(assets.fnt_main)
-			for i, v in ipairs(state.debug_lines) do
-				lg.print(v, 4, 8 * (i - 1))
+		lg.setShader()
+		lg.setBlendMode("alpha")
+		lg.setFont(assets.fnt_main)
+		for i, v in ipairs(state.debug_lines) do
+			lg.print(v, 4, 8 * (i - 1))
 
-				state.debug_lines[i] = nil
-			end
+			state.debug_lines[i] = nil
+		end
 
-			ui:draw(w/state.scale, h/state.scale)
+		ui:draw(w / state.scale, h / state.scale)
 
-			lg.scale(2)
-			lg.setColor(0, 0, 0, state.escape * state.escape)
-			lg.rectangle("line", (w / (state.scale * 2)) - 73, 2, w, 12)
-			lg.setColor(0, 0, 0, 1)
-			lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
-			lg.setColor(1, 1, 1, state.escape * state.escape)
-			lg.print("OYASUMI!", (w / (state.scale * 2)) - 70)
+		lg.scale(2)
+		lg.setColor(0, 0, 0, state.escape * state.escape)
+		lg.rectangle("line", (w / (state.scale * 2)) - 73, 2, w, 12)
+		lg.setColor(0, 0, 0, 1)
+		lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
+		lg.setColor(1, 1, 1, state.escape * state.escape)
+		lg.print("OYASUMI!", (w / (state.scale * 2)) - 70)
 		lg.pop()
 	end
 
@@ -622,4 +620,4 @@ function love.draw()
 end
 
 -- i love you,
---             
+--

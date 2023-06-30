@@ -48,44 +48,44 @@ frustum.from_mat4 = function(a, infinite)
     end
 
     b.left = h {
-        a = a[4]  + a[1],
-        b = a[8]  + a[5],
+        a = a[4] + a[1],
+        b = a[8] + a[5],
         c = a[12] + a[9],
         d = a[16] + a[13]
     }
 
     b.right = h {
-        a = a[4]  - a[1],
-        b = a[8]  - a[5],
+        a = a[4] - a[1],
+        b = a[8] - a[5],
         c = a[12] - a[9],
         d = a[16] - a[13]
     }
 
     b.bottom = h {
-        a = a[4]  + a[2],
-        b = a[8]  + a[6],
+        a = a[4] + a[2],
+        b = a[8] + a[6],
         c = a[12] + a[10],
         d = a[16] + a[14]
     }
 
     b.top = h {
-        a = a[4]  - a[2],
-        b = a[8]  - a[6],
+        a = a[4] - a[2],
+        b = a[8] - a[6],
         c = a[12] - a[10],
         d = a[16] - a[14]
     }
 
     b.near = h {
-        a = a[4]  + a[3],
-        b = a[8]  + a[7],
+        a = a[4] + a[3],
+        b = a[8] + a[7],
         c = a[12] + a[11],
         d = a[16] + a[15]
     }
 
     if not infinite then
         b.far = h {
-            a = a[4]  - a[3],
-            b = a[8]  - a[7],
+            a = a[4] - a[3],
+            b = a[8] - a[7],
             c = a[12] - a[11],
             d = a[16] - a[15]
         }

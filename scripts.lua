@@ -6,31 +6,31 @@ local assets     = require "assets"
 local language   = require "language"
 local missions   = require "missions"
 
-local global = {}
+local global     = {}
 
 -- TODO: implement scene scripting language? CODENAME: MIKAMO
 
-local play_sound = function (snd, volume, pitch)
+local play_sound = function(snd, volume, pitch)
     snd:stop()
     snd:setVolume(volume or 1)
     snd:setPitch(pitch or 1)
     snd:play()
-    
+
     while snd:isPlaying() do
         coroutine.yield()
     end
 end
 
 return {
-    passthrough = function (entity, dt, state)
+    passthrough = function(entity, dt, state)
         entity:passthrough_routine(dt, state)
     end,
 
-    dialog_passthrough = function (entity, dt, state)
+    dialog_passthrough = function(entity, dt, state)
         -- UNUSED
     end,
 
-    campfire = function (entity, dt, state)
+    campfire = function(entity, dt, state)
         entity.interact_amount = (entity.interact_amount or 0) + 1
 
         if entity.interact_amount == 3 then
@@ -40,7 +40,7 @@ return {
             assets.mus_prism:setLooping(true)
             assets.mus_prism:setPitch(0.8)
             assets.mus_prism:play()
-            
+
             table.insert(state.new_entities, { name = "npc/wait_and_close" })
 
             entity.delete = true
@@ -53,21 +53,21 @@ return {
         entity.scale.y = entity.scale.y * 1.1
     end,
 
-    catboy_lost_his_yoyo = function (entity, dt, state)
+    catboy_lost_his_yoyo = function(entity, dt, state)
         entity.scale = vector(1, 1, 1)
         entity.sprite = { 0, 0, 56, 56 }
         entity.atlas = assets.tex_catboy
         entity.interact = "passthrough"
         entity.flip_x = 1
 
-        local final = function ()
+        local final = function()
             entity.sprite[1] = 0
             entity.sprite[2] = 56
             entity.flip_x = -entity.flip_x
             dialog:say(language.NPC_CATBOY009)
         end
 
-        entity.passthrough_routine = function ()
+        entity.passthrough_routine = function()
             if global.has_yoyo then
                 entity.sprite[1] = 112
                 dialog:say(language.NPC_CATBOY007)
@@ -92,7 +92,7 @@ return {
                 dialog:say(language.NPC_CATBOY002)
             end
 
-            entity.passthrough_routine = function ()
+            entity.passthrough_routine = function()
                 if global.has_yoyo then
                     missions:remove("catboy_yoyo1")
 
@@ -120,12 +120,12 @@ return {
         end
     end,
 
-    catboy_yoyo = function (entity)
+    catboy_yoyo = function(entity)
         entity.interact = "passthrough"
-        entity.passthrough_routine = function ()
+        entity.passthrough_routine = function()
             global.has_yoyo = true
             missions:remove("catboy_yoyo0")
-            if global.talked_to_yoyoboy then -- we have to translate these 
+            if global.talked_to_yoyoboy then -- we have to translate these
                 missions:add(language.MISSION_GIVE_YOYO, "catboy_yoyo1")
             end
             entity.invisible = true

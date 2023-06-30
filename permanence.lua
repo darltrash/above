@@ -12,14 +12,14 @@ lf.setIdentity("above")
 
 log.info("Savefiles at '%s'", lf.getAppdataDirectory())
 
-permanence.save = function ()
-    local file = ".SAVE"..permanence.slot
+permanence.save = function()
+    local file = ".SAVE" .. permanence.slot
     lf.write(file, bitser.dumps(permanence.data))
     log.info("Saving '%s'", file)
 end
 
-permanence.load = function (slot)
-    local file = ".SAVE"..slot
+permanence.load = function(slot)
+    local file = ".SAVE" .. slot
     log.info("Loading save '%s'", file)
 
     local data, err = lf.read(file)
@@ -29,5 +29,5 @@ permanence.load = function (slot)
     permanence.slot = slot
     return true
 end
- 
+
 return permanence
