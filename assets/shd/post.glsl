@@ -33,11 +33,11 @@
         float pi2 = 6.2831853071796;
         vec2 radius = (size/resolution) * 0.5;
         
-        vec4 light_pass = texture(light, uv);
+        vec4 light_pass = textureLod(light, uv, 0.0);
 
         for(float d=0.0; d<pi2; d+=pi2/directions) {
             for(float i=1.0/quality; i<=1.0; i+=1.0/quality) {
-                light_pass += texture(light, uv+vec2(cos(d),sin(d))*radius*i);		
+                light_pass += textureLod(light, uv+vec2(cos(d),sin(d))*radius*i, 0.0);		
             }
         }
         
@@ -49,7 +49,7 @@
         float l = luma(c);
         c = mix(c, mix(color_a.rgb, color_b.rgb, l), power);
 
-        vec4 glow = light_pass(uv, 16.0, 3.0, 8.0) * 0.8;
+        vec4 glow = light_pass(uv, 16.0, 8.0, 8.0) * 0.8;
 
         vec3 o = c + sqr(glow.rgb) * 2.0;
         o += length(o) * 0.05;

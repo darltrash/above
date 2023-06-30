@@ -1,7 +1,17 @@
 #pragma language glsl3
+
+// vw_*: view space
+// cl_*: clip space
+// wl_*: world space
+// ss_*: shadowmapper clip space
+
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
+
+uniform mat4 shadow_view;
+uniform mat4 shadow_projection;
+varying vec4 ss_position;
 
 varying vec4 cl_position;
 varying vec4 vw_position;
@@ -35,15 +45,16 @@ varying vec3 wl_normal;
     }
 
     vec4 position( mat4 _, vec4 vertex_position ) {
-        vw_position = view * model * vertex_position;
         wl_position = model * vertex_position;
+        vw_position = view * model * vertex_position;
+        cl_position = projection * view * model * vertex_position;
 
         vw_normal = cofactor(view * model) * VertexNormal;
         wl_normal = cofactor(model) * VertexNormal;
 
-        cl_position = projection * vw_position;
-
         vx_color = VertexColor;
+
+        ss_position = shadow_projection * shadow_view * model * vertex_position;
 
         return cl_position;
     }
@@ -66,6 +77,8 @@ varying vec3 wl_normal;
     uniform float time;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
+
+    uniform sampler2D shadow_map;
 
     uniform samplerCube cubemap;
 
@@ -140,7 +153,9 @@ varying vec3 wl_normal;
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
         vec3 sample = textureLod(cubemap, wl_normal, 6.0).rgb;
         float l = length(sample.rgb / 12.0) * 0.1;
-        vec3 diffuse = sqrt(sample) * sqr(l); // vec4(sh(harmonics, normal), 1.0)
+        vec3 ambient = sqrt(sample) * sqr(l); // vec4(sh(harmonics, normal), 1.0)
+
+        vec3 diffuse = vec3(0.0);
 
         float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
 
@@ -166,13 +181,39 @@ varying vec3 wl_normal;
             // Now we add our light's color to the light value
             diffuse += color * inv_sqr_law * gsf;
         }
+        
+        vec3 l_coords = ss_position.xyz / ss_position.w;
+        if (l_coords.z <= 1.0f) {
+            float shadow = 0.0;
+
+            l_coords = (l_coords + 1.0) / 2.0;
+            float current = l_coords.z;
+            //vec3 l_position = normalize(wl_position.xyz - (shadow_view * vec4(0.0, 0.0, 0.0, 0.0)).xyz);
+            float bias = 0.0001; //max(0.025f * (1.0 - dot(wl_normal, l_position)), 0.0005f);
+
+            int sample_radius = 2;
+            vec2 pixel_size = 1.0 / textureSize(shadow_map, 0);
+
+            for (int y = -sample_radius; y <= sample_radius; y++) {
+                for (int x = -sample_radius; x <= sample_radius; x++) {
+                    float closest = Texel(shadow_map, l_coords.xy + vec2(x, y) * pixel_size).r;
+                    if (current < closest + bias)
+                        shadow += 1.0;
+                }
+            }
+
+            shadow /= pow((sample_radius * 2 + 1), 2);
+
+            diffuse += shadow * 3.0;
+        }
+        
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
-        vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse, 1.0);
+        vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse + ambient, 1.0);
         
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);

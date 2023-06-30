@@ -15,8 +15,10 @@ local canvas_flat
 
 local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
+local canvas_color_s, canvas_normals_s, canvas_depth_s
 local canvas_normals_c, canvas_depth_c
 local canvas_light_pass
+local canvas_shadowmap
 
 local cuberes = 256
 
@@ -31,15 +33,16 @@ local uniform_map = {}
 local uniforms = {
 	harmonics = {
 		unpack = true,
-		{ 0.7953949,  0.4405923,  0.5459412 },
-		{ 0.3981450,  0.3526911,  0.6097158 },
+
+		{  0.7953949,  0.4405923,  0.5459412 },
+		{  0.3981450,  0.3526911,  0.6097158 },
 		{ -0.3424573, -0.1838151, -0.2715583 },
-		{ -0.2944621, -0.0560606, 0.0095193 },
+		{ -0.2944621, -0.0560606,  0.0095193 },
 		{ -0.1123051, -0.0513088, -0.1232869 },
 		{ -0.2645007, -0.2257996, -0.4785847 },
 		{ -0.1569444, -0.0954703, -0.1485053 },
-		{ 0.5646247,  0.2161586,  0.1402643 },
-		{ 0.2137442,  -0.0547578, -0.3061700 }
+		{  0.5646247,  0.2161586,  0.1402643 },
+		{  0.2137442, -0.0547578, -0.3061700 }
 	},
 
 	perlin = assets.tex_perlin
@@ -214,9 +217,36 @@ local function resize(w, h, scale)
 	}
 
 	-- ////////////// LIGHT PASS ///////////
+
 	canvas_light_pass   = canvas {
 		format = "rg11b10f",
 		mipmaps = "auto",
+		filter = "linear"
+	}
+
+	-- ////////////// SHADOWMAP ////////////
+
+	canvas_shadowmap = canvas {
+		format = "depth24",
+		readable = true,
+		filter = "linear"
+	}
+
+	canvas_color_s   = canvas {
+		format = "rg11b10f",
+		mipmaps = "auto",
+		filter = "nearest"
+	}
+	canvas_color_s:setMipmapFilter("linear")
+	canvas_normals_s    = canvas {
+		format = "rgb10a2",
+		mipmaps = "auto",
+		filter = "linear"
+	}
+	canvas_depth_s      = canvas {
+		format = "depth24",
+		mipmaps = "manual",
+		readable = true,
 		filter = "linear"
 	}
 
@@ -263,8 +293,8 @@ local function render_to(target)
 			and target.canvas_normals_b or target.canvas_normals_a
 
 		lg.setCanvas {
-			{ target.canvas_color, face = target.face },
-			{ target.canvas_normal },
+			target.canvas_color and { target.canvas_color, face = target.face },
+			target.canvas_normal and { target.canvas_normal },
 			depthstencil = { target.canvas_depth }
 		}
 
@@ -279,7 +309,9 @@ local function render_to(target)
 		lg.pop()
 	end
 
-	local width, height = target.canvas_color:getDimensions()
+	local c = target.canvas_color or target.canvas_depth
+
+	local width, height = c:getDimensions()
 
 	uniforms.view = target.view
 	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 1 }))
@@ -291,7 +323,7 @@ local function render_to(target)
 	local view_frustum = frustum.from_mat4(view_proj)
 
 	local lights = 0
-	do -- Lighting code
+	if not target.no_lights then -- Lighting code
 		uniforms.ambient = fam.hex("#30298f", 20)
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
@@ -316,19 +348,23 @@ local function render_to(target)
 
 		uniforms.light_amount = lights
 
-		if uniforms.light_amount == 0 then
-			uniforms.light_positions = nil
-			uniforms.light_colors = nil
-		end
-
 		l_counter = 0
+
+	else
+		uniforms.ambient = {1, 1, 1, 1}
+
+	end
+
+	if lights == 0 then
+		uniforms.light_positions = nil
+		uniforms.light_colors = nil
 	end
 
 	-- Push the state, so now any changes will only happen locally
 	lg.push("all")
 	lg.setCanvas {
-		{ target.canvas_color, face = target.face },
-		{ target.canvas_normal },
+		target.canvas_color and { target.canvas_color, face = target.face },
+		target.canvas_normal and { target.canvas_normal },
 		depthstencil = { target.canvas_depth }
 	}
 	lg.clear(true, true, true)
@@ -355,6 +391,10 @@ local function render_to(target)
 		-- If it has a visibility box, and the box is not visible on screen
 		if call.box and not view_frustum:vs_aabb(call.box.min, call.box.max) then
 			return false -- Then just ignore it, do not render something not visible
+		end
+
+		if target.shadow and call.no_shadow then
+			return
 		end
 
 		local color = call.color or COLOR_WHITE
@@ -394,15 +434,15 @@ local function render_to(target)
 		end
 
 		-- Default to basic shader
-		local shader = call.shader or assets.shd_basic
-		if call.grab then
+		local shader = target.shader or call.shader or assets.shd_basic
+		if call.grab and not target.shader then
 			grab()
 		end
 
 		-- Set the fricken canvas
 		lg.setCanvas {
-			{ target.canvas_color, face = target.face },
-			{ target.canvas_normal },
+			target.canvas_color and { target.canvas_color, face = target.face },
+			target.canvas_normal and { target.canvas_normal },
 			depthstencil = { target.canvas_depth }
 		}
 		lg.setDepthMode(call.depth or "less", true)
@@ -529,7 +569,40 @@ local function draw(target, state)
 	target.canvas_depth_b   = canvas_depth_b
 	target.canvas_normals_b = canvas_normals_b
 
+	local total_calls = 0
+	if target.shadow_view then
+		local shadow = {
+			view = target.shadow_view,
+			projection = mat4.from_ortho(-10, 10, -10, 10, 0.01, 1000),
+
+			no_lights = true,
+			no_cleanup = true,
+			no_sky = true,
+			shadow = true,
+
+			canvas_depth_a = canvas_shadowmap,
+
+			shader = assets.shd_unshaded
+		}
+
+		local vertices, calls, grabs  = render_to(shadow)
+		total_calls = total_calls + calls
+
+		if state.settings.debug then
+			state:debug("")
+			state:debug("--- SHMAPPER -----") -- please dont call it "shadow mapper", just use "shmapper"
+			state:debug("VERTS:  %i", vertices)
+			state:debug("CALLS:  %i", calls)
+			state:debug("GRABS:  %i", grabs)
+		end
+
+		uniforms.shadow_view = shadow.view
+		uniforms.shadow_projection = shadow.projection
+		uniforms.shadow_map  = shadow.canvas_depth
+	end
+
 	local vertices, calls, grabs, lights = render_to(target)
+	total_calls = total_calls + calls
 
 	if state.settings.debug then
 		state:debug("")
@@ -538,19 +611,12 @@ local function draw(target, state)
 		state:debug("CALLS:  %i", calls)
 		state:debug("GRABS:  %i", grabs)
 		state:debug("LIGHTS: %i/16", lights)
+		state:debug("")
+		state:debug("TCALLS: %i", total_calls)
 	end
-
-	-- TODO: Implement Manta's incredible thingy 
---	local luma = vector(0.299, 0.587, 0.114)
---
---	local a = target.canvas_color
---	local k = a:newImageData(1, a:getMipmapCount(), 0, 0, 1, 1)
---	local brightness = vector(k:getPixel(0, 0)):dot(luma)
---
---	local exp = math.min(0, -(brightness/5))
---	target.exposure = fam.lerp(target.exposure or exp, exp, lt.getDelta() * 40)
-
 	target.exposure = -5.5
+
+	--target.canvas_color = canvas_color_s
 
 	-- Generate light threshold data :)
 	lg.push("all")

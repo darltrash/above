@@ -32,7 +32,8 @@ local loaders = {
 
 local loaded = 1
 local ret = setmetatable({
-    fnt_main = lg.newFont("assets/fnt_monogram.ttf", 16)
+    fnt_main = lg.newFont("assets/fnt_monogram.ttf", 16),
+    fnt_title = lg.newFont("assets/fnt_tilt.ttf", 100),
 
 }, {
     __index = function (self, index)

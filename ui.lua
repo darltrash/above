@@ -19,7 +19,8 @@ local real_x, real_y = 0, 0
 local mode = ""
 local selection = 0
 local dired = false
-local alpha = 0
+local sel_alpha = 0
+local alpha = 1
 local scale = 0
 
 ui.on_tick = function (self, dt)
@@ -36,7 +37,7 @@ ui.update = function (self, dt)
             dired = true
 
             selection = (selection + fam.sign(dir.y)) % 3
-            alpha = 1/6
+            sel_alpha = 1/6
             assets.sfx_speech:play()
         end
     else
@@ -63,7 +64,9 @@ ui.update = function (self, dt)
     real_x = fam.lerp(real_x, x, dt*3)
     real_y = fam.lerp(real_y, y, dt*3)
 
-    alpha = fam.lerp(alpha, 1.2, dt*5)
+    sel_alpha = fam.lerp(sel_alpha, 1.2, dt*5)
+
+    alpha = fam.lerp(alpha, ui.done and 0 or 1, dt*5)
 end
 
 local function print_center(text, x, y, font, r, s)
@@ -87,13 +90,13 @@ end
 ui.draw = function (self, w, h)
     lg.push("all")
         lg.reset()
-        lg.setBlendMode("replace")
         lg.setShader(assets.shd_2d)
+        lg.setBlendMode("replace")
         lg.setFont(assets.fnt_main)
         lg.setLineStyle("rough")
 
         lg.setCanvas(canvas)
-        lg.clear(0, 0, 0, 0)
+        lg.clear(0, 0, 0, alpha * 0.6)
 
         dialog:draw()
         missions:draw()
@@ -102,6 +105,13 @@ ui.draw = function (self, w, h)
         --lg.rectangle("line", 1, 1, 299, 299)
 
         if not ui.done then
+            lg.setShader(assets.shd_2d_magic)
+            lg.setColor(0, 0, 0, alpha)
+            assets.shd_2d_magic:send("perlin", assets.tex_perlin)
+            assets.shd_2d_magic:send("time", lt.getTime())
+            lg.rectangle("fill", 0, 0, 300, 300)
+            lg.setShader(assets.shd_2d)
+
             lg.translate(math.floor(-real_x*300), math.floor(-real_y*300))
 
             lg.setColor(fam.hex"#4e0097")
@@ -109,14 +119,14 @@ ui.draw = function (self, w, h)
 
             local r = math.sin(lt.getTime()*1.3)*0.1
             lg.setColor(fam.hex"#ffffff")
-            print_center("flowerlove", 150, 147+(r*3), assets.fnt_title, r, 0.5)
+            print_center("meadows", 150, 147+(r*3), assets.fnt_title, r, 0.5)
             print_center(language.UI_PRESS_ANY_KEY, 150, 240)
 
             -- SAVES
             print_center(language.UI_SAVE_SELECT, 150, 360)
 
             for i=0, 2 do
-                local a = (i == selection) and alpha or (1/6)
+                local a = (i == selection) and sel_alpha or (1/6)
                 lg.setColor(fam.hex("#4e0097", a))
                 box(language.UI_SAVE_NEW_FILE, 40-(a*2), 390+(45*i)-(a*2), 220+(a*4), 40+(a*4))
             end

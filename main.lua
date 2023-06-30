@@ -135,14 +135,14 @@ local function render_level()
 
 	-- THE WATAH
 	local pos = state.target:copy()
-	pos.y = -1.5
+	pos.y = 0
 	
 	--renderer.render {
 	--	mesh = assets.mod_water,
 	--	color = fam.hex("#a46cff"),
-	--	model = mat4.from_transform(pos, 0, 60),
+	--	model = mat4.from_transform(pos, 0, 100),
 	--	order = math.huge,
-	--	--material = "water"
+	--	material = "water"
 	--}
 
 	for _, instance in ipairs(grass_meshes) do
@@ -446,7 +446,7 @@ function love.update(dt)
 
 		state.view_matrix = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
 
-		state.shadow_view_matrix = mat4.look_at(eye, state.target+vector(0, 0.5, 0), { y = 1 })
+		state.shadow_view_matrix = mat4.look_at(state.target+vector(10, 10, -5), state.target, { y = 1 })
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)
@@ -558,6 +558,7 @@ function love.draw()
 	end
 
 	state.render_target.view = state.view_matrix
+	state.render_target.shadow_view = state.shadow_view_matrix
 
 	local target = renderer.draw(state.render_target, state)
 
