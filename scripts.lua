@@ -8,6 +8,8 @@ local missions   = require "missions"
 
 local global = {}
 
+-- TODO: implement scene scripting language? CODENAME: MIKAMO
+
 local play_sound = function (snd, volume, pitch)
     snd:stop()
     snd:setVolume(volume or 1)

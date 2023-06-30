@@ -32,6 +32,7 @@ do
 	settings.fullscreen = os.getenv("ABOVE_FULLSCREEN") and true or false
 	settings.scale   = os.getenv("ABOVE_SCALE")
 	settings.vsync   = tonumber(os.getenv("ABOVE_VSYNC")) or 1
+	settings.profile = os.getenv("ABOVE_PROFILE")
 
 	settings.level = os.getenv("ABOVE_LEVEL") or nil
 
@@ -343,6 +344,14 @@ permanence.load(1)
 
 state.load_map(settings.level or "untitled")
 
+function love.load()
+	if settings.profile then
+		love.profiler = require('lib.profile')
+		love.profiler.setclock(love.timer.getTime)
+		love.profiler.start()
+	end
+end
+
 -- Handle window resize and essentially canvas (destruction and re)creation
 function love.resize(w, h)
 	-- Do some math and now we have a generalized scale for each pixel
@@ -379,6 +388,7 @@ local lag = timestep
 local current = 0
 local max_deltas = 8
 local deltas = {}
+local t = 0
 
 function love.update(dt)
 	current = current + 1
@@ -415,6 +425,14 @@ function love.update(dt)
 			log.info("CHOKING!")
 			break
 		end
+	end
+
+	t = t + dt
+	if settings.profile and t > 5 then
+		local report = love.profiler.report(20)
+		love.profiler.reset()
+		print(report)
+		t = 0
 	end
 
 	-- Checks for updates in all configured input methods (Keyboard + Joystick)

@@ -3,6 +3,9 @@ local fam    = require "fam"
 local utf8   = require "utf8"
 local assets = require "assets"
 
+-- TODO: fix centering
+-- TODO: make the arrow point to the currently selected element
+
 local dialog = {}
 dialog.text = ""
 dialog.speed = 1

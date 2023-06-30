@@ -1,5 +1,7 @@
 local mimi = require "lib.mimi"
 
+-- TODO: implement this....
+
 local settings = {
     low_end = false,
     debug = false,

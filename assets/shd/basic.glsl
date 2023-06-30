@@ -23,6 +23,8 @@ varying vec3 wl_normal;
 
 #define sqr(a) (a*a)
 
+// TODO: Cleanup shader folder (it's filled with garbage that i dont even use)
+
 // Spherical harmonics, cofactor and improved diffuse
 // by the people at excessive ❤ moé 
 
@@ -72,8 +74,6 @@ varying vec3 wl_normal;
     uniform vec4 light_colors[LIGHT_AMOUNT];
     uniform int light_amount;
 
-    uniform vec3 harmonics[9];
-
     uniform float time;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
@@ -100,20 +100,6 @@ varying vec3 wl_normal;
 
     float linearstep(float e0, float e1, float x) {
         return clamp((x - e0) / (e1 - e0), 0.0, 1.0);
-    }
-    
-    vec3 sh(vec3 sph[9], vec3 n) {
-        vec3 result = sph[0].rgb
-            + sph[1].rgb * n.x
-            + sph[2].rgb * n.y
-            + sph[3].rgb * n.z
-            + sph[4].rgb * n.x * n.z
-            + sph[5].rgb * n.z * n.y
-            + sph[6].rgb * n.y * n.x
-            + sph[7].rgb * (3.0 * n.z * n.z - 1.0)
-            + sph[8].rgb * n.x * n.x - n.y * n.y
-        ;
-        return max(result, vec3(0.0));
     }
 
     #define PI 3.1415926535898
@@ -146,6 +132,8 @@ varying vec3 wl_normal;
 
     #define saturate(a) (clamp(a, 0.0, 1.0))
     #define fma(a, b, c) ((a) * (b) + (c))
+
+    // TODO: Implement Manta's batshit insane shading model? 
 
     // Actual math
     void effect() {
@@ -188,6 +176,7 @@ varying vec3 wl_normal;
 
             l_coords = (l_coords + 1.0) / 2.0;
             float current = l_coords.z;
+            // TODO: Probably fix this, not entirely sure it's necessary honestly
             //vec3 l_position = normalize(wl_position.xyz - (shadow_view * vec4(0.0, 0.0, 0.0, 0.0)).xyz);
             float bias = 0.0001; //max(0.025f * (1.0 - dot(wl_normal, l_position)), 0.0005f);
 
@@ -206,7 +195,6 @@ varying vec3 wl_normal;
 
             diffuse += shadow * 3.0;
         }
-        
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
@@ -215,6 +203,7 @@ varying vec3 wl_normal;
         // Evrathing togetha
         vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse + ambient, 1.0);
         
+        // TODO: Fix whatever NVIDIA has against my code around this line.
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);
         

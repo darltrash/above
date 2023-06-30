@@ -87,6 +87,9 @@ local function box(text, x, y, w, h)
     lg.setColor(original)
 end
 
+-- TODO: Savefile loading and reading
+-- TODO: Settings management
+
 ui.draw = function (self, w, h)
     lg.push("all")
         lg.reset()

@@ -15,7 +15,6 @@ local canvas_flat
 
 local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
-local canvas_color_s, canvas_normals_s, canvas_depth_s
 local canvas_normals_c, canvas_depth_c
 local canvas_light_pass
 local canvas_shadowmap
@@ -51,11 +50,9 @@ local uniforms = {
 uniforms.perlin:setFilter("linear", "linear")
 
 local materials = assert(mimi.load("assets/materials.mi"))
-local textures = {}
-local shaders = {}
 log.info("Loaded materials")
 
-for name, material in pairs(materials) do
+for _, material in pairs(materials) do
 	if material.shader then
 		material.shader = assets["shd_" .. material.shader]
 	end
@@ -159,6 +156,9 @@ local function resize(w, h, scale)
 		local f = t.filter
 		t.filter = nil
 
+		local scale = (scale * (t.scale or 1))
+		t.scale = nil
+
 		local w = t.width or math.floor(math.ceil(w / scale) * 2) / 2
 		local h = t.height or math.floor(math.ceil(h / scale) * 2) / 2
 
@@ -229,25 +229,8 @@ local function resize(w, h, scale)
 	canvas_shadowmap = canvas {
 		format = "depth24",
 		readable = true,
-		filter = "linear"
-	}
-
-	canvas_color_s   = canvas {
-		format = "rg11b10f",
-		mipmaps = "auto",
-		filter = "nearest"
-	}
-	canvas_color_s:setMipmapFilter("linear")
-	canvas_normals_s    = canvas {
-		format = "rgb10a2",
-		mipmaps = "auto",
-		filter = "linear"
-	}
-	canvas_depth_s      = canvas {
-		format = "depth24",
-		mipmaps = "manual",
-		readable = true,
-		filter = "linear"
+		filter = "linear",
+		scale = 0.5
 	}
 
 	uniforms.resolution = { w / scale, h / scale }

@@ -21,6 +21,8 @@
     3. This notice may not be removed or altered from any source distribution.
 ]]
 
+-- TODO: Implement FFI-accelerated structs!
+
 local vector = { x = 0, y = 0, z = 0 }
 vector.__index = vector
 vector.__type = "vec3"

@@ -258,10 +258,9 @@ local function tick(entities, dt, state)
                 entity.interaction_anim = fam.decay(entity.interaction_anim or 0, interaction, 1, dt)
             end    
 
-            -- // TODO: Implement fixed timesteps
             if entity.velocity then -- Euler integration
 
-                -- FIX FORCE MATH!
+                -- TODO: FIX FORCE MATH!
                 if entity.mass then
                     entity.gravity = (entity.gravity or 0) + 10 * dt
                     entity.velocity.y = entity.velocity.y - entity.gravity

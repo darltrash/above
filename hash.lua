@@ -198,6 +198,7 @@ local function query(min, max, velocity, self)
     --local size = max-min
     --return self:query_list(min.x, min.y, min.z, size.x, size.y, size.z)
 
+    -- TODO: FIX QUERYING
     return self:get_mesh("level")
 end
 

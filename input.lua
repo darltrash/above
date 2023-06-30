@@ -5,6 +5,9 @@ local lm = love.mouse
 local lg = love.graphics
 local lj = love.joystick
 
+-- TODO: Add proper joystick button input support
+-- TODO: Add mobile controls? not entirely sure
+
 local modes = {
     desktop = {
         name = "desktop",

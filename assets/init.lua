@@ -1,5 +1,4 @@
 local exm = require "lib.iqm"
-local iqm = require "lib.log"
 local log = require "lib.log"
 
 -- Here comes the 
