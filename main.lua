@@ -10,7 +10,7 @@ local log = require "lib.log"
 local lang = require "language"
 lang.by_locale()
 
--- // TODO: GET RID OF THIS HIDEOUS BEAST.
+-- TODO: GET RID OF THIS HIDEOUS BEAST.
 local moonshine = require "lib.moonshine"
 local effect = moonshine(moonshine.effects.scanlines)
 	.chain(moonshine.effects.chromasep)
@@ -138,25 +138,25 @@ local function render_level()
 	local pos = state.target:copy()
 	pos.y = 0
 
-	--renderer.render {
-	--	mesh = assets.mod_water,
-	--	color = fam.hex("#a46cff"),
-	--	model = mat4.from_transform(pos, 0, 100),
-	--	order = math.huge,
-	--	material = "water"
-	--}
+--	renderer.render {
+--		mesh = assets.mod_water,
+--		color = fam.hex("#a46cff"),
+--		model = mat4.from_transform(pos, 0, 100),
+--		order = math.huge,
+--		material = "water"
+--	}
 
 	for _, instance in ipairs(grass_meshes) do
 		instance.material = "grass"
 		renderer.render(instance)
 	end
 
-	renderer.render {
-		mesh = assets.mod_clouds,
-		material = "clouds",
-		model = mat4.from_transform(0, { y = state.daytime * math.pi }, 10),
-		color = { 1, 1, 1, 1 / 4 },
-	}
+--	renderer.render {
+--		mesh = assets.mod_clouds,
+--		material = "clouds",
+--		model = mat4.from_transform(0, { y = state.daytime * math.pi }, 10),
+--		color = { 1, 1, 1, 1 / 4 },
+--	}
 end
 
 function state.load_map(what)
@@ -340,7 +340,7 @@ end
 
 permanence.load(1)
 
-state.load_map(settings.level or "untitled")
+state.load_map(settings.level or "level_test0")
 
 function love.load()
 	if settings.profile then
@@ -462,7 +462,14 @@ function love.update(dt)
 
 		state.view_matrix = mat4.look_at(eye, state.target + vector(0, 0.5, 0), { y = 1 })
 
-		state.shadow_view_matrix = mat4.look_at(state.target + vector(10, 10, -5), state.target, { y = 1 })
+		local d = (state.daytime * 360)
+		local position = vector(
+			math.cos((d / 360)*3.14*2),
+			math.sin((d / 360)*3.14*2),
+			-0.5
+		) * 10
+
+		state.shadow_view_matrix = mat4.look_at(state.target + position, state.target, { y = 1 })
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)

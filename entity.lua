@@ -261,8 +261,8 @@ local function tick(entities, dt, state)
             if entity.velocity then -- Euler integration
                 -- TODO: FIX FORCE MATH!
                 if entity.mass then
-                    entity.gravity = (entity.gravity or 0) + 10 * dt
-                    entity.velocity.y = entity.velocity.y - entity.gravity
+                    --entity.gravity = (entity.gravity or 0) + 10 * dt
+                    --entity.velocity.y = entity.velocity.y - entity.gravity
 
                     -- entity.velocity.y = entity.velocity.y - dt * 32
                 end

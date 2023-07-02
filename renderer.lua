@@ -30,20 +30,6 @@ local CLIP_NONE = { 0, 0, 1, 1 }
 -- shaders AND automatically update them to reduce boilerplate.
 local uniform_map = {}
 local uniforms = {
-	harmonics = {
-		unpack = true,
-
-		{ 0.7953949,  0.4405923,  0.5459412 },
-		{ 0.3981450,  0.3526911,  0.6097158 },
-		{ -0.3424573, -0.1838151, -0.2715583 },
-		{ -0.2944621, -0.0560606, 0.0095193 },
-		{ -0.1123051, -0.0513088, -0.1232869 },
-		{ -0.2645007, -0.2257996, -0.4785847 },
-		{ -0.1569444, -0.0954703, -0.1485053 },
-		{ 0.5646247,  0.2161586,  0.1402643 },
-		{ 0.2137442,  -0.0547578, -0.3061700 }
-	},
-
 	perlin = assets.tex_perlin
 }
 
@@ -247,6 +233,23 @@ canvas_depth_c = lg.newCanvas(cuberes, cuberes, {
 	readable = true
 })
 
+
+local stars = {}
+for x=1, 90 do
+	table.insert(stars, vector(
+		lm.random(0, 1000) / 1000,
+		lm.random(0, 1000) / 1000,
+		lm.random(0, 1000) / 1000
+	))
+end
+
+local function render_stars(w, h)
+	for k, v in ipairs(stars) do
+		lg.circle("fill", v.x*w, v.y*h, 6)
+	end
+end
+
+
 local function render_to(target)
 	local switch         = false
 	target.canvas_color  = target.canvas_color_a
@@ -298,6 +301,7 @@ local function render_to(target)
 
 	uniforms.view = target.view
 	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 1 }))
+	uniforms.eye = eye:to_array()
 
 	uniforms.projection = target.projection or mat4.from_perspective(-45, -width / height, 0.01, 300)
 	uniforms.inverse_proj = uniforms.projection:inverse()
@@ -550,9 +554,9 @@ local function draw(target, state)
 	target.canvas_depth_b   = canvas_depth_b
 	target.canvas_normals_b = canvas_normals_b
 
-	local total_calls       = 0
+	local total_calls = 0
 	if target.shadow_view then
-		local shadow                 = {
+		local shadow = {
 			view = target.shadow_view,
 			projection = mat4.from_ortho(-10, 10, -10, 10, 0.01, 1000),
 
@@ -567,7 +571,7 @@ local function draw(target, state)
 		}
 
 		local vertices, calls, grabs = render_to(shadow)
-		total_calls                  = total_calls + calls
+		total_calls = total_calls + calls
 
 		if state.settings.debug then
 			state:debug("")
@@ -593,20 +597,21 @@ local function draw(target, state)
 		state:debug("GRABS:  %i", grabs)
 		state:debug("LIGHTS: %i/16", lights)
 		state:debug("")
-		state:debug("TCALLS: %i", total_calls)
+		state:debug("TCALLS: %i/200", total_calls)
 	end
+	
 	target.exposure = -5.5
 
 	--target.canvas_color = canvas_color_s
 
 	-- Generate light threshold data :)
 	lg.push("all")
-	lg.setCanvas(canvas_light_pass)
-	lg.setShader(assets.shd_light)
-	assets.shd_light:send("exposure", target.exposure)
-	lg.clear(0, 0, 0, 0)
-	target.canvas_color:setFilter("linear", "linear")
-	lg.draw(target.canvas_color)
+		lg.setCanvas(canvas_light_pass)
+		lg.setShader(assets.shd_light)
+		assets.shd_light:send("exposure", target.exposure)
+		lg.clear(0, 0, 0, 0)
+		target.canvas_color:setFilter("linear", "linear")
+		lg.draw(target.canvas_color)
 	lg.pop()
 
 	target.canvas_color:setFilter("nearest", "nearest")

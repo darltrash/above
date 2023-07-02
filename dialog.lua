@@ -3,9 +3,6 @@ local fam    = require "fam"
 local utf8   = require "utf8"
 local assets = require "assets"
 
--- TODO: fix centering
--- TODO: make the arrow point to the currently selected element
-
 local dialog = {}
 dialog.text = ""
 dialog.speed = 1
@@ -134,8 +131,9 @@ local function printw(text, x, y, w, h, color, highlight, center)
     local ty = y
 
     if center then
-        tx = x + ((w/2) - (assets.fnt_main:getWidth(text:gsub('[%*%^]', ''))/2))
-        ty = y + ((h/2) - (assets.fnt_main:getHeight()/2))
+        -- HACK
+        tx = x + ((w/2) - (assets.fnt_main:getWidth(dialog.text)/2))
+        ty = y + ((h/2) - assets.fnt_main:getHeight())
     end
 
     local ox = tx
@@ -182,10 +180,6 @@ dialog.draw = function(self)
         local HIGHLIGHT = fam.hex("#bc81ff", n)
         lg.setColor(LIGHT)
 
-        if ready and (math.floor((lt.getTime() * 2)%2)==0) then
-            lg.circle("fill", W-m-mm-10, y+((H-y)-1-2-(mm*3))-2, 4, 3) -- i'm using a circle as a triangle (ho)
-        end
-
         printw(
             sub(self.text, 1, self.length), tx, ty,
             (W-2)-(m*4)-(mm*3), (H-y)-(m*4)-(mm*2),
@@ -201,6 +195,18 @@ dialog.draw = function(self)
         lg.setColor(fam.hex("#dadada", dialog.options_lerp))
         for i, v in ipairs(dialog.options) do
             lg.print(v, (W-100-m)+8, y+m+(i*12))
+        end
+
+        lg.setColor(LIGHT)
+
+        if ready and (math.floor((lt.getTime() * 2)%2)==0) then
+            -- i'm using a circle as a triangle (ho)
+            if dialog.use_options then
+                lg.circle("fill", W-100-m, y+m+(dialog.selected_lerp*12)+8, 4, 3)
+
+            else
+                lg.circle("fill", W-m-mm-10, y+((H-y)-1-2-(mm*3))-2, 4, 3)
+            end
         end
     lg.pop()
 end

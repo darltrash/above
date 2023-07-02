@@ -203,7 +203,7 @@ varying vec3 wl_normal;
         // Evrathing togetha
         vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse + ambient, 1.0);
         
-        // TODO: Fix whatever NVIDIA has against my code around this line.
+        // FIXME: Bizarre NVIDIA bug around this part
         // If something is very close to the camera, make it transparent!
         o.a *= min(1.0, length(vw_position.xyz) / 2.5);
         

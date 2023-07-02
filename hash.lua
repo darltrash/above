@@ -34,23 +34,28 @@ local max = math.max
 
 -- Enough for most games theoretically
 local function index(x, y, z) -- 16 bits per axis
-    --local bx = bit.lshift(floor(x)+32767, 0)
-    --local by = bit.lshift(floor(y)+32767, 16)
-    --local bz = bit.lshift(floor(z)+32767, 32)
-    --return bit.bor(bx, bit.bor(by, bz))
-
-    return ("%ix%ix%i"):format(x, y, z)
+    local bx = bit.lshift(floor(x)+32767, 0)
+    local by = bit.lshift(floor(y)+32767, 16)
+    local bz = bit.lshift(floor(z)+32767, 32)
+    return bit.bor(bx, bit.bor(by, bz))
 end
 
 local function triangle_aabb(t)
-    return
+    local min = vector(
         min(t[1].x, t[2].x, t[3].x),
         min(t[1].y, t[2].y, t[3].y),
-        min(t[1].z, t[2].z, t[3].z),
+        min(t[1].z, t[2].z, t[3].z)
+    )
 
+    local max = vector(
         max(t[1].x, t[2].x, t[3].x),
         max(t[1].y, t[2].y, t[3].y),
         max(t[1].z, t[2].z, t[3].z)
+    ) - min
+
+    return
+        min.x, min.y, min.z,
+        max.x, max.y, max.z
 end
 
 local function vec(a)
@@ -203,7 +208,8 @@ local function query(min, max, velocity, self)
 end
 
 hash.check = function(self, position, velocity, radius, substeps)
-    return slam.check(position, velocity, radius, query, substeps, self)
+    --return slam.check(position, velocity, radius, query, substeps, self)
+    return position, velocity*0.5, {}
 end
 
 return setmetatable(hash, {

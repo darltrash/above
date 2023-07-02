@@ -137,7 +137,10 @@ ui.draw = function(self, w, h)
     lg.pop()
 
     local scale = math.floor(math.min(w, h) / 300)
-    lg.draw(canvas, w / 2, h / 2, 0, scale, scale, 150, 150)
+    local x = w / 2
+--    if state.
+
+    lg.draw(canvas, x, h / 2, 0, scale, scale, 150, 150)
 end
 
 return ui
