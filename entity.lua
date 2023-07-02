@@ -268,17 +268,17 @@ local function tick(entities, dt, state)
                 end
 
                 if entity.collider then
-                    local p                                  = entity.position + entity.collider.offset
-                    local v                                  = entity.velocity * dt * 2
+                    local p = entity.position + entity.collider.offset
+                    local v = entity.velocity * dt * 2
 
                     local new_position, new_velocity, planes =
                         state.hash:check(p, v, entity.collider.radius)
 
-                    entity.velocity                          = new_velocity / dt
+                    entity.velocity = new_velocity / dt
 
-                    entity.collider.floor_time               = math.max(0, (entity.collider.floor_time or 0) - dt)
-                    entity.collider.ceil_time                = math.max(0, (entity.collider.ceil_time or 0) - dt)
-                    entity.collider.wall_time                = math.max(0, (entity.collider.wall_time or 0) - dt)
+                    entity.collider.floor_time = math.max(0, (entity.collider.floor_time or 0) - dt)
+                    entity.collider.ceil_time  = math.max(0, (entity.collider.ceil_time or 0) - dt)
+                    entity.collider.wall_time  = math.max(0, (entity.collider.wall_time or 0) - dt)
 
                     for _, plane in ipairs(planes) do
                         local i = plane.normal:dot(vector(0, -1, 0))
