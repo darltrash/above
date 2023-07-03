@@ -48,10 +48,20 @@ appimage: love # REQUIRES RSYNC, WGET, GLIBC, ZIP, APPIMAGETOOL
 	appimagetool .temp/squashfs-root out/above.appimage
 	@echo -e ${GREEN}///// BUILT 64 BIT APPIMAGE${NC}
 
+# TODO: Fix this?
+flatpak: love
+	$(error FUCK THIS) # FOR NOW
+	rm -rf .temp/*
+	cp assets/flatpak.json .temp
+	cp assets/game.desktop .temp
+	cp out/above.love .temp
+
+	flatpak-builder --user --install .temp/build-dir .temp/flatpak.json --ccache --force-clean
+
 everything: love win32 win64 appimage
 
 itch: everything
-	rm -tf .temp/*
+	rm -rf .temp/*
 	mkdir .temp/win32
 	unzip out/above.win32.zip -d .temp/win32
 	butler push .temp/win32 darltrash/meadows:win32

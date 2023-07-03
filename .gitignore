@@ -2,3 +2,6 @@
 out/
 cache/
 *.blend[0-9]
+build-dir/
+.flatpak-builder
+.flatpak/

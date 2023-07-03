@@ -10,3 +10,9 @@ makefile
 love_ignore
 out/
 cache/
+concept/
+*.py
+*.sh
+*.desktop
+flatpak*
+.gitignore

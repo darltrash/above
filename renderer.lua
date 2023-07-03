@@ -507,9 +507,7 @@ local function generate_cubemap(eye)
 		canvas_depth_a = canvas_depth_c,
 		canvas_normals_a = canvas_normals_c,
 
-		projection = mat4.from_perspective(-90, -1, 0.01, 300),
-
-		no_cleanup = true
+		projection = mat4.from_perspective(-90, -1, 0.01, 300)
 	}
 
 	local directions = {
@@ -519,10 +517,6 @@ local function generate_cubemap(eye)
 	}
 
 	for index, direction in ipairs(directions) do
-		if index == #directions then
-			target.no_cleanup = false
-		end
-
 		local up = vector(0, 1, 0)
 
 		if math.abs(vector.dot(direction, up)) == 1 then
