@@ -9,9 +9,9 @@
 #ifdef PIXEL
     uniform vec4 color_a;
     uniform vec4 color_b;
-    uniform sampler2D light;
     uniform float power;
-    uniform vec2 resolution;
+
+    uniform sampler2D light;
 
     uniform float exposure;
 
@@ -29,33 +29,17 @@
         return dot(color, vec3(0.299, 0.587, 0.114));
     }
 
-    vec4 light_pass(vec2 uv, float directions, float quality, float size) {
-        float pi2 = 6.2831853071796;
-        vec2 radius = (size/resolution) * 0.5;
-        
-        vec4 light_pass = textureLod(light, uv, 0.0);
-
-        for(float d=0.0; d<pi2; d+=pi2/directions) {
-            for(float i=1.0/quality; i<=1.0; i+=1.0/quality) {
-                light_pass += textureLod(light, uv+vec2(cos(d),sin(d))*radius*i, 0.0);		
-            }
-        }
-        
-        return light_pass / ((quality + 1.0) * directions - 15.0);
-    }
-
     vec4 effect(vec4 _, Image tex, vec2 uv, vec2 screen_coords) {
         vec3 c = Texel(tex, uv).rgb;
         float l = luma(c);
         c = mix(c, mix(color_a.rgb, color_b.rgb, l), power);
 
-        vec4 glow = light_pass(uv, 16.0, 8.0, 8.0) * 0.8;
+        c += Texel(light, uv).rgb * 3.0;
 
-        vec3 o = c + sqr(glow.rgb) * 2.0;
-        o += length(o) * 0.05;
+        c += length(c) * 0.1;
 
         return gammaCorrectColor (
-            vec4(tonemap_aces(o * exp2(exposure)), 1.0)
+            vec4(tonemap_aces(c * exp2(exposure)), 1.0)
         );
     }
 

@@ -50,7 +50,7 @@ appimage: love # REQUIRES RSYNC, WGET, GLIBC, ZIP, APPIMAGETOOL
 
 # TODO: Fix this?
 flatpak: love
-	$(error FUCK THIS) # FOR NOW
+	$(error NOT READY) # FOR NOW
 	rm -rf .temp/*
 	cp assets/flatpak.json .temp
 	cp assets/game.desktop .temp
@@ -58,7 +58,16 @@ flatpak: love
 
 	flatpak-builder --user --install .temp/build-dir .temp/flatpak.json --ccache --force-clean
 
-everything: love win32 win64 appimage
+mac: love
+	rm -rf .temp/*
+	wget -nc https://github.com/love2d/love/releases/download/11.4/love-11.4-macos.zip -O cache/love.app.zip
+	cd .temp/ && unzip ../cache/love.app.zip -x *.h *.hpp -d . && cd ..
+	/bin/cp -rf assets/Info.plist .temp/love.app/Contents/
+	cp out/above.love .temp/love.app/Contents/Resources
+	rm -rf out/above.macos.zip
+	cd .temp/ && zip -y -r -9 ../out/above.macos.zip love.app 
+
+everything: love win32 win64 appimage mac
 
 itch: everything
 	rm -rf .temp/*

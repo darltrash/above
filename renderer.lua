@@ -15,6 +15,7 @@ local canvas_flat
 
 local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
+local canvas_temp_a, canvas_temp_b
 local canvas_normals_c, canvas_depth_c
 local canvas_light_pass
 local canvas_shadowmap
@@ -204,7 +205,20 @@ local function resize(w, h, scale)
 
 	-- ////////////// LIGHT PASS ///////////
 
-	canvas_light_pass   = canvas {
+	canvas_light_pass = canvas {
+		scale = 2,
+		format = "rg11b10f",
+		mipmaps = "auto",
+		filter = "linear"
+	}
+
+	canvas_temp_a = canvas {
+		format = "rg11b10f",
+		mipmaps = "auto",
+		filter = "linear"
+	}
+
+	canvas_temp_b = canvas {
 		format = "rg11b10f",
 		mipmaps = "auto",
 		filter = "linear"
@@ -552,7 +566,7 @@ local function draw(target, state)
 	if target.shadow_view then
 		local shadow = {
 			view = target.shadow_view,
-			projection = mat4.from_ortho(-10, 10, -10, 10, 0.01, 1000),
+			projection = mat4.from_ortho(-15, 15, -15, 15, 0.01, 1000),
 
 			no_lights = true,
 			no_cleanup = true,
@@ -578,6 +592,8 @@ local function draw(target, state)
 		uniforms.shadow_view       = shadow.view
 		uniforms.shadow_projection = shadow.projection
 		uniforms.shadow_map        = shadow.canvas_depth
+
+		uniforms.shadow_map:setFilter("linear", "linear")
 	end
 
 	local vertices, calls, grabs, lights = render_to(target)
@@ -598,6 +614,50 @@ local function draw(target, state)
 
 	--target.canvas_color = canvas_color_s
 
+	--[[
+		if (config.use_bloom) {
+			love.graphics.setBlendMode("replace", "premultiplied");
+			builtin_shaders.bright.send("bloom", [2.0, 10.0, 20.0, 0]);
+			love.graphics.draw(fb_shaded, 0, 0, 0, bright.getWidth()/sw, bright.getHeight()/sh);
+
+			const tmp_a = pool.allocate(bright.getWidth(), bright.getHeight(), { format: bright.getFormat(), mipmaps: "manual" });
+			const tmp_b = pool.allocate(bright.getWidth(), bright.getHeight(), { format: bright.getFormat(), mipmaps: "manual" });
+
+			// copy bright to tmp, then mipmap it
+			love.graphics.setShader();
+			love.graphics.setCanvas(tmp_a);
+			love.graphics.draw(bright);
+
+			love.graphics.setCanvas(tmp_b);
+			tmp_a.generateMipmaps();
+
+			// blur down the mip chain
+			love.graphics.setShader(builtin_shaders.blur_mip);
+			for (let i = 0; i < tmp_a.getMipmapCount(); i++) {
+				love.graphics.setCanvas(tmp_b, i+1);
+				builtin_shaders.blur_mip.send("direction_mip", [ 1, 0, i ]);
+				love.graphics.draw(tmp_a, -1, -1);
+			}
+
+			// blur other way down the chain
+			for (let i = 0; i < tmp_a.getMipmapCount(); i++) {
+				love.graphics.setCanvas(tmp_a, i+1);
+				builtin_shaders.blur_mip.send("direction_mip", [ 0, 1, i ]);
+				love.graphics.draw(tmp_b, -1, -1);
+			}
+
+			pool.free(tmp_b);
+
+			// accumulate results back into bright buffer
+			love.graphics.setCanvas(bright);
+			love.graphics.setShader(builtin_shaders.accum_mip);
+			builtin_shaders.accum_mip.send("mip_count", tmp_a.getMipmapCount() - 1);
+			love.graphics.draw(tmp_a);
+
+			pool.free(tmp_a);
+		}
+	]]
+
 	-- Generate light threshold data :)
 	lg.push("all")
 		lg.setCanvas(canvas_light_pass)
@@ -605,7 +665,34 @@ local function draw(target, state)
 		assets.shd_light:send("exposure", target.exposure)
 		lg.clear(0, 0, 0, 0)
 		target.canvas_color:setFilter("linear", "linear")
-		lg.draw(target.canvas_color)
+		lg.draw(target.canvas_color, 0, 0, 0, 0.5)
+	lg.pop()
+
+	lg.push("all")
+		lg.setBlendMode("replace", "premultiplied")
+		lg.setCanvas(canvas_temp_a)
+		lg.draw(canvas_light_pass)
+
+		lg.setCanvas(canvas_temp_b)
+		canvas_temp_a:generateMipmaps()
+
+		lg.setShader(assets.shd_blur_mip)
+		for i=1, canvas_temp_a:getMipmapCount() do
+			lg.setCanvas(canvas_temp_b, i)
+			assets.shd_blur_mip:send("direction_mip", {1, 0, i})
+			lg.draw(canvas_temp_a, -1, -1)
+		end
+
+		for i=1, canvas_temp_a:getMipmapCount() do
+			lg.setCanvas(canvas_temp_a, i)
+			assets.shd_blur_mip:send("direction_mip", {0, 1, i})
+			lg.draw(canvas_temp_b, -1, -1)
+		end
+
+		lg.setCanvas(canvas_light_pass)
+		lg.setShader(assets.shd_accum_mip)
+		assets.shd_accum_mip:send("mip_count", canvas_temp_a:getMipmapCount()-1)
+		lg.draw(canvas_temp_a)
 	lg.pop()
 
 	target.canvas_color:setFilter("nearest", "nearest")

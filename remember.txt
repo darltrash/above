@@ -12,3 +12,15 @@ june 30, 2023
     I have been feeling better lately, things have got better for me, vacations
     started already and I got to learn a lot of new things in regards to this new
     project, it feels great to be able to just make something now
+
+july 4, 2023
+    Happy independence day, 'mericans!
+
+    I have been feeling okay, but I haven't done much in a long time, I got MacOS
+    builds to "work" and I have been considering to get Flatpak builds too, and I
+    found out about a disgusting problem in my renderer.
+
+    Apparently, my fucking blur, was bringing performance from 60fps to 30fps on
+    an EMM-ONE MAC.
+
+    HOW.

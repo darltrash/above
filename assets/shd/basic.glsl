@@ -83,7 +83,7 @@ varying vec3 wl_normal;
     uniform samplerCube cubemap;
 
     float dither4x4(vec2 position, float brightness) {
-        mat4 dither_table = mat4(
+        float dither_table[16] = float[16](
             0.0625, 0.5625, 0.1875, 0.6875, 
             0.8125, 0.3125, 0.9375, 0.4375, 
             0.2500, 0.7500, 0.1250, 0.6250, 
@@ -93,7 +93,7 @@ varying vec3 wl_normal;
         ivec2 p = ivec2(mod(position, 4.0));
         
         float a = step(float(p.x), 3.0);
-        float limit = mix(0.0, dither_table[p.y][p.x], a);
+        float limit = mix(0.0, dither_table[p.y + p.x * 4], a);
 
         return step(limit, brightness);
     }
@@ -178,7 +178,7 @@ varying vec3 wl_normal;
             float current = l_coords.z;
             // TODO: Probably fix this, not entirely sure it's necessary honestly
             //vec3 l_position = normalize(wl_position.xyz - (shadow_view * vec4(0.0, 0.0, 0.0, 0.0)).xyz);
-            float bias = 0.0001; //max(0.025f * (1.0 - dot(wl_normal, l_position)), 0.0005f);
+            float bias = 0.00001; //max(0.025f * (1.0 - dot(wl_normal, l_position)), 0.0005f);
 
             int sample_radius = 2;
             vec2 pixel_size = 1.0 / textureSize(shadow_map, 0);
@@ -205,7 +205,7 @@ varying vec3 wl_normal;
         
         // FIXME: Bizarre NVIDIA bug around this part
         // If something is very close to the camera, make it transparent!
-        //o.a *= min(1.0, length(vw_position.xyz) / 2.5);
+        o.a *= min(1.0, length(vw_position.xyz) / 2.5);
         
         // Calculate dithering based on transparency, skip dithered pixels!
         if (dither4x4(love_PixelCoord.xy, o.a) < 0.5)

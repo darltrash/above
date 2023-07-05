@@ -34,6 +34,8 @@ do
 	settings.vsync      = tonumber(os.getenv("ABOVE_VSYNC")) or 1
 	settings.profile    = os.getenv("ABOVE_PROFILE")
 
+	settings.disable_wobble = os.getenv("ABOVE_NO_WOBBLE")
+
 	settings.level      = os.getenv("ABOVE_LEVEL") or nil
 
 	settings.fps_camera = false
@@ -441,7 +443,7 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = state.time
 
-	state.daytime = state.time * 0.01
+	state.daytime = (state.time * 0.01) % 1
 	renderer.uniforms.daytime = state.daytime
 
 	renderer.generate_ambient()
@@ -485,7 +487,7 @@ function love.update(dt)
 
 		renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
 
-		do -- Cool camera movement effect
+		if not settings.disable_wobble then -- Cool camera movement effect
 			local offset = vector(
 				lm.noise(lt.getTime() * 0.1, lt.getTime() * 0.3),
 				lm.noise(lt.getTime() * 0.2, lt.getTime() * 0.1),
@@ -498,7 +500,7 @@ function love.update(dt)
 			)
 
 			state.view_matrix = state.view_matrix *
-				mat4.from_transform(offset * 0.05 * 0.5, rot * 0.05 * 0.5, 1)
+				mat4.from_transform(offset * 0.05 * 0.5, 0, 1)
 		end
 
 		if settings.debug then -- SUPER COOL FEATURE!
@@ -591,10 +593,10 @@ function love.draw()
 		assets.shd_post:send("color_b", fam.hex "#ff0080")
 		assets.shd_post:send("power", 0.2)
 		target.canvas_color:setFilter("nearest")
-		lg.setShader(assets.shd_post) -- TODO: Move to multi-pass blur!
+		lg.setShader(assets.shd_post)
 		lg.scale(state.scale)
 		assets.shd_post:send("light", target.canvas_light_pass)
-		assets.shd_post:send("resolution", { target.canvas_light_pass:getDimensions() })
+		--assets.shd_post:send("resolution", { target.canvas_light_pass:getDimensions() })
 		assets.shd_post:send("exposure", target.exposure)
 		lg.draw(target.canvas_color)
 
