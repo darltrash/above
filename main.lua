@@ -35,6 +35,7 @@ do
 	settings.profile    = os.getenv("ABOVE_PROFILE")
 
 	settings.disable_wobble = os.getenv("ABOVE_NO_WOBBLE")
+	settings.ricanten 	= os.getenv("ABOVE_RICANTEN") -- ;)
 
 	settings.level      = os.getenv("ABOVE_LEVEL") or nil
 
@@ -124,16 +125,22 @@ end
 
 local grass_meshes = {}
 
+local rika
+
 local function render_level()
 	-- MAP STUFF
 	for _, buffer in ipairs(state.map.meshes) do
-		renderer.render {
+		local a = renderer.render {
 			mesh = state.map.mesh,
 			range = { buffer.first, buffer.last - buffer.first },
 			material = buffer.material,
 			box = buffer.box,
 			texture = state.map_texture
 		}
+
+		if settings.ricanten and rika.materials[a.material] then
+			a.texture = rika.materials[a.material].albedo
+		end
 	end
 
 	-- THE WATAH
@@ -168,7 +175,20 @@ function state.load_map(what)
 		state.map_texture:release()
 	end
 
-	local map = exm.load(("assets/mod/%s.exm"):format(what), true)
+	local file = ("assets/mod/%s.exm"):format(what)
+	if settings.ricanten then
+		file = "assets/rik/map.exm"
+		rika = json.decode(lf.read("assets/rik/scene.json"))
+
+		for _, material in pairs(rika.materials) do
+			if lf.getInfo("assets/rik/"..material.albedo) then
+				material.albedo = lg.newImage("assets/rik/"..material.albedo)
+				material.albedo:setWrap("repeat", "repeat")
+			end
+		end
+	end
+
+	local map = exm.load(file, true)
 	state.map = map
 	local meta = json.decode(map.metadata)
 
@@ -302,6 +322,8 @@ function state.load_map(what)
 
 	state.hash:add_triangles(state.triangles, "level")
 
+	meta.lights = meta.lights or {}
+
 	state.map_lights = {}
 	for index, light in ipairs(meta.lights) do
 		table.insert(state.map_lights, {
@@ -313,6 +335,10 @@ function state.load_map(what)
 	state.entities = { hash = {} }
 	for index, entity in ipairs(meta.objects) do
 		entities.init(state.entities, entity, state)
+	end
+
+	if not state.entities.hash.player then
+		entities.init(state.entities, {name = "player", position = {0, 0, 0}}, state)
 	end
 
 	--for index, collider in ipairs(meta.trigger_areas) do
@@ -443,8 +469,8 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = state.time
 
-	state.daytime = (state.time * 0.01) % 1
-	renderer.uniforms.daytime = state.daytime
+	state.daytime = 0.46 --state.daytime + lt.getDelta() * 0.01
+	renderer.uniforms.daytime = state.daytime % 1
 
 	renderer.generate_ambient()
 
@@ -471,7 +497,10 @@ function love.update(dt)
 			-0.5
 		) * 10
 
-		state.shadow_view_matrix = mat4.look_at(state.target + position, state.target, { y = 1 })
+		local off = vector(0, 0, 5)
+		state.render_target.sun = state.target+position+off
+		renderer.uniforms.sun = state.render_target.sun
+		state.shadow_view_matrix = mat4.look_at(state.render_target.sun, state.target+off, { y = 1 })
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)
@@ -617,7 +646,7 @@ function love.draw()
 		lg.setColor(0, 0, 0, 1)
 		lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
 		lg.setColor(1, 1, 1, state.escape * state.escape)
-		lg.print("OYASUMI!", (w / (state.scale * 2)) - 70)
+		lg.print("GOOD NIGHT!", (w / (state.scale * 2)) - 70)
 		lg.pop()
 	end
 

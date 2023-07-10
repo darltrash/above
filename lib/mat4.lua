@@ -60,6 +60,15 @@ matrix.new = function (...)
     )
 end
 
+matrix.identity = function ()
+    return matrix.new(
+        1, 0, 0, 0,
+        0, 1, 0, 0,
+        0, 0, 1, 0,
+        0, 0, 0, 1
+    )
+end
+
 matrix.copy = matrix.new
 
 -- Creates a new matrix from perspective
@@ -231,6 +240,10 @@ matrix.to_columns = function (self)
     }
 end
 
+matrix.to_array = function (self)
+    return {unpack(self)}
+end
+
 -- Multiplies a matrix by another matrix
 matrix.multiply = function (a, b)
     return matrix.new {
@@ -310,6 +323,7 @@ matrix.__mul = function (a, b)
 
     else
         error("Right-hand value expected to be a mat4 or vec4!")
+
     end
 end
 

@@ -6,7 +6,7 @@ local assets     = require "assets"
 local language   = require "language"
 local missions   = require "missions"
 
-local global     = {}
+local global     = permanence.data
 
 -- TODO: implement scene scripting language? CODENAME: MIKAMO
 
@@ -125,7 +125,7 @@ return {
         entity.passthrough_routine = function()
             global.has_yoyo = true
             missions:remove("catboy_yoyo0")
-            if global.talked_to_yoyoboy then -- we have to translate these
+            if global.talked_to_yoyoboy then
                 missions:add(language.MISSION_GIVE_YOYO, "catboy_yoyo1")
             end
             entity.invisible = true

@@ -34,6 +34,8 @@ varying vec4 lc_position;
     }
 
     vec4 position( mat4 _, vec4 vertex_position ) {
+        //vertex_position.z = 1.0;
+        
         lc_position = vertex_position;
 
         vw_position = view * model * vertex_position;
@@ -48,6 +50,7 @@ varying vec4 lc_position;
 #endif
 
 #ifdef PIXEL
+    uniform Image stars;
     uniform Image MainTex;
     uniform float daytime;
 
@@ -67,19 +70,30 @@ varying vec4 lc_position;
         return step(limit, brightness);
     }
 
+    float luma(vec3 color) {
+        return dot(color, vec3(0.299, 0.587, 0.114));
+    }
+
     // Actual math
     void effect() {
         float t = daytime;
-        vec3 o = Texel(MainTex, vec2(t, 0.75)).rgb;
+        vec3 a = Texel(MainTex, vec2(t, 0.75)).rgb;
+        vec3 b = Texel(MainTex, vec2(t, 0.25)).rgb;
+
+        vec3 o = a;
 
         float m = sqr((lc_position.y + 0.1)*3.0);
         
         if (dither4x4(love_PixelCoord.xy, max(0.0, m)) > 0.5)
-            o = Texel(MainTex, vec2(t, 0.25)).rgb;
+            o = b;
+
+        float stars = Texel(stars, (lc_position.xy + 1.0) * vec2(2.0, 3.0) * 1.5).a;
+        stars *= max(0.0, sin(3.1415926535898 * (0.5 + t) * 2));
+        o += stars * stars * 0.5;
 
         if (lc_position.y < 0.0)
-            o = Texel(MainTex, vec2(t, 0.25)).rgb;
+            o = b;
 
-        love_Canvases[0] = vec4(o, 1.0) * 12.0;
+        love_Canvases[0] = vec4(o * 160.0, 1.0);
     }
 #endif

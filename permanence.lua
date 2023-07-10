@@ -25,7 +25,7 @@ permanence.load = function(slot)
     local data, err = lf.read(file)
     if not data then return end
 
-    permanence.data = bitser.loads(data)
+    permanence.data = assert(bitser.loads(data))
     permanence.slot = slot
     return true
 end

@@ -16,3 +16,6 @@ concept/
 *.desktop
 flatpak*
 .gitignore
+
+assets/rik/
+assets/mod/rik.exm

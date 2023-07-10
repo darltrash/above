@@ -6,6 +6,7 @@ local mimi = require "lib.mimi"
 local log = require "lib.log"
 local frustum = require "frustum"
 local json = require "lib.json"
+local csm = require "csm"
 
 local render_list = {}
 local grab_list = {}
@@ -17,8 +18,8 @@ local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
 local canvas_temp_a, canvas_temp_b
 local canvas_normals_c, canvas_depth_c
-local canvas_light_pass
-local canvas_shadowmap
+local canvas_light_pass = {}
+local canvas_shadowmaps
 
 local cuberes = 256
 
@@ -31,7 +32,10 @@ local CLIP_NONE = { 0, 0, 1, 1 }
 -- shaders AND automatically update them to reduce boilerplate.
 local uniform_map = {}
 local uniforms = {
-	perlin = assets.tex_perlin
+	perlin = assets.tex_perlin,
+	stars = assets.tex_stars,
+
+	sun_gradient = assets.tex_sky_sun_gradient
 }
 
 uniforms.perlin:setFilter("linear", "linear")
@@ -115,6 +119,8 @@ local function uniform_update(shader)
 		if map[k] ~= v and shader:hasUniform(k) then
 			if mat4.is_mat4(v) then
 				shader:send(k, "column", v:to_columns())
+			elseif vector.is_vector(v) then
+				shader:send(k, v:to_array())
 			elseif type(v) == "table" and v.unpack then
 				shader:send(k, unpack(v))
 			else
@@ -125,18 +131,18 @@ local function uniform_update(shader)
 	end
 end
 
+canvas_flat = lg.newCanvas(128, 128)
+canvas_flat:setFilter("nearest", "nearest")
+
+local allocated_canvases = {}
+
 local function resize(w, h, scale)
 	-- If the canvases already exist, YEET THEM OUT (safely).
-	if canvas_color_a then
-		canvas_flat:release()
-
-		canvas_normals_a:release()
-		canvas_color_a:release()
-		canvas_depth_a:release()
-
-		canvas_normals_b:release()
-		canvas_color_b:release()
-		canvas_depth_b:release()
+	if allocated_canvases[1] then
+		for index, canvas in ipairs(allocated_canvases) do
+			canvas:release()
+			allocated_canvases[index] = nil
+		end
 	end
 
 	local function canvas(t)
@@ -157,11 +163,10 @@ local function resize(w, h, scale)
 			c:setFilter(f, f)
 		end
 
+		table.insert(allocated_canvases, c)
+
 		return c
 	end
-
-	canvas_flat = lg.newCanvas(128, 128)
-	canvas_flat:setFilter("nearest", "nearest")
 
 	-- ////////////// A CANVAS /////////////
 
@@ -226,14 +231,20 @@ local function resize(w, h, scale)
 
 	-- ////////////// SHADOWMAP ////////////
 
-	canvas_shadowmap    = canvas {
+	uniforms.resolution = { w / scale, h / scale }
+end
+
+local shadow_maps_res = 2048
+uniforms.shadow_maps = { unpack = true }
+for i=1, 4 do
+	uniforms.shadow_maps[i] = lg.newCanvas(shadow_maps_res, shadow_maps_res, {
 		format = "depth24",
 		readable = true,
-		filter = "linear",
-		scale = 0.5
-	}
+	})
 
-	uniforms.resolution = { w / scale, h / scale }
+	uniforms.shadow_maps[i]:setFilter("linear", "linear")
+	uniforms.shadow_maps[i]:setDepthSampleMode("greater")
+	uniforms.shadow_maps[i]:setWrap("clamp", "clamp")
 end
 
 canvas_normals_c = lg.newCanvas(cuberes, cuberes, {
@@ -315,7 +326,7 @@ local function render_to(target)
 
 	uniforms.view = target.view
 	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 1 }))
-	uniforms.eye = eye:to_array()
+	uniforms.eye = eye
 
 	uniforms.projection = target.projection or mat4.from_perspective(-45, -width / height, 0.01, 300)
 	uniforms.inverse_proj = uniforms.projection:inverse()
@@ -373,7 +384,8 @@ local function render_to(target)
 	if not target.no_sky then
 		local call = render {
 			mesh = assets.mod_sphere.mesh,
-			model = mat4.from_transform(-eye, 0, 90),
+			model = mat4.from_transform(eye, 0, 90),
+			depth = "lequal",
 			material = "sky"
 		}
 
@@ -399,7 +411,7 @@ local function render_to(target)
 		local color = call.color or COLOR_WHITE
 
 		uniforms.clip = call.clip or CLIP_NONE
-		uniforms.model = call.model or mat4
+		uniforms.model = call.model or mat4.identity()
 		uniforms.translucent = call.translucent or 0
 		uniforms.glow = call.glow or 0
 
@@ -562,38 +574,85 @@ local function draw(target, state)
 	target.canvas_depth_b   = canvas_depth_b
 	target.canvas_normals_b = canvas_normals_b
 
+--	local width, height = target.canvas_color_a:getDimensions()
+--
+--	target.projection = mat4.from_perspective(-45, -width / height, 0.01, 300)
+
 	local total_calls = 0
+	if target.sun and false then
+		local shadow = {
+			split_count = 4,
+			distance = 100,
+			split_distribution = 0.95,
+			stabilize = true,
+			res = shadow_maps_res
+		}
+
+		local inv_view = target.view:inverse()
+		local proj = target.projection
+		local c = csm.setup_csm(shadow, -target.sun:normalize(), inv_view, proj)
+
+		uniforms.shadow_matrix = {
+			unpack = true
+		}
+
+		for index=1, 4 do
+			local shadow = {
+				view = c.lights[index],
+				projection = mat4.identity(),
+
+				no_lights = true,
+				no_cleanup = true,
+				no_sky = true,
+				shadow = true,
+
+				canvas_depth_a = uniforms.shadow_maps[index],
+
+				shader = assets.shd_none
+			}
+
+			local vertices, calls, grabs = render_to(shadow)
+			total_calls = total_calls + calls
+
+			table.insert(uniforms.shadow_matrix, shadow.view:inverse():to_columns())
+
+			--if index == 4 then
+			--	target.view = shadow.view
+			--	target.projection = mat4.identity()
+			--	target.no_sky = true
+			--end
+		end
+	end
+
 	if target.shadow_view then
 		local shadow = {
 			view = target.shadow_view,
-			projection = mat4.from_ortho(-15, 15, -15, 15, 0.01, 1000),
+			projection = mat4.from_ortho(-10, 10, -10, 10, -1000, 1000),
 
 			no_lights = true,
 			no_cleanup = true,
 			no_sky = true,
 			shadow = true,
 
-			canvas_depth_a = canvas_shadowmap,
+			canvas_depth_a = uniforms.shadow_maps[1],
 
-			shader = assets.shd_unshaded
+			shader = assets.shd_none
 		}
 
 		local vertices, calls, grabs = render_to(shadow)
 		total_calls = total_calls + calls
 
-		if state.settings.debug then
-			state:debug("")
-			state:debug("--- SHMAPPER -----") -- please dont call it "shadow mapper", just use "shmapper"
-			state:debug("VERTS:  %i", vertices)
-			state:debug("CALLS:  %i", calls)
-			state:debug("GRABS:  %i", grabs)
-		end
-
-		uniforms.shadow_view       = shadow.view
+		uniforms.shadow_view = shadow.view
 		uniforms.shadow_projection = shadow.projection
-		uniforms.shadow_map        = shadow.canvas_depth
+		uniforms.shadow_map = shadow.canvas_depth
 
-		uniforms.shadow_map:setFilter("linear", "linear")
+		if false then
+			target.view = shadow.view
+			target.projection = shadow.projection
+			target.shader = assets.shd_none
+			target.no_sky = true
+			target.shadow = true
+		end
 	end
 
 	local vertices, calls, grabs, lights = render_to(target)
@@ -610,53 +669,7 @@ local function draw(target, state)
 		state:debug("TCALLS: %i/200", total_calls)
 	end
 	
-	target.exposure = -5.5
-
-	--target.canvas_color = canvas_color_s
-
-	--[[
-		if (config.use_bloom) {
-			love.graphics.setBlendMode("replace", "premultiplied");
-			builtin_shaders.bright.send("bloom", [2.0, 10.0, 20.0, 0]);
-			love.graphics.draw(fb_shaded, 0, 0, 0, bright.getWidth()/sw, bright.getHeight()/sh);
-
-			const tmp_a = pool.allocate(bright.getWidth(), bright.getHeight(), { format: bright.getFormat(), mipmaps: "manual" });
-			const tmp_b = pool.allocate(bright.getWidth(), bright.getHeight(), { format: bright.getFormat(), mipmaps: "manual" });
-
-			// copy bright to tmp, then mipmap it
-			love.graphics.setShader();
-			love.graphics.setCanvas(tmp_a);
-			love.graphics.draw(bright);
-
-			love.graphics.setCanvas(tmp_b);
-			tmp_a.generateMipmaps();
-
-			// blur down the mip chain
-			love.graphics.setShader(builtin_shaders.blur_mip);
-			for (let i = 0; i < tmp_a.getMipmapCount(); i++) {
-				love.graphics.setCanvas(tmp_b, i+1);
-				builtin_shaders.blur_mip.send("direction_mip", [ 1, 0, i ]);
-				love.graphics.draw(tmp_a, -1, -1);
-			}
-
-			// blur other way down the chain
-			for (let i = 0; i < tmp_a.getMipmapCount(); i++) {
-				love.graphics.setCanvas(tmp_a, i+1);
-				builtin_shaders.blur_mip.send("direction_mip", [ 0, 1, i ]);
-				love.graphics.draw(tmp_b, -1, -1);
-			}
-
-			pool.free(tmp_b);
-
-			// accumulate results back into bright buffer
-			love.graphics.setCanvas(bright);
-			love.graphics.setShader(builtin_shaders.accum_mip);
-			builtin_shaders.accum_mip.send("mip_count", tmp_a.getMipmapCount() - 1);
-			love.graphics.draw(tmp_a);
-
-			pool.free(tmp_a);
-		}
-	]]
+	target.exposure = -6.5
 
 	-- Generate light threshold data :)
 	lg.push("all")

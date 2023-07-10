@@ -5,3 +5,6 @@ cache/
 build-dir/
 .flatpak-builder
 .flatpak/
+
+assets/rik
+assets/mod/rik.exm

@@ -8,11 +8,6 @@ varying vec4 vw_position;
 varying vec3 vw_normal;
 varying vec4 vx_color;
 
-#define sqr(a) (a*a)
-
-// Spherical harmonics, cofactor and improved diffuse
-// by the people at excessive ❤ moé 
-
 #ifdef VERTEX
     attribute vec3 VertexNormal;
 
@@ -45,13 +40,11 @@ varying vec4 vx_color;
 
 #ifdef PIXEL
     uniform Image MainTex;
-    uniform Image perlin;
 
-    // Lighting!
-
-    uniform float time;
     uniform vec4 clip;
-    uniform float translucent; // useful for displaying flat things
+    uniform float translucent;
+
+    uniform samplerCube cubemap;
 
     float dither4x4(vec2 position, float brightness) {
         mat4 dither_table = mat4(
@@ -71,35 +64,18 @@ varying vec4 vx_color;
 
     // Actual math
     void effect() {
-        // Lighting! (Diffuse)
-        vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec2 uv = VaryingTexCoord.xy * 0.4;
-        vec4 o = vec4(0.0);
+        vec3 n = normalize(vw_normal);
 
-        if (dither4x4(love_PixelCoord.xy, Texel(perlin, uv + time * 0.01).r) > 0.5)
-            o.r = 1.0;
+        // This helps us make the models just use a single portion of the 
+        // texture, which allows us to make things such as sprites show up :)
+        vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
-        if (dither4x4(love_PixelCoord.xy, Texel(perlin, uv + time * 0.03).g) > 0.5)
-            o.g = 1.0;
+        // Evrathing togetha
+        vec4 o = Texel(MainTex, uv) * VaryingColor;
 
-        if (dither4x4(love_PixelCoord.xy, Texel(perlin, uv + time * 0.02).b) > 0.5)
-            o.b = 1.0;
+        if (o.a < 0.5) discard;
 
-        if (length(o.rgb) > 0.0)
-            o.a = 1.0;
-
-        o *= VaryingColor;
-
-        // If something is very close to the camera, make it transparent!
-        o.a *= min(1.0, length(vw_position.xyz) / 2.5);
-        
-        // Calculate dithering based on transparency, skip dithered pixels!
-        if (dither4x4(love_PixelCoord.xy, o.a) < 0.5)
-            discard;
-
-        vec3 n = normal * 0.5 + 0.5;
-
-        love_Canvases[0] = vec4(o.rgb*190.0, 1.0);
+        love_Canvases[0] = vec4(o.rgb * 30.0, 1.0);
         love_Canvases[1] = vec4(n, 1.0);
     }
 #endif

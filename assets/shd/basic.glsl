@@ -21,7 +21,11 @@ varying vec4 vx_color;
 varying vec4 wl_position;
 varying vec3 wl_normal;
 
-#define sqr(a) (a*a)
+#define PI 3.1415926535898
+#define sqr(a) ((a)*(a))
+#define cub(a) ((a)*(a)*(a))
+#define saturate(a) (clamp(a, 0.0, 1.0))
+#define fma(a, b, c) ((a) * (b) + (c))
 
 // TODO: Cleanup shader folder (it's filled with garbage that i dont even use)
 
@@ -78,9 +82,12 @@ varying vec3 wl_normal;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
 
-    uniform sampler2D shadow_map;
+    uniform sampler2DShadow shadow_map;
 
     uniform samplerCube cubemap;
+    uniform vec3 sun;
+    float daytime;
+    uniform sampler2D sun_gradient;
 
     float dither4x4(vec2 position, float brightness) {
         float dither_table[16] = float[16](
@@ -101,8 +108,6 @@ varying vec3 wl_normal;
     float linearstep(float e0, float e1, float x) {
         return clamp((x - e0) / (e1 - e0), 0.0, 1.0);
     }
-
-    #define PI 3.1415926535898
 
     float DistributionGGX(vec3 N, vec3 H, float a) {
         float a2     = a*a;
@@ -130,18 +135,124 @@ varying vec3 wl_normal;
 
     const vec3 luma = vec3(0.299, 0.587, 0.114);
 
-    #define saturate(a) (clamp(a, 0.0, 1.0))
-    #define fma(a, b, c) ((a) * (b) + (c))
-
     // TODO: Implement Manta's batshit insane shading model? 
+/*
+    float sample_depth_index(int i, vec4 uv) {
+        switch (i) {
+            case 0: return textureProj(shadow_maps[0], uv); break;
+            case 1: return textureProj(shadow_maps[1], uv); break;
+            case 2: return textureProj(shadow_maps[2], uv); break;
+            case 3: return textureProj(shadow_maps[3], uv); break;
+            default: break;
+        }
+        return 1.0;
+    }
+
+    float sample_pcf(int i, vec4 uv, float _bias, float blur) {
+        float bias = (pow(float(i), 1.5)+1.0)*_bias;
+        float result = sample_depth_index(i, uv - vec4(0.0, 0.0, bias, 0.0));
+
+        // faster
+        return clamp(1.0 - result, 0.0, 1.0);
+
+        result += sample_depth_index(i, vec4(uv.xy + vec2(-0.326212,-0.405805) * blur, uv.z - bias, uv.w));
+        result += sample_depth_index(i, vec4(uv.xy + vec2(-0.840144,-0.073580) * blur, uv.z - bias, uv.w));
+        result += sample_depth_index(i, vec4(uv.xy + vec2(-0.695914, 0.457137) * blur, uv.z - bias, uv.w));
+        result += sample_depth_index(i, vec4(uv.xy + vec2(-0.203345, 0.620716) * blur, uv.z - bias, uv.w));
+        result += sample_depth_index(i, vec4(uv.xy + vec2( 0.962340,-0.194983) * blur, uv.z - bias, uv.w));
+        result += sample_depth_index(i, vec4(uv.xy + vec2( 0.473434,-0.480026) * blur, uv.z - bias, uv.w));
+        result += sample_depth_index(i, vec4(uv.xy + vec2( 0.519456, 0.767022) * blur, uv.z - bias, uv.w));
+        return clamp(1.0 - result/8.0, 0.0, 1.0);
+    }
+
+    float sample_csm(vec3 pos_vs, float bias) {
+        vec2 res = vec2(textureSize(shadow_maps[0], 0));
+        float visibility = 1.0;
+        for (int i = 0; i < 4; i++) {
+            const vec2 sbias = vec2(0.5, 1.0);
+            vec4 coord = shadow_matrix[i] * vec4(pos_vs, 1.0);
+            coord.xyz *= sbias.xxx;
+            coord.xyz += sbias.xxx;
+            coord.z *= sbias.y;
+
+            vec3 shadow_coord = coord.xyz / coord.w;
+            vec2 minmax = vec2(0.0, 1.0);
+            bool inside = all(greaterThan(shadow_coord.xy, minmax.xx)) && all(lessThan(shadow_coord.xy, minmax.yy));
+            
+            if (inside)
+                return sample_pcf(i, coord, bias, 1.0 / res.x);
+        }
+        return visibility;
+    }
+
+    float sample_csm_blended(vec3 pos_vs, float blend_factor, float texel_padding, float bias) {
+        return sample_csm(pos_vs, bias);
+
+        vec2 size = textureSize(shadow_maps[0], 0);
+        vec2 sel_min = vec2(1.0) / size * texel_padding;
+        vec2 sel_max = vec2(1.0) - sel_min;
+        vec4 max_dist = vec4(0.0);
+        int count = 0;
+
+        mat4 shadow_pos = mat4(0.0);
+        ivec2 pair = ivec2(0);
+        for (int i = 0; i < 4; i++) {
+            const vec2 sbias = vec2(0.5, 1.0);
+            vec4 coord = shadow_matrix[i] * vec4(pos_vs, 1.0);
+            coord.xyz *= sbias.xxx;
+            coord.xyz += sbias.xxx;
+            coord.z *= sbias.y;
+            shadow_pos[i] = coord;
+
+            vec3 tcs = shadow_pos[i].xyz / shadow_pos[i].w;
+            bool selection = all(greaterThan(tcs.xy, sel_min)) && all(lessThan(tcs.xy, sel_max));
+            max_dist[i] = max(distance(tcs.x, 0.5), distance(tcs.y, 0.5));
+            if (selection && count < 2) {
+                pair[count] = i;
+                count++;
+            }
+        }
+
+        float visibility = 1.0;
+        if (count > 0) {
+            int i0 = pair[0];
+            float res_blur = 1.0/size.x;
+            const float blur_mix = 0.25;
+            float blur0 = mix(res_blur, (5.0-float(i0))/size.x, blur_mix);
+            float a = sample_pcf(i0, shadow_pos[i0], bias, blur0);
+            float dist = max_dist[i0];
+            float factor = smoothstep(0.5 - blend_factor, 0.5, dist);
+            float b = 1.0;
+            if (count > 1) {
+                int i1 = pair[1];
+                float blur1 = mix(res_blur, (5.0-float(i1))/size.x, blur_mix);
+                b = sample_pcf(i1, shadow_pos[i1], bias, blur1);
+            }
+            visibility = mix(a, b, factor);
+        }
+        
+        return visibility;
+    }
+*/
+    float slope_scaled_bias(float ndl, float factor) {
+        float cosAlpha = ndl;
+        float sinAlpha = sqrt(1.0 - cosAlpha * cosAlpha); // sin(acos(L*N))
+        float tanAlpha = sinAlpha / cosAlpha;             // tan(acos(L*N))
+        return tanAlpha * factor;
+    }
+
+    float random(vec3 seed, int i){
+        vec4 seed4 = vec4(seed,i);
+        float dot_product = dot(seed4, vec4(12.9898,78.233,45.164,94.673));
+        return fract(sin(dot_product) * 43758.5453);
+    }
 
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 sample = textureLod(cubemap, wl_normal, 6.0).rgb;
-        float l = length(sample.rgb / 12.0) * 0.1;
-        vec3 ambient = sqrt(sample) * sqr(l); // vec4(sh(harmonics, normal), 1.0)
+        vec3 sample = textureLod(cubemap, normalize(wl_normal), 6.0).rgb;
+        vec3 ambient = sample * sample * 0.005; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 diffuse = vec3(0.0);
 
@@ -174,32 +285,67 @@ varying vec3 wl_normal;
         if (l_coords.z <= 1.0f) {
             float shadow = 0.0;
 
-            l_coords = (l_coords + 1.0) / 2.0;
-            float current = l_coords.z;
-            // TODO: Probably fix this, not entirely sure it's necessary honestly
-            //vec3 l_position = normalize(wl_position.xyz - (shadow_view * vec4(0.0, 0.0, 0.0, 0.0)).xyz);
-            float bias = 0.00001; //max(0.025f * (1.0 - dot(wl_normal, l_position)), 0.0005f);
+//            l_coords = (l_coords + 1.0) / 2.0;
+//            float current = l_coords.z;
+//            vec3 wl_sun_normal = normalize(wl_position.xyz - sun);
+//            float bias = 0.00008;
+//
+//            int sample_radius = 2;
+//            vec2 pixel_size = 1.0 / textureSize(shadow_map, 0);
 
-            int sample_radius = 2;
-            vec2 pixel_size = 1.0 / textureSize(shadow_map, 0);
+//            for (int y = -sample_radius; y <= sample_radius; y++)
+//                for (int x = -sample_radius; x <= sample_radius; x++) {
+//                    float closest = Texel(shadow_map, l_coords.xy + vec2(x, y) * pixel_size).r;
+//                    if (current < closest + bias)
+//                        shadow += 1.0;
+//                }
+            
 
-            for (int y = -sample_radius; y <= sample_radius; y++) {
-                for (int x = -sample_radius; x <= sample_radius; x++) {
-                    float closest = Texel(shadow_map, l_coords.xy + vec2(x, y) * pixel_size).r;
-                    if (current < closest + bias)
-                        shadow += 1.0;
-                }
-            }
+//
+//            for (int i=0;i<4;i++){
+//                int index = int(16.0*random(gl_FragCoord.xyy, i))%16;
+//                shadow += 0.25*(1.0-texture(shadow_map, vec3(ss_position.xy + poissonDisk[index]/700.0, (ss_position.z-bias)/ss_position.w)));
+//            }
+//
+//            shadow /= pow((sample_radius * 2 + 1), 2);
 
-            shadow /= pow((sample_radius * 2 + 1), 2);
+            vec3 l = normalize(sun - wl_position.xyz);
+            float base_ndl = abs(dot(wl_normal, l));
+            float ndl = max(0.0, base_ndl);
 
-            diffuse += shadow * 3.0;
+            float bias = slope_scaled_bias(ndl, 0.001) * 0.08;
+            bias = 0.00005;
+
+            vec2 poisson_disk[4] = vec2[](
+                vec2( -0.94201624, -0.39906216 ),
+                vec2( 0.94558609, -0.76890725 ),
+                vec2( -0.094184101, -0.92938870 ),
+                vec2( 0.34495938, 0.29387760 )
+            );
+
+            vec4 s = ss_position;
+            s.xyz = s.xyz * 0.5 + 0.5;
+            s.z -= bias;
+            shadow = textureProj(shadow_map, s);
+
+            //for (int i=0;i<4;i++){
+            //    int index = int(16.0*random(gl_FragCoord.xyy, i))%16;
+            //    shadow += 0.25*(1.0-texture(shadow_map, vec3(ss_position.xy + poissonDisk[index]/700.0, (ss_position.z-bias)/ss_position.w)));
+            //}
+
+            // float base_ndl = dot(normal, sun);
+            // float ndl = max(0.0, base_ndl);
+            // float slope_bias = slope_scaled_bias(ndl, 0.001) * 0.05;
+            // float shadow = sample_csm_blended(vw_position.xyz, 0.05, 0.0, slope_bias);
+            // 
+            diffuse += shadow * 60.0 * Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
         }
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
+        // TODO: Add 
         // Evrathing togetha
         vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse + ambient, 1.0);
         
