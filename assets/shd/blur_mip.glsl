@@ -46,6 +46,6 @@
 	}
 
 	vec4 effect(vec4 _, sampler2D tex, vec2 uv, vec2 sc) {
-		return blur13(tex, uv, textureSize(tex, int(direction_mip.z)), direction_mip.xy, direction_mip.z);
+		return blur9(tex, uv, textureSize(tex, int(direction_mip.z)), direction_mip.xy, direction_mip.z);
 	}
 #endif

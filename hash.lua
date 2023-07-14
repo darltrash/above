@@ -208,8 +208,8 @@ local function query(min, max, velocity, self)
 end
 
 hash.check = function(self, position, velocity, radius, substeps)
-    --return slam.check(position, velocity, radius, query, substeps, self)
-    return position, velocity*0.5, {}
+    return slam.check(position, velocity, radius, query, substeps, self)
+    --return position, velocity*0.5, {}
 end
 
 return setmetatable(hash, {

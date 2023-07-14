@@ -241,20 +241,23 @@ varying vec3 wl_normal;
         return tanAlpha * factor;
     }
 
-    float random(vec3 seed, int i){
-        vec4 seed4 = vec4(seed,i);
-        float dot_product = dot(seed4, vec4(12.9898,78.233,45.164,94.673));
-        return fract(sin(dot_product) * 43758.5453);
+    float prefiltered_brdf(float ndv, float roughness) {
+        vec4 c0 = vec4(-1.0, -0.0275, -0.572, 0.022);
+        vec4 c1 = vec4(1.0, 0.0425, 1.04, -0.04);
+        vec4 r = roughness * c0 + c1;
+        float a004 = min(r.x * r.x, exp2(-9.28 * ndv)) * r.x + r.y;
+        vec2 magic = vec2(-1.04, 1.04) * a004 + r.zw;
+        return magic.r + magic.g;
     }
 
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 sample = textureLod(cubemap, normalize(wl_normal), 6.0).rgb;
+        vec3 sample = textureLod(cubemap, normalize(wl_normal), 7).rgb;
         vec3 ambient = sample * sample * 0.005; // vec4(sh(harmonics, normal), 1.0)
 
-        vec3 diffuse = vec3(0.0);
+        vec3 diffuse = vec3(0.0, 0.0, 0.0);
 
         float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
 
@@ -278,67 +281,43 @@ varying vec3 wl_normal;
             float gsf = mix(sl * sv, 1.0, translucent);
 
             // Now we add our light's color to the light value
-            diffuse += color * inv_sqr_law * gsf;
+            float brdf = prefiltered_brdf(ndi, roughness);
+            diffuse += color * inv_sqr_law * gsf * brdf;
         }
         
         vec3 l_coords = ss_position.xyz / ss_position.w;
         if (l_coords.z <= 1.0f) {
             float shadow = 0.0;
 
-//            l_coords = (l_coords + 1.0) / 2.0;
-//            float current = l_coords.z;
-//            vec3 wl_sun_normal = normalize(wl_position.xyz - sun);
-//            float bias = 0.00008;
-//
-//            int sample_radius = 2;
-//            vec2 pixel_size = 1.0 / textureSize(shadow_map, 0);
-
-//            for (int y = -sample_radius; y <= sample_radius; y++)
-//                for (int x = -sample_radius; x <= sample_radius; x++) {
-//                    float closest = Texel(shadow_map, l_coords.xy + vec2(x, y) * pixel_size).r;
-//                    if (current < closest + bias)
-//                        shadow += 1.0;
-//                }
-            
-
-//
-//            for (int i=0;i<4;i++){
-//                int index = int(16.0*random(gl_FragCoord.xyy, i))%16;
-//                shadow += 0.25*(1.0-texture(shadow_map, vec3(ss_position.xy + poissonDisk[index]/700.0, (ss_position.z-bias)/ss_position.w)));
-//            }
-//
-//            shadow /= pow((sample_radius * 2 + 1), 2);
-
             vec3 l = normalize(sun - wl_position.xyz);
             float base_ndl = abs(dot(wl_normal, l));
             float ndl = max(0.0, base_ndl);
 
+            // FIXME: this code is shite, fix the appimage bugging out horribly
+            // TODO: Implement proper biasing, because this one sucks
+            // TODO: Implement proper CSM, because uhh, yeah
+            // TODO: Implement proper filtering, probably through poisson disks things
+            // TODO: do all of the things above
+
+            // suicide doesnt seem like a bad option anymore
+
             float bias = slope_scaled_bias(ndl, 0.001) * 0.08;
             bias = 0.00005;
-
-            vec2 poisson_disk[4] = vec2[](
-                vec2( -0.94201624, -0.39906216 ),
-                vec2( 0.94558609, -0.76890725 ),
-                vec2( -0.094184101, -0.92938870 ),
-                vec2( 0.34495938, 0.29387760 )
-            );
 
             vec4 s = ss_position;
             s.xyz = s.xyz * 0.5 + 0.5;
             s.z -= bias;
-            shadow = textureProj(shadow_map, s);
 
-            //for (int i=0;i<4;i++){
-            //    int index = int(16.0*random(gl_FragCoord.xyy, i))%16;
-            //    shadow += 0.25*(1.0-texture(shadow_map, vec3(ss_position.xy + poissonDisk[index]/700.0, (ss_position.z-bias)/ss_position.w)));
-            //}
+            shadow = textureProj(shadow_map, s);
 
             // float base_ndl = dot(normal, sun);
             // float ndl = max(0.0, base_ndl);
             // float slope_bias = slope_scaled_bias(ndl, 0.001) * 0.05;
             // float shadow = sample_csm_blended(vw_position.xyz, 0.05, 0.0, slope_bias);
             // 
-            diffuse += shadow * 60.0 * Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
+
+            // FIXME: Sun gradient fricking things up
+            diffuse += shadow * 60.0;// * Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
         }
 
         // This helps us make the models just use a single portion of the 

@@ -103,12 +103,7 @@ end
 
 local l_counter = 0
 local function light(light)
-	l_counter = l_counter + 1
-	if l_counter > 16 then
-		l_counter = 1
-	end
-
-	light_list[l_counter] = light
+	table.insert(light_list, light)
 end
 
 local function uniform_update(shader)
@@ -340,18 +335,14 @@ local function render_to(target)
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
 
-		for i = 1, 16 do -- ONLY 16 LIGHTS MAX!
-			local light = light_list[i]
-			if not light then
-				break
-			end
-
-			local pos = light.position:to_array()
-			pos.w = 1
-
+		for i, light in ipairs(light_list) do -- ONLY 16 LIGHTS MAX!
 			if view_frustum:vs_sphere(light.position, light.color[4]) then
-				table.insert(uniforms.light_positions, pos)
-				table.insert(uniforms.light_colors, light.color)
+				local pos = light.position:to_array()
+				pos.w = 1
+
+				uniforms.light_positions[(lights%16)+1] = pos
+				uniforms.light_colors[(lights%16)+1] = light.color
+				
 				lights = lights + 1
 			end
 
@@ -359,8 +350,6 @@ local function render_to(target)
 		end
 
 		uniforms.light_amount = lights
-
-		l_counter = 0
 	else
 		uniforms.ambient = { 1, 1, 1, 1 }
 	end
@@ -457,7 +446,7 @@ local function render_to(target)
 			depthstencil = { target.canvas_depth }
 		}
 		lg.setDepthMode(call.depth or "less", true)
-		lg.setMeshCullMode(call.culling or "back")
+		lg.setMeshCullMode(target.culling or call.culling or "back")
 
 		lg.setColor(color)
 
@@ -627,12 +616,14 @@ local function draw(target, state)
 	if target.shadow_view then
 		local shadow = {
 			view = target.shadow_view,
-			projection = mat4.from_ortho(-10, 10, -10, 10, -1000, 1000),
+			projection = mat4.from_ortho(-15, 15, -10, 10, -1000, 1000),
 
 			no_lights = true,
 			no_cleanup = true,
 			no_sky = true,
 			shadow = true,
+
+			culling = "none",
 
 			canvas_depth_a = uniforms.shadow_maps[1],
 
@@ -652,6 +643,8 @@ local function draw(target, state)
 			target.shader = assets.shd_none
 			target.no_sky = true
 			target.shadow = true
+			target.culling = "none"
+			target.shader = assets.shd_none
 		end
 	end
 

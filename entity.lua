@@ -82,6 +82,8 @@ end
 --------------------------------------------------------------
 
 local PLAYER_ANIMS = { -- 🚶+🦌
+    -- wait, dont the swedish like, eat these things
+    -- not like that's going to stop me from basing the Everfest after Midsummer
     {
         { 0,   0, 56, 56, off = 0 },
         { 56,  0, 56, 56, off = 1 },
@@ -114,10 +116,10 @@ local controllers = {
 
             local mag = velocity:magnitude()
             if mag > 0 then
-                if math.floor(entity.animation % 2) == 0 then
-                    assets.sfx_step:setVolume(lm.random(20, 70) / 100)
-                    assets.sfx_step:play()
-                end
+--                if math.floor(entity.animation % 2) == 0 then -- fix this too
+--                    assets.sfx_step:setVolume(lm.random(20, 70) / 100)
+--                    assets.sfx_step:play()
+--                end
 
                 if entity.animation == 0 then
                     entity.animation = 1
@@ -260,7 +262,7 @@ local function tick(entities, dt, state)
 
             if entity.velocity then -- Euler integration
                 -- TODO: FIX FORCE MATH!
-                if entity.mass and false then
+                if entity.mass then
                     entity.gravity = (entity.gravity or 0) + 10 * dt
                     entity.velocity.y = entity.velocity.y - entity.gravity
 
@@ -378,7 +380,7 @@ local function render(entities, state, delta, alpha)
                     renderer.render(call)
                 end
 
-                if state.settings.debug and false then
+                if state.settings.debug then
                     local c = entity.collider
                     if c and c._position then
                         local _pos = (c._past_position or c._position):lerp(c._position, alpha)
@@ -386,7 +388,7 @@ local function render(entities, state, delta, alpha)
                             mesh = assets.mod_sphere,
                             model = mat4.from_transform(_pos, 0, c.radius),
                             color = { 1, 0, 1, 1 / 4 },
-                            unshaded = true
+                            material = "unshaded"
                         }
                     end
 
@@ -395,6 +397,7 @@ local function render(entities, state, delta, alpha)
                     renderer.render {
                         culling = "none",
                         unshaded = true,
+                        translucent = 1,
                         entity = entity,
 
                         model = mat4.from_transform(pos, 0, 3),
@@ -430,7 +433,7 @@ local function render(entities, state, delta, alpha)
                         color = { 1, 1, 1, a * a },
                         model = mat4.from_transform(pos, rot, 1),
                         translucent = 0.5,
-                        glow = 10,
+                        glow = 0,
                         mesh = assets.mod_bubble.mesh,
                         material = "general",
                     }

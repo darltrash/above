@@ -38,6 +38,7 @@ do
 	settings.ricanten 	= os.getenv("ABOVE_RICANTEN") -- ;)
 
 	settings.level      = os.getenv("ABOVE_LEVEL") or nil
+	settings.no_physics = settings.debug and os.getenv("ABOVE_NO_PHYSICS")
 
 	settings.fps_camera = false
 end
@@ -95,10 +96,13 @@ local state = {
 
 	render_target = {},
 
-	daytime = 0,
+	daytime = 0.46,
 
 	hash = require("hash").new()
 }
+
+-- huge inspiration:
+-- https://www.youtube.com/watch?v=6DRMC8-ZSIg&t=1066s
 
 local camera_rotation = vector(0, 0, 0)
 local grass = {}
@@ -362,7 +366,7 @@ function state.load_map(what)
 		what, #state.map_lights, #state.entities
 	)
 
-	render_level()
+	--render_level()
 	--renderer.generate_ambient()
 end
 
@@ -400,6 +404,14 @@ function love.keypressed(k)
 		settings.fps_camera = not settings.fps_camera
 		love.mouse.setRelativeMode(settings.fps_camera)
 		love.mouse.setGrabbed(settings.fps_camera)
+	end
+
+	if settings.debug then
+		if (k == "y") then
+			state.daytime = state.daytime - (1 / 16)
+		elseif (k == "u") then
+			state.daytime = state.daytime + (1 / 16)
+		end
 	end
 end
 
@@ -469,8 +481,9 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = state.time
 
-	state.daytime = 0.46 --state.daytime + lt.getDelta() * 0.01
-	renderer.uniforms.daytime = state.daytime % 1
+	--state.daytime = state.daytime + lt.getDelta() * 0.01
+	state.daytime = state.daytime % 1
+	renderer.uniforms.daytime = state.daytime
 
 	renderer.generate_ambient()
 
@@ -557,6 +570,7 @@ function love.update(dt)
 		state:debug("OS:     %s x%s", ls.getOS(), ls.getProcessorCount())
 		state:debug("SCALE:  %i", state.scale)
 		state:debug("SIZE:   %ix%i", lg.getDimensions())
+		state:debug("DAYTIM: %f", state.daytime)
 	end
 
 	local alpha = fam.clamp(lag / timestep, 0, 1)

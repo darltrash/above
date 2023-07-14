@@ -10,12 +10,12 @@ texture: general
 
 [unshaded]
 shader: unshaded
-glow: 130
+glow: 200
 no_shadow: yes
 
 [glow]
 shader: unshaded
-glow: 130
+glow: 200
 no_shadow: yes
 
 [glass]
@@ -33,6 +33,7 @@ ignore: yes
 shader: magic
 texture: white
 culling: none
+no_shadow: yes
 
 [cubemap]
 shader: cubemap_test
