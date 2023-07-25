@@ -39,6 +39,7 @@ local uniforms = {
 }
 
 uniforms.perlin:setFilter("linear", "linear")
+uniforms.sun_gradient:setFilter("linear", "linear")
 
 local materials = assert(mimi.load("assets/materials.mi"))
 log.info("Loaded materials")
@@ -133,11 +134,9 @@ local allocated_canvases = {}
 
 local function resize(w, h, scale)
 	-- If the canvases already exist, YEET THEM OUT (safely).
-	if allocated_canvases[1] then
-		for index, canvas in ipairs(allocated_canvases) do
-			canvas:release()
-			allocated_canvases[index] = nil
-		end
+	for index, canvas in ipairs(allocated_canvases) do
+		canvas:release()
+		allocated_canvases[index] = nil
 	end
 
 	local function canvas(t)
@@ -147,8 +146,8 @@ local function resize(w, h, scale)
 		local scale = (scale * (t.scale or 1))
 		t.scale = nil
 
-		local w = t.width or math.floor(math.ceil(w / scale) * 2) / 2
-		local h = t.height or math.floor(math.ceil(h / scale) * 2) / 2
+		local w = t.width  or math.ceil(w / scale)
+		local h = t.height or math.ceil(h / scale)
 
 		t.width = nil
 		t.height = nil
@@ -170,7 +169,6 @@ local function resize(w, h, scale)
 		mipmaps = "auto",
 		filter = "nearest"
 	}
-	canvas_color_a:setMipmapFilter("linear")
 	canvas_normals_a = canvas {
 		format = "rgb10a2",
 		mipmaps = "auto",
@@ -190,7 +188,6 @@ local function resize(w, h, scale)
 		mipmaps = "auto",
 		filter = "nearest"
 	}
-	canvas_color_b:setMipmapFilter("linear")
 	canvas_normals_b    = canvas {
 		format = "rgb10a2",
 		mipmaps = "auto",
@@ -212,6 +209,8 @@ local function resize(w, h, scale)
 		filter = "linear"
 	}
 
+	-- ////////////// TEMPORARY /////////////
+
 	canvas_temp_a = canvas {
 		format = "rg11b10f",
 		mipmaps = "auto",
@@ -226,10 +225,13 @@ local function resize(w, h, scale)
 
 	-- ////////////// SHADOWMAP ////////////
 
-	uniforms.resolution = { w / scale, h / scale }
+	uniforms.resolution = {
+		math.ceil(w / scale),
+		math.ceil(h / scale)
+	}
 end
 
-local shadow_maps_res = 2048
+local shadow_maps_res = 256
 uniforms.shadow_maps = { unpack = true }
 for i=1, 4 do
 	uniforms.shadow_maps[i] = lg.newCanvas(shadow_maps_res, shadow_maps_res, {
@@ -287,7 +289,7 @@ local function render_to(target)
 		uniforms.back_depth  = target.canvas_depth
 		uniforms.back_normal = target.canvas_normal
 
-		switch               = not switch
+		switch = not switch
 
 		target.canvas_color  = switch
 			and target.canvas_color_b or target.canvas_color_a
@@ -597,7 +599,7 @@ local function draw(target, state)
 
 				canvas_depth_a = uniforms.shadow_maps[index],
 
-				shader = assets.shd_none
+				shader = assets.shd_shadowmapper
 			}
 
 			local vertices, calls, grabs = render_to(shadow)
@@ -662,7 +664,7 @@ local function draw(target, state)
 		state:debug("TCALLS: %i/200", total_calls)
 	end
 	
-	target.exposure = -6.5
+	target.exposure = -6.1
 
 	-- Generate light threshold data :)
 	lg.push("all")

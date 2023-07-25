@@ -12,12 +12,12 @@ local permanence = require "permanence"
 
 ---------------------------------------------------------------
 
-local coyote_time = 1 / 8
+local coyote_time = 1 / 16
 
 
 local initializers = {
     ["player"] = function(entity, state)
-        log.info("deer are quite strange actually")
+        log.info("i'll never forgive my aunt in finland for that can...")
 
         entity.controller = "player"
         entity.velocity = vector(0, 0, 0)
@@ -84,6 +84,9 @@ end
 local PLAYER_ANIMS = { -- 🚶+🦌
     -- wait, dont the swedish like, eat these things
     -- not like that's going to stop me from basing the Everfest after Midsummer
+
+    -- I'VE JUST REALIZED, THAT THING MY AUNT BROUGHT ME FROM FINLAND WASNT NORMAL MEAT
+    -- o h    n o e s 
     {
         { 0,   0, 56, 56, off = 0 },
         { 56,  0, 56, 56, off = 1 },
@@ -131,8 +134,7 @@ local controllers = {
 
             if entity.collider.floor_time > 0 then
                 if input.holding("jump") then
-                    velocity.y = 10
-                    entity.gravity = 0
+                    entity.velocity.y = 30
                 end
             end
 
@@ -260,48 +262,50 @@ local function tick(entities, dt, state)
                 entity.interaction_anim = fam.decay(entity.interaction_anim or 0, interaction, 1, dt)
             end
 
-            if entity.velocity then -- Euler integration
+            if entity.velocity then -- P H Y S I C S !
                 -- TODO: FIX FORCE MATH!
-                if entity.mass then
-                    entity.gravity = (entity.gravity or 0) + 10 * dt
-                    entity.velocity.y = entity.velocity.y - entity.gravity
+                if not state.settings.no_physics then
+                    if entity.mass then
+                        --entity.gravity = (entity.gravity or 0) + 10 * dt
+                        --entity.velocity.y = entity.velocity.y - entity.gravity
 
-                    entity.velocity.y = entity.velocity.y - dt * 32
-                end
+                        entity.velocity.y = entity.velocity.y - dt * 64
+                    end
 
-                if entity.collider then
-                    local p = entity.position + entity.collider.offset
-                    local v = entity.velocity * dt * 2
+                    if entity.collider then
+                        local p = entity.position + entity.collider.offset
+                        local v = entity.velocity * dt * 2
 
-                    local new_position, new_velocity, planes =
-                        state.hash:check(p, v, entity.collider.radius)
+                        local new_position, new_velocity, planes =
+                            state.hash:check(p, v, entity.collider.radius)
 
-                    entity.velocity = new_velocity / dt
+                        entity.velocity = new_velocity / dt
 
-                    entity.collider.floor_time = math.max(0, (entity.collider.floor_time or 0) - dt)
-                    entity.collider.ceil_time  = math.max(0, (entity.collider.ceil_time or 0) - dt)
-                    entity.collider.wall_time  = math.max(0, (entity.collider.wall_time or 0) - dt)
+                        entity.collider.floor_time = math.max(0, (entity.collider.floor_time or 0) - dt)
+                        entity.collider.ceil_time  = math.max(0, (entity.collider.ceil_time or 0) - dt)
+                        entity.collider.wall_time  = math.max(0, (entity.collider.wall_time or 0) - dt)
 
-                    for _, plane in ipairs(planes) do
-                        local i = plane.normal:dot(vector(0, -1, 0))
+                        for _, plane in ipairs(planes) do
+                            local i = plane.normal:dot(vector(0, -1, 0))
 
-                        if math.abs(i) > 0.1 then
-                            if i < 0 then
-                                entity.collider.floor_time = coyote_time
+                            if math.abs(i) > 0.1 then
+                                if i < 0 then
+                                    entity.collider.floor_time = coyote_time
+                                else
+                                    entity.collider.ceil_time = coyote_time
+                                end
                             else
-                                entity.collider.ceil_time = coyote_time
+                                entity.collider.wall_time = coyote_time
                             end
-                        else
-                            entity.collider.wall_time = coyote_time
                         end
-                    end
 
-                    if entity.collider.floor_time == coyote_time then
-                        entity.gravity = 0
-                    end
+                        if entity.collider.floor_time == coyote_time then
+                            entity.gravity = 0
+                        end
 
-                    entity.collider._past_position = entity.collider._position
-                    entity.collider._position = new_position
+                        entity.collider._past_position = entity.collider._position
+                        entity.collider._position = new_position
+                    end
                 end
 
                 entity.position = entity.position + entity.velocity * dt
@@ -373,6 +377,12 @@ local function render(entities, state, delta, alpha)
                         entity.sprite[4] / call.texture:getHeight(),
                     }
 
+                    call.model = call.model * mat4.from_scale({
+                        entity.sprite[3]/56,
+                        entity.sprite[4]/56,
+                        1
+                    })
+
                     call.mesh = assets.mod_quad
                 end
 
@@ -420,7 +430,9 @@ local function render(entities, state, delta, alpha)
 
                 if entity.interaction_anim then
                     local e = fam.lerp(entity._interaction_anim, entity.interaction_anim, alpha)
-                    local pos = pos + vector(0, 0.1 + (e * e * 0.8), -0.05)
+                    local k = vector(0, 0.1 + (e * e * 0.8), -0.05)
+                    k.w = 1
+                    local pos = call.model:multiply_vec4(k)
                     local a = e
                     if a > 0.99 then
                         a = 1

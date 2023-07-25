@@ -81,13 +81,18 @@ varying vec3 wl_normal;
     uniform float time;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
+    uniform float fleshy = 0.6; 
 
     uniform sampler2DShadow shadow_map;
 
+    uniform Image sun_gradient;
     uniform samplerCube cubemap;
     uniform vec3 sun;
-    float daytime;
-    uniform sampler2D sun_gradient;
+    uniform vec3 eye;
+    uniform vec3 sun_direction;
+    uniform float daytime;
+
+    float roughness = 0.2;
 
     float dither4x4(vec2 position, float brightness) {
         float dither_table[16] = float[16](
@@ -109,7 +114,7 @@ varying vec3 wl_normal;
         return clamp((x - e0) / (e1 - e0), 0.0, 1.0);
     }
 
-    float DistributionGGX(vec3 N, vec3 H, float a) {
+    float distributionGGX(vec3 N, vec3 H, float a) {
         float a2     = a*a;
         float NdotH  = max(dot(N, H), 0.0);
         float NdotH2 = NdotH*NdotH;
@@ -250,40 +255,46 @@ varying vec3 wl_normal;
         return magic.r + magic.g;
     }
 
+    float gsf(vec3 n, vec3 l, vec3 i) {
+        float ndi = max(0.5, dot(n, i));
+        float base_ndl = dot(n, l);
+
+        float k = roughness * 0.5;
+        float ndl = linearstep(0.0 - fleshy, 1.0, dot(n, l));
+        float sl = ndl / (ndl * (1.0 - k) + k);
+        float sv = ndi / (ndi * (1.0 - k) + k);
+
+        return mix(sl * sv, 1.0, translucent);
+    }
+
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
         vec3 sample = textureLod(cubemap, normalize(wl_normal), 7).rgb;
-        vec3 ambient = sample * sample * 0.005; // vec4(sh(harmonics, normal), 1.0)
+        vec3 ambient = sample * sample * 0.004; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 diffuse = vec3(0.0, 0.0, 0.0);
 
-        float ndi = max(0.5, dot(normal, normalize(-vw_position.xyz)));
+        vec3 i = normalize(-vw_position.xyz);
 
-        for(int i=0; i<light_amount; ++i) { // For each light
-            vec3 position = (view * vec4(light_positions[i], 1.0)).xyz;
-            vec3 color = light_colors[i].rgb * light_colors[i].a;
+        for(int k=0; k<light_amount; ++k) { // For each light
+            vec3 position = (view * vec4(light_positions[k], 1.0)).xyz;
+            vec3 color = light_colors[k].rgb * light_colors[k].a;
 
+            // Calculate the inverse square law thing
             vec3 diff = position - vw_position.xyz;
             float dist = max(0.0, length(diff));
             float inv_sqr_law = 1.0 / max(0.9, sqr(dist));
             
             vec3 l = normalize(diff);
-            float base_ndl = dot(normal, l);
-
-            float roughness = 0.8;
-
-            float k = roughness * 0.5;
-            float ndl = max(0.0, base_ndl);
-            float sl = ndl / (ndl * (1.0 - k) + k);
-            float sv = ndi / (ndi * (1.0 - k) + k);
-            float gsf = mix(sl * sv, 1.0, translucent);
+            float d = gsf(normal, l, i);
 
             // Now we add our light's color to the light value
-            float brdf = prefiltered_brdf(ndi, roughness);
-            diffuse += color * inv_sqr_law * gsf * brdf;
+            diffuse += color * inv_sqr_law * d;
         }
+
+        vec3 sun_gradient_sample = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
         
         vec3 l_coords = ss_position.xyz / ss_position.w;
         if (l_coords.z <= 1.0f) {
@@ -293,22 +304,34 @@ varying vec3 wl_normal;
             float base_ndl = abs(dot(wl_normal, l));
             float ndl = max(0.0, base_ndl);
 
-            // FIXME: this code is shite, fix the appimage bugging out horribly
             // TODO: Implement proper biasing, because this one sucks
             // TODO: Implement proper CSM, because uhh, yeah
-            // TODO: Implement proper filtering, probably through poisson disks things
-            // TODO: do all of the things above
 
-            // suicide doesnt seem like a bad option anymore
-
-            float bias = slope_scaled_bias(ndl, 0.001) * 0.08;
-            bias = 0.00005;
+            //float bias = slope_scaled_bias(ndl, 0.001) * 0.01;
+            float bias = 0.00005;
 
             vec4 s = ss_position;
             s.xyz = s.xyz * 0.5 + 0.5;
             s.z -= bias;
 
-            shadow = textureProj(shadow_map, s);
+            vec2 poissonDisk[4] = vec2[](
+                vec2( -0.94201624, -0.39906216 ),
+                vec2(  0.94558609, -0.76890725 ),
+                vec2( -0.09418410, -0.92938870 ),
+                vec2(  0.34495938,  0.29387760 )
+            );
+
+            float size = 1.5;
+            vec2 v;
+			for (v.y = -size ; v.y <= size ; v.y+=1.0)
+				for (v.x = -size ; v.x <= size ; v.x+=1.0) {
+                    vec4 k = s;
+                    s.xy += v * 0.0003;
+                    shadow += textureProj(shadow_map, k);
+                }
+			
+			shadow /= 16.0;
+            //shadow = textureProj(shadow_map, s);
 
             // float base_ndl = dot(normal, sun);
             // float ndl = max(0.0, base_ndl);
@@ -316,17 +339,25 @@ varying vec3 wl_normal;
             // float shadow = sample_csm_blended(vw_position.xyz, 0.05, 0.0, slope_bias);
             // 
 
-            // FIXME: Sun gradient fricking things up
-            diffuse += shadow * 60.0;// * Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
+            vec3 sn = (view * vec4(sun, 1.0)).xyz;
+            vec3 dir = normalize(sn - vw_position.xyz);
+            float d = gsf(normal, dir, i);
+
+            diffuse += shadow * 70.0 * sun_gradient_sample * d;
         }
+
+        // Rim light at night!
+        float rim = gsf(normal, -i, i);
+        float nighty = 1.0-max(0.0, dot(luma, sun_gradient_sample));
+        diffuse += rim * 0.5 * sample * nighty;
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
-        // TODO: Add 
         // Evrathing togetha
-        vec4 o = Texel(MainTex, uv) * VaryingColor * vec4(diffuse + ambient, 1.0);
+        vec4 o = Texel(MainTex, uv) * VaryingColor;
+        o *= vec4(diffuse + ambient, 1.0);
         
         // FIXME: Bizarre NVIDIA bug around this part
         // If something is very close to the camera, make it transparent!

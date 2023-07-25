@@ -96,7 +96,7 @@ local state = {
 
 	render_target = {},
 
-	daytime = 0.46,
+	daytime = 0.1,
 
 	hash = require("hash").new()
 }
@@ -258,8 +258,8 @@ function state.load_map(what)
 						local v2 = process(p + vector(0.2, 0, 0):rotate(r, vector(0, 1, 0)) * (0.2 + c))
 						local v3 = process(p + vector(0, 1, 0) * i)
 
-						local top = color_lerp("#ff5100", "#db5800", i)
-						local bot = fam.hex("#bd0000", 1)
+						local top = color_lerp("#01c265", "#01c265", i)
+						local bot = fam.hex("#01c265", 1)
 
 						table.insert(triangles, { v1.x, v1.y, v1.z, 0, 0, 1, bot[1], bot[2], bot[3], 1 })
 						table.insert(triangles, { v3.x, v3.y, v3.z, 0, 0, 1, top[1], top[2], top[3], 1 })
@@ -372,7 +372,7 @@ end
 
 permanence.load(1)
 
-state.load_map(settings.level or "level_test0")
+state.load_map(settings.level or "lamppost")
 
 function love.load()
 	if settings.profile then
@@ -481,7 +481,7 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = state.time
 
-	--state.daytime = state.daytime + lt.getDelta() * 0.01
+	state.daytime = state.daytime + dt * 0.01
 	state.daytime = state.daytime % 1
 	renderer.uniforms.daytime = state.daytime
 
@@ -509,6 +509,8 @@ function love.update(dt)
 			math.sin((d / 360)*3.14*2),
 			-0.5
 		) * 10
+
+		renderer.uniforms.sun_direction = position
 
 		local off = vector(0, 0, 5)
 		state.render_target.sun = state.target+position+off
@@ -652,7 +654,7 @@ function love.draw()
 			state.debug_lines[i] = nil
 		end
 
-		ui:draw(w / state.scale, h / state.scale)
+		ui:draw(w / state.scale, h / state.scale, state)
 
 		lg.scale(2)
 		lg.setColor(0, 0, 0, state.escape * state.escape)

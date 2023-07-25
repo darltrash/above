@@ -90,7 +90,7 @@ end
 -- TODO: Savefile loading and reading
 -- TODO: Settings management
 
-ui.draw = function(self, w, h)
+ui.draw = function(self, w, h, state)
     lg.push("all")
     lg.reset()
     lg.setShader(assets.shd_2d)
@@ -103,6 +103,24 @@ ui.draw = function(self, w, h)
 
     dialog:draw()
     missions:draw()
+
+    do -- Do daytime animation
+        lg.push()
+            lg.translate(150, 30)
+            local x = -math.cos(state.daytime * math.pi * 2)
+            local y = -math.sin(state.daytime * math.pi * 2)
+
+            lg.setColor(fam.hex "#4e0097")
+            lg.setLineWidth(6)
+            lg.ellipse("line", 0, 0, 20, 10)
+            lg.circle("fill", x*20, y*10, 7, 5)
+
+            lg.setColor(fam.hex "#ffffff")
+            lg.setLineWidth(1)
+            lg.ellipse("line", 0, 0, 20, 10)
+            lg.circle("fill", x*20, y*10, 4, 5)
+        lg.pop()
+    end
 
     --lg.setColor(1, 1, 1, 1/4)
     --lg.rectangle("line", 1, 1, 299, 299)

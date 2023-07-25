@@ -73,7 +73,7 @@ return {
                 dialog:say(language.NPC_CATBOY007)
                 dialog:say(language.NPC_CATBOY008)
                 play_sound(assets.sfx_tada, 1, 0.8)
-                dialog:say(language.NPC_CATBOY010)
+                dialog:display(language.NPC_CATBOY010)
 
                 entity.passthrough_routine = final
                 final()
@@ -133,6 +133,15 @@ return {
             play_sound(assets.sfx_tada)
             dialog:display(language.UI_YOU_FOUND_THE:format("Yoyo"))
             entity.delete = true
+        end
+    end,
+
+    gold = function (entity)
+        entity.interact = "passthrough"
+        entity.atlas = assets.tex_goldmagic
+        entity.sprite = { 0, 0, 42, 78 }
+        entity.passthrough_routine = function ()
+            dialog:say("They seem busy.")
         end
     end
 }

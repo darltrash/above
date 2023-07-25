@@ -10,12 +10,12 @@ texture: general
 
 [unshaded]
 shader: unshaded
-glow: 200
+glow: 300
 no_shadow: yes
 
 [glow]
 shader: unshaded
-glow: 200
+glow: 300
 no_shadow: yes
 
 [glass]
