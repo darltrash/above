@@ -16,10 +16,10 @@ local canvas_flat
 
 local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
-local canvas_temp_a, canvas_temp_b
+local canvas_temp_a, canvas_temp_b, canvas_temp_s
 local canvas_normals_c, canvas_depth_c
 local canvas_light_pass = {}
-local canvas_shadowmaps
+local canvas_depth_s
 
 local cuberes = 256
 
@@ -231,18 +231,32 @@ local function resize(w, h, scale)
 	}
 end
 
-local shadow_maps_res = 256
+local shadow_maps_res = 1024
+local shadow_msaa = 4
 uniforms.shadow_maps = { unpack = true }
 for i=1, 4 do
-	uniforms.shadow_maps[i] = lg.newCanvas(shadow_maps_res, shadow_maps_res, {
-		format = "depth24",
-		readable = true,
+	uniforms.shadow_maps[i] = lg.newCanvas(
+		shadow_maps_res, shadow_maps_res, {
+		format = "rg16f",
+		msaa = shadow_msaa
 	})
 
 	uniforms.shadow_maps[i]:setFilter("linear", "linear")
-	uniforms.shadow_maps[i]:setDepthSampleMode("greater")
-	uniforms.shadow_maps[i]:setWrap("clamp", "clamp")
 end
+
+canvas_temp_s = lg.newCanvas(
+	shadow_maps_res, shadow_maps_res, {
+	format = "rg16f",
+	msaa = shadow_msaa
+})
+
+canvas_temp_s:setFilter("linear", "linear")
+
+canvas_depth_s = lg.newCanvas(shadow_maps_res, shadow_maps_res, {
+	format = "depth24",
+	msaa = shadow_msaa
+})
+
 
 canvas_normals_c = lg.newCanvas(cuberes, cuberes, {
 	format = "rgb10a2",
@@ -368,7 +382,7 @@ local function render_to(target)
 		target.canvas_normal and { target.canvas_normal },
 		depthstencil = { target.canvas_depth }
 	}
-	lg.clear(true, true, true)
+	lg.clear(target.clear or true, true, true)
 
 	lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
 
@@ -618,7 +632,7 @@ local function draw(target, state)
 	if target.shadow_view then
 		local shadow = {
 			view = target.shadow_view,
-			projection = mat4.from_ortho(-15, 15, -10, 10, -1000, 1000),
+			projection = mat4.from_ortho(-15, 15, -10, 10, 0, 512),
 
 			no_lights = true,
 			no_cleanup = true,
@@ -627,17 +641,37 @@ local function draw(target, state)
 
 			culling = "none",
 
-			canvas_depth_a = uniforms.shadow_maps[1],
+			canvas_color_a = uniforms.shadow_maps[1],
+			canvas_depth_a = canvas_depth_s,
 
-			shader = assets.shd_none
+			shader = assets.shd_shadowmapper,
+			clear = {1, 1, 1, 1}
 		}
 
 		local vertices, calls, grabs = render_to(shadow)
 		total_calls = total_calls + calls
 
+		lg.push("all")
+			lg.setColor(1, 1, 1, 0.5)
+
+			lg.setCanvas(canvas_temp_s)
+			lg.setShader(assets.shd_box_blur)
+			lg.clear(1, 1, 1, 1)
+
+			assets.shd_box_blur:send("direction", {0, 2})
+			lg.draw(shadow.canvas_color)
+
+
+			lg.setCanvas(shadow.canvas_color)
+			lg.clear(1, 1, 1, 1)
+			assets.shd_box_blur:send("direction", {2, 0})
+			lg.draw(canvas_temp_s)
+
+		lg.pop()
+
 		uniforms.shadow_view = shadow.view
 		uniforms.shadow_projection = shadow.projection
-		uniforms.shadow_map = shadow.canvas_depth
+		uniforms.shadow_map = shadow.canvas_color
 
 		if false then
 			target.view = shadow.view
@@ -664,7 +698,7 @@ local function draw(target, state)
 		state:debug("TCALLS: %i/200", total_calls)
 	end
 	
-	target.exposure = -6.1
+	target.exposure = -6.5
 
 	-- Generate light threshold data :)
 	lg.push("all")

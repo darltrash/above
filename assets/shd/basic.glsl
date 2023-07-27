@@ -83,7 +83,7 @@ varying vec3 wl_normal;
     uniform float translucent; // useful for displaying flat things
     uniform float fleshy = 0.6; 
 
-    uniform sampler2DShadow shadow_map;
+    uniform sampler2D shadow_map;
 
     uniform Image sun_gradient;
     uniform samplerCube cubemap;
@@ -267,6 +267,32 @@ varying vec3 wl_normal;
         return mix(sl * sv, 1.0, translucent);
     }
 
+    // visual studio microsoft
+    float vsm(sampler2D _sampler, vec4 _shadowCoord, float _bias, float _depthMultiplier, float _minVariance) {
+        vec2 texCoord = _shadowCoord.xy/_shadowCoord.w;
+
+        bool outside = any(greaterThan(texCoord, vec2(1.0)))
+            || any(lessThan   (texCoord, vec2(0.0)));
+
+        if (outside) {
+            return 1.0;
+        }
+
+        float receiver = (_shadowCoord.z-_bias)/_shadowCoord.w * _depthMultiplier;
+        vec4 rgba = texture2D(_sampler, texCoord);
+        vec2 occluder = rgba.xy * _depthMultiplier;
+
+        if (receiver < occluder.x) {
+            return 1.0;
+        }
+
+        float variance = max(occluder.y - (occluder.x*occluder.x), _minVariance);
+        float d = receiver - occluder.x;
+
+        // visibility
+        return variance / (variance + d*d);
+    }
+
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
@@ -294,57 +320,23 @@ varying vec3 wl_normal;
             diffuse += color * inv_sqr_law * d;
         }
 
-        vec3 sun_gradient_sample = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
-        
-        vec3 l_coords = ss_position.xyz / ss_position.w;
-        if (l_coords.z <= 1.0f) {
-            float shadow = 0.0;
 
-            vec3 l = normalize(sun - wl_position.xyz);
-            float base_ndl = abs(dot(wl_normal, l));
-            float ndl = max(0.0, base_ndl);
+        // SHADOW MAPPING!!!!!
+        {
+            // TODO: Make the VSM better :)
+            // TODO: Make the rim lighting less strange 
+            // TODO: Implement proper CSM
 
-            // TODO: Implement proper biasing, because this one sucks
-            // TODO: Implement proper CSM, because uhh, yeah
+            vec3 sun_gradient_sample = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
+            vec4 s_pos = ss_position * 0.5 + 0.5;
+            float shadow = vsm(shadow_map, s_pos, 0.0, 9000.0, 30.9);
+            
+            vec3 vs = (view * vec4(sun_direction, 0.0)).xyz;
+            //float d = step(0.0, dot(normal, vs));
 
-            //float bias = slope_scaled_bias(ndl, 0.001) * 0.01;
-            float bias = 0.00005;
-
-            vec4 s = ss_position;
-            s.xyz = s.xyz * 0.5 + 0.5;
-            s.z -= bias;
-
-            vec2 poissonDisk[4] = vec2[](
-                vec2( -0.94201624, -0.39906216 ),
-                vec2(  0.94558609, -0.76890725 ),
-                vec2( -0.09418410, -0.92938870 ),
-                vec2(  0.34495938,  0.29387760 )
-            );
-
-            float size = 1.5;
-            vec2 v;
-			for (v.y = -size ; v.y <= size ; v.y+=1.0)
-				for (v.x = -size ; v.x <= size ; v.x+=1.0) {
-                    vec4 k = s;
-                    s.xy += v * 0.0003;
-                    shadow += textureProj(shadow_map, k);
-                }
-			
-			shadow /= 16.0;
-            //shadow = textureProj(shadow_map, s);
-
-            // float base_ndl = dot(normal, sun);
-            // float ndl = max(0.0, base_ndl);
-            // float slope_bias = slope_scaled_bias(ndl, 0.001) * 0.05;
-            // float shadow = sample_csm_blended(vw_position.xyz, 0.05, 0.0, slope_bias);
-            // 
-
-            vec3 sn = (view * vec4(sun, 1.0)).xyz;
-            vec3 dir = normalize(sn - vw_position.xyz);
-            float d = gsf(normal, dir, i);
-
-            diffuse += shadow * 70.0 * sun_gradient_sample * d;
+            diffuse += shadow * 70.0 * sun_gradient_sample * gsf(normal, vs, i);
         }
+
 
         // Rim light at night!
         float rim = gsf(normal, -i, i);

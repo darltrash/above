@@ -1,44 +1,14 @@
 #pragma language glsl3
+
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
 varying vec4 cl_position;
-varying vec4 vw_position;
-varying vec3 vw_normal;
-varying vec4 vx_color;
 
 #ifdef VERTEX
-    attribute vec3 VertexNormal;
-
-    // the thang that broke a month ago and i didnt even know about it
-    mat3 cofactor(mat4 _m) {
-        return mat3(
-            _m[1][1]*_m[2][2]-_m[1][2]*_m[2][1],
-            _m[1][2]*_m[2][0]-_m[1][0]*_m[2][2],
-            _m[1][0]*_m[2][1]-_m[1][1]*_m[2][0],
-            _m[0][2]*_m[2][1]-_m[0][1]*_m[2][2],
-            _m[0][0]*_m[2][2]-_m[0][2]*_m[2][0],
-            _m[0][1]*_m[2][0]-_m[0][0]*_m[2][1],
-            _m[0][1]*_m[1][2]-_m[0][2]*_m[1][1],
-            _m[0][2]*_m[1][0]-_m[0][0]*_m[1][2],
-            _m[0][0]*_m[1][1]-_m[0][1]*_m[1][0]
-        );
-    }
-
-    vec4 position( mat4 _, vec4 vertex_position ) {
-        vec3 lc_normal = VertexNormal;
-        vec4 lc_position = vertex_position;
-
-        //float bias = 0.00001;
-        //lc_position.xyz -= normalize(lc_normal) * bias;
-
-        vw_position = view * model * lc_position;
-        vw_normal = cofactor(view * model) * lc_normal;
-
-        cl_position = projection * vw_position;
-
-        vx_color = VertexColor;
+    vec4 position( mat4 _, vec4 lc_position ) {
+        cl_position = projection * view * model * lc_position;
 
         return cl_position;
     }
@@ -48,9 +18,6 @@ varying vec4 vx_color;
     uniform Image MainTex;
 
     uniform vec4 clip;
-    uniform float translucent;
-
-    uniform samplerCube cubemap;
 
     float dither4x4(vec2 position, float brightness) {
         mat4 dither_table = mat4(
@@ -68,12 +35,7 @@ varying vec4 vx_color;
         return step(limit, brightness);
     }
 
-    // Actual math
     void effect() {
-        vec3 n = normalize(vw_normal);
-
-        // This helps us make the models just use a single portion of the 
-        // texture, which allows us to make things such as sprites show up :)
         vec2 uv = clip.xy + VaryingTexCoord.xy * clip.zw;
 
         // Evrathing togetha
@@ -81,7 +43,7 @@ varying vec4 vx_color;
 
         if (o.a < 0.5) discard;
 
-        love_Canvases[0] = vec4(o.rgb * 30.0, 1.0);
-        love_Canvases[1] = vec4(n, 1.0);
+        float depth = (cl_position.z/cl_position.w) * 0.5 + 0.5;
+        love_Canvases[0] = vec4(depth, depth * depth, 0.0, 1.0);
     }
 #endif

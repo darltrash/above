@@ -510,11 +510,11 @@ function love.update(dt)
 			-0.5
 		) * 10
 
-		renderer.uniforms.sun_direction = position
 
 		local off = vector(0, 0, 5)
 		state.render_target.sun = state.target+position+off
 		renderer.uniforms.sun = state.render_target.sun
+		renderer.uniforms.sun_direction = (position+off):normalize()
 		state.shadow_view_matrix = mat4.look_at(state.render_target.sun, state.target+off, { y = 1 })
 
 		if settings.fps_camera then
@@ -566,12 +566,15 @@ function love.update(dt)
 	end
 
 	if settings.debug then
+		local w, h = lg.getDimensions()
+
 		state:debug("MEMORY: %iKB", collectgarbage("count"))
 		state:debug("DELTA:  %ins", dt * 1000000000)
 		state:debug("TSTEP:  %ins", timestep * 1000000000)
 		state:debug("OS:     %s x%s", ls.getOS(), ls.getProcessorCount())
 		state:debug("SCALE:  %i", state.scale)
 		state:debug("SIZE:   %ix%i", lg.getDimensions())
+		state:debug("INSIZE: %ix%i", w/state.scale, h/state.scale)
 		state:debug("DAYTIM: %f", state.daytime)
 	end
 
