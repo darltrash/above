@@ -322,25 +322,26 @@ varying vec3 wl_normal;
 
 
         // SHADOW MAPPING!!!!!
+        vec3 sun_color = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
+
         {
             // TODO: Make the VSM better :)
             // TODO: Make the rim lighting less strange 
             // TODO: Implement proper CSM
 
-            vec3 sun_gradient_sample = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
             vec4 s_pos = ss_position * 0.5 + 0.5;
             float shadow = vsm(shadow_map, s_pos, 0.0, 9000.0, 30.9);
             
             vec3 vs = (view * vec4(sun_direction, 0.0)).xyz;
             //float d = step(0.0, dot(normal, vs));
 
-            diffuse += shadow * 70.0 * sun_gradient_sample * gsf(normal, vs, i);
+            diffuse += shadow * gsf(normal, vs, i) * sun_color * 70.0;
         }
 
 
         // Rim light at night!
         float rim = gsf(normal, -i, i);
-        float nighty = 1.0-max(0.0, dot(luma, sun_gradient_sample));
+        float nighty = 1.0-length(sun_color);
         diffuse += rim * 0.5 * sample * nighty;
 
         // This helps us make the models just use a single portion of the 

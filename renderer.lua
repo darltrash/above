@@ -658,13 +658,13 @@ local function draw(target, state)
 			lg.setShader(assets.shd_box_blur)
 			lg.clear(1, 1, 1, 1)
 
-			assets.shd_box_blur:send("direction", {0, 2})
+			assets.shd_box_blur:send("direction", {0, 1})
 			lg.draw(shadow.canvas_color)
 
 
 			lg.setCanvas(shadow.canvas_color)
 			lg.clear(1, 1, 1, 1)
-			assets.shd_box_blur:send("direction", {2, 0})
+			assets.shd_box_blur:send("direction", {1, 0})
 			lg.draw(canvas_temp_s)
 
 		lg.pop()
