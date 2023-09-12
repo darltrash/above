@@ -9,9 +9,11 @@ uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
 
+uniform mat4 shadow_mats[4];
+uniform mat4 shadow_proj;
 uniform mat4 shadow_view;
-uniform mat4 shadow_projection;
-varying vec4 ss_position;
+uniform sampler2D shadow_maps[4];
+uniform sampler2D shadow_map;
 
 varying vec4 cl_position;
 varying vec4 vw_position;
@@ -60,8 +62,6 @@ varying vec3 wl_normal;
 
         vx_color = VertexColor;
 
-        ss_position = shadow_projection * shadow_view * model * vertex_position;
-
         return cl_position;
     }
 #endif
@@ -81,9 +81,7 @@ varying vec3 wl_normal;
     uniform float time;
     uniform vec4 clip;
     uniform float translucent; // useful for displaying flat things
-    uniform float fleshy = 0.6; 
-
-    uniform sampler2D shadow_map;
+    uniform float fleshy = 0.4; 
 
     uniform Image sun_gradient;
     uniform samplerCube cubemap;
@@ -92,7 +90,7 @@ varying vec3 wl_normal;
     uniform vec3 sun_direction;
     uniform float daytime;
 
-    float roughness = 0.2;
+    float roughness = 0.1;
 
     float dither4x4(vec2 position, float brightness) {
         float dither_table[16] = float[16](
@@ -279,7 +277,7 @@ varying vec3 wl_normal;
         }
 
         float receiver = (_shadowCoord.z-_bias)/_shadowCoord.w * _depthMultiplier;
-        vec4 rgba = texture2D(_sampler, texCoord);
+        vec4 rgba = Texel(_sampler, texCoord);
         vec2 occluder = rgba.xy * _depthMultiplier;
 
         if (receiver < occluder.x) {
@@ -293,12 +291,50 @@ varying vec3 wl_normal;
         return variance / (variance + d*d);
     }
 
+    vec4 sample_map(int index, vec2 texCoord) {
+        switch (index) {
+            case  0: return Texel(shadow_maps[0], texCoord);
+            case  1: return Texel(shadow_maps[1], texCoord);
+            case  2: return Texel(shadow_maps[2], texCoord);
+            default: return Texel(shadow_maps[3], texCoord);
+        }
+    }
+
+    float sample_shadow(float _bias, float _depthMultiplier, float _minVariance) {
+        for (int i=0; i<1; ++i) {
+            vec4 ss_position = shadow_mats[i] * wl_position; 
+            vec4 _shadowCoord = ss_position * 0.5 + 0.5;
+            vec2 texCoord = _shadowCoord.xy/_shadowCoord.w;
+
+            bool outside = any(greaterThan(texCoord, vec2(1.0)))
+                        || any(lessThan   (texCoord, vec2(0.0)));
+
+            if (outside)
+                continue;
+
+            float receiver = (_shadowCoord.z-_bias)/_shadowCoord.w * _depthMultiplier;
+            vec4 rgba = sample_map(i, texCoord);
+            vec2 occluder = rgba.xy * _depthMultiplier;
+
+            if (receiver < occluder.x)
+                return 1.0;
+
+            float variance = max(occluder.y - (occluder.x*occluder.x), _minVariance);
+            float d = receiver - occluder.x;
+
+            // visibility
+            return variance / (variance + d*d);
+        }
+
+        return 1.0;
+    }
+
     // Actual math
     void effect() {
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 sample = textureLod(cubemap, normalize(wl_normal), 7).rgb;
-        vec3 ambient = sample * sample * 0.004; // vec4(sh(harmonics, normal), 1.0)
+        vec3 s = textureLod(cubemap, normalize(wl_normal), 7).rgb;
+        vec3 ambient = s * s * 0.004; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 diffuse = vec3(0.0, 0.0, 0.0);
 
@@ -321,28 +357,31 @@ varying vec3 wl_normal;
         }
 
 
-        // SHADOW MAPPING!!!!!
-        vec3 sun_color = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
-
+        // SHADOW MAPPING!!!!!        
         {
             // TODO: Make the VSM better :)
             // TODO: Make the rim lighting less strange 
             // TODO: Implement proper CSM
 
-            vec4 s_pos = ss_position * 0.5 + 0.5;
-            float shadow = vsm(shadow_map, s_pos, 0.0, 9000.0, 30.9);
+            vec3 sun_color = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
+
+            //float shadow = sample_shadow(0.0, 10000.0, 30.9);
+            //vec4 p = shadow_mats[0] * wl_position;
+            vec4 p = shadow_proj * shadow_view * wl_position;
+            p = p * 0.5 + 0.5;
+            float shadow = vsm(shadow_maps[0], p, 0.0, 8000.0, 30.9);
             
             vec3 vs = (view * vec4(sun_direction, 0.0)).xyz;
-            //float d = step(0.0, dot(normal, vs));
+            float d = gsf(normal, vs, i);
 
-            diffuse += shadow * gsf(normal, vs, i) * sun_color * 70.0;
+            diffuse += shadow * d * sun_color * 70.0;
         }
 
 
         // Rim light at night!
         float rim = gsf(normal, -i, i);
-        float nighty = 1.0-length(sun_color);
-        diffuse += rim * 0.5 * sample * nighty;
+        float nighty = max(0.0, sin((daytime+0.5)*PI*2.0));
+        diffuse += rim * 0.5 * s * nighty;
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
@@ -350,11 +389,11 @@ varying vec3 wl_normal;
 
         // Evrathing togetha
         vec4 o = Texel(MainTex, uv) * VaryingColor;
-        o *= vec4(diffuse + ambient, 1.0);
+        o.rgb *= diffuse + ambient;
         
         // FIXME: Bizarre NVIDIA bug around this part
         // If something is very close to the camera, make it transparent!
-        o.a *= min(1.0, length(vw_position.xyz) / 2.5);
+        //o.a *= min(1.0, length(vw_position.xyz) / 2.5);
         
         // Calculate dithering based on transparency, skip dithered pixels!
         if (dither4x4(love_PixelCoord.xy, o.a) < 0.5)

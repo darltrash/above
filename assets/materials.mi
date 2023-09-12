@@ -1,7 +1,3 @@
-[water]
-shader: water
-grab: yes
-
 [paper]
 translucent: 1
 
@@ -16,7 +12,7 @@ no_shadow: yes
 [glow]
 shader: unshaded
 glow: 300
-no_shadow: yes
+# no_shadow: yes
 
 [glass]
 #unshaded: yes
@@ -41,7 +37,7 @@ culling: none
 
 [sky]
 culling: front
-shader: sky2
+shader: sky
 texture: sky_gradient
 
 [clouds]

@@ -1,4 +1,4 @@
-lib/lovebird.lua
+lfsdib/lovebird.lua
 *.blend
 *.blend*
 *.desktop
@@ -16,6 +16,7 @@ concept/
 *.desktop
 flatpak*
 .gitignore
+archive/
 
 assets/rik/
 assets/mod/rik.exm

@@ -109,11 +109,11 @@ local modes = {
         end,
 
         just_pressed = function(self, what)
-            return self.times[what] == 1
+            return (self.times[what] or 0) == 1
         end,
 
         holding = function(self, what)
-            return self.times[what] > 0
+            return (self.times[what] or 0) > 0
         end
     }
 }

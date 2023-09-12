@@ -10,15 +10,7 @@ local log = require "lib.log"
 local lang = require "language"
 lang.by_locale()
 
--- TODO: GET RID OF THIS HIDEOUS BEAST.
-local moonshine = require "lib.moonshine"
-local effect = moonshine(moonshine.effects.scanlines)
-	.chain(moonshine.effects.chromasep)
-	.chain(moonshine.effects.crt)
-
-effect.crt.feather = 0.005
-effect.crt.distortionFactor = { 1.03, 1.03 }
-effect.scanlines.opacity = 0.1
+local goodbye = fam.choice(lang.UI_GOODBYE)
 
 -- SOME SETTINGS (sadly it uses env vars)
 local settings = {}
@@ -62,6 +54,9 @@ _G.ls = love.system
 
 la.setVolume(tonumber(settings.volume) or 1)
 
+log.info("Hello, fellow nerd! This is shit you shouldnt normally care about")
+log.info("I love you! HAVE A GREAT TIME!")
+
 local assets = require "assets"
 local ui = require "ui"
 local entities = require "entity"
@@ -98,7 +93,7 @@ local state = {
 
 	daytime = 0.1,
 
-	hash = require("hash").new()
+	hash = fam.hash3.new()
 }
 
 -- huge inspiration:
@@ -113,9 +108,11 @@ if settings.debug then
 	lovebird = require("lib.lovebird")
 	lovebird.whitelist = nil
 	lovebird.port = 1337
+	lovebird.allowhtml = true
+	lovebird.wrapprint = false
 
 	_G.STATE = state
-
+	
 	log.info("Running on 0.0.0.0:%i", lovebird.port)
 end
 
@@ -141,7 +138,7 @@ local function render_level()
 			box = buffer.box,
 			texture = state.map_texture
 		}
-
+		
 		if settings.ricanten and rika.materials[a.material] then
 			a.texture = rika.materials[a.material].albedo
 		end
@@ -185,6 +182,7 @@ function state.load_map(what)
 		rika = json.decode(lf.read("assets/rik/scene.json"))
 
 		for _, material in pairs(rika.materials) do
+			print(material.albedo)
 			if lf.getInfo("assets/rik/"..material.albedo) then
 				material.albedo = lg.newImage("assets/rik/"..material.albedo)
 				material.albedo:setWrap("repeat", "repeat")
@@ -279,7 +277,7 @@ function state.load_map(what)
 					end
 				end
 			end
-			mesh.material = "invisible.nocollide"
+			--mesh.material = "invisible.nocollide"
 		end
 
 		if not mesh.material:match("invisible") then
@@ -324,7 +322,22 @@ function state.load_map(what)
 	log.info("Optimized level from %i meshes to %i, reduced to %i%%!", origin, #meshes, (#meshes / origin) * 100)
 	log.info("Added %i/%i triangles to collision pool", #state.triangles, #map.triangles)
 
-	state.hash:add_triangles(state.triangles, "level")
+	state.hash:refresh(state.triangles, function (t)
+		local x = math.min(t[1][1], t[2][1], t[3][1])
+		local y = math.min(t[1][2], t[2][2], t[3][2])
+		local z = math.min(t[1][3], t[2][3], t[3][3])
+
+		local w = math.max(t[1][1], t[2][1], t[3][1])
+		local h = math.max(t[1][2], t[2][2], t[3][2])
+		local d = math.max(t[1][3], t[2][3], t[3][3])
+
+		return {
+			x, y, z, 
+			w - x,
+			h - y,
+			d - z
+		}
+	end)
 
 	meta.lights = meta.lights or {}
 
@@ -372,7 +385,7 @@ end
 
 permanence.load(1)
 
-state.load_map(settings.level or "lamppost")
+state.load_map(settings.level or "wippa")
 
 function love.load()
 	if settings.profile then
@@ -388,10 +401,6 @@ function love.resize(w, h)
 	state.scale = tonumber(settings.scale) or math.max(1, math.floor(math.min(w, h) / 300))
 
 	renderer.resize(w, h, state.scale)
-
-	effect.resize(w, h)
-	effect.scanlines.frequency = h / state.scale
-	effect.chromasep.radius = state.scale / 2
 end
 
 function love.keypressed(k)
@@ -512,10 +521,10 @@ function love.update(dt)
 
 
 		local off = vector(0, 0, 5)
-		state.render_target.sun = state.target+position+off
 		renderer.uniforms.sun = state.render_target.sun
 		renderer.uniforms.sun_direction = (position+off):normalize()
-		state.shadow_view_matrix = mat4.look_at(state.render_target.sun, state.target+off, { y = 1 })
+		state.render_target.sun = (position+off):normalize()
+		state.shadow_view_matrix = mat4.look_at(state.target+state.render_target.sun*6, state.target+off, { y = 1 })
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)
@@ -568,14 +577,17 @@ function love.update(dt)
 	if settings.debug then
 		local w, h = lg.getDimensions()
 
-		state:debug("MEMORY: %iKB", collectgarbage("count"))
-		state:debug("DELTA:  %ins", dt * 1000000000)
-		state:debug("TSTEP:  %ins", timestep * 1000000000)
+		state:debug("MEMORY: %iKB",   collectgarbage("count"))
+		state:debug("DELTA:  %ins",   dt * 1000000000)
+		state:debug("TSTEP:  %ins",   timestep * 1000000000)
 		state:debug("OS:     %s x%s", ls.getOS(), ls.getProcessorCount())
-		state:debug("SCALE:  %i", state.scale)
-		state:debug("SIZE:   %ix%i", lg.getDimensions())
-		state:debug("INSIZE: %ix%i", w/state.scale, h/state.scale)
-		state:debug("DAYTIM: %f", state.daytime)
+		state:debug("SCALE:  %i",     state.scale)
+		state:debug("SIZE:   %ix%i",  lg.getDimensions())
+		state:debug("INSIZE: %ix%i",  w/state.scale, h/state.scale)
+		state:debug("CYCLE:  %f",     state.daytime)
+
+		state:debug("")
+		state:debug("CAMERA: X%im Y%im Z%im", state.target.x, state.target.y, state.target.z)
 	end
 
 	local alpha = fam.clamp(lag / timestep, 0, 1)
@@ -659,21 +671,18 @@ function love.draw()
 
 		ui:draw(w / state.scale, h / state.scale, state)
 
-		lg.scale(2)
+		lg.scale(1/state.scale)
+		lg.scale(state.scale+1)
 		lg.setColor(0, 0, 0, state.escape * state.escape)
 		lg.rectangle("line", (w / (state.scale * 2)) - 73, 2, w, 12)
 		lg.setColor(0, 0, 0, 1)
 		lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
 		lg.setColor(1, 1, 1, state.escape * state.escape)
-		lg.print("GOOD NIGHT!", (w / (state.scale * 2)) - 70)
+		lg.print(goodbye, (w / (state.scale * 2)) - 70)
 		lg.pop()
 	end
 
-	if settings.no_post then
-		r()
-	else
-		effect(r)
-	end
+	r()
 end
 
 -- i love you,

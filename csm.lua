@@ -1,21 +1,21 @@
--- Adapted from Shake's engine
--- I can't stress this enough, everything Shake makes is blursed.
+-- adapted from shake's engine
+-- i can't stress this enough, everything shake makes is blursed.
 
 local mat4 = require "lib.mat4"
 local vec3 = require "lib.vec3"
 
-local function split_frustum(_numSplits, _near, _far, _splitWeight)
+local function split_frustum(_num_splits, _near, _far, _split_weight)
 	local ratio = _far / _near
-	local numSlices = _numSplits * 2
+	local num_slices = _num_splits * 2
 
 	local splits = { 0, _near }
 
 	local ff = 2
 	local nn = 3
-	while nn <= numSlices do
-		local si = ff / numSlices
+	while nn <= num_slices do
+		local si = ff / num_slices
 
-		local l = _splitWeight
+		local l = _split_weight
 		local nearp = l*(_near*math.pow(ratio, si) ) + (1 - l)*(_near + (_far - _near)*si)
 		splits[nn] = nearp -- near
 		splits[ff] = nearp * 1.05 -- far from previous split
@@ -23,8 +23,8 @@ local function split_frustum(_numSplits, _near, _far, _splitWeight)
 		nn = nn + 2
 	end
 
-	-- Last slice.
-	splits[numSlices] = _far
+	-- last slice.
+	splits[num_slices] = _far
 
 	return splits
 end
@@ -39,36 +39,35 @@ local function mul_vec3_persp(a, b)
 	local z = b.x * a[3] + b.y * a[7] + b.z * a[11] + a[15]
 	local w = b.x * a[4] + b.y * a[8] + b.z * a[12] + a[16]
 	local inv_w = sign(w)/w
-	local a = vec3(x*inv_w, y*inv_w, z*inv_w)
-	a.w = 1
+	local a = vec3(x, y, z) * inv_w
+	a.w = w * inv_w
+	
 	return a
 end
 
-local function ws_frustum_corners(_proj, _near, _far, _invViewMtx)
+local function ws_frustum_corners(_proj, _near, _far, _inv_view_mtx)
 	-- h=1.0/tan(rad(fovy) * 0.5), w=1.0/(h*aspect). invert them back.
-	local projWidth = 1.0/_proj[1]
-	local projHeight = 1.0/_proj[6]
+	local proj_width = 1.0/_proj[1]
+	local proj_height = 1.0/_proj[6]
 
-	-- Define frustum corners in view space, convert to world space.
-	local nw = _near * projWidth
-	local nh = _near * projHeight
-	local fw = _far  * projWidth
-	local fh = _far  * projHeight
+	-- define frustum corners in view space, convert to world space.
+	local nw = _near * proj_width
+	local nh = _near * proj_height
+	local fw = _far  * proj_width
+	local fh = _far  * proj_height
 
 	return {
-		mul_vec3_persp(_invViewMtx, vec3(-nw,  nh, -_near)),
-		mul_vec3_persp(_invViewMtx, vec3( nw,  nh, -_near)),
-		mul_vec3_persp(_invViewMtx, vec3( nw, -nh, -_near)),
-		mul_vec3_persp(_invViewMtx, vec3(-nw, -nh, -_near)),
-		mul_vec3_persp(_invViewMtx, vec3(-fw,  fh, -_far )),
-		mul_vec3_persp(_invViewMtx, vec3( fw,  fh, -_far )),
-		mul_vec3_persp(_invViewMtx, vec3( fw, -fh, -_far )),
-		mul_vec3_persp(_invViewMtx, vec3(-fw, -fh, -_far ))
+		mul_vec3_persp(_inv_view_mtx, vec3(-nw,  nh, -_near)),
+		mul_vec3_persp(_inv_view_mtx, vec3( nw,  nh, -_near)),
+		mul_vec3_persp(_inv_view_mtx, vec3( nw, -nh, -_near)),
+		mul_vec3_persp(_inv_view_mtx, vec3(-nw, -nh, -_near)),
+		mul_vec3_persp(_inv_view_mtx, vec3(-fw,  fh, -_far )),
+		mul_vec3_persp(_inv_view_mtx, vec3( fw,  fh, -_far )),
+		mul_vec3_persp(_inv_view_mtx, vec3( fw, -fh, -_far )),
+		mul_vec3_persp(_inv_view_mtx, vec3(-fw, -fh, -_far ))
 	}
 end
 
-local min = vec3(0, 0, 0)
-local max = vec3(0, 0, 0)
 local mtx_crop = mat4 {
 	2, 0, 0, 0,
 	0, 2, 0, 0,
@@ -76,42 +75,47 @@ local mtx_crop = mat4 {
 	2, 2, 0, 1
 }
 
+-- local -> world -> view -> clip
+
 -- shadow: { split_count: int, distance: int, split_distribution: float, stabilize: bool, res: int }
 -- cam: { view: mat4, proj: mat4, world_from_view: mat4 }
 local function setup_csm(shadow, light_dir, world_from_view, proj)
-	local lightView = mat4.look_at(-light_dir, 0, vec3(0, 0, 1))
-	local splitSlices = split_frustum(
+	-- local near = (2 * proj[15]) / (2 * proj[11] - 2)
+	-- local far = ((proj[11] - 1) * near) / (proj[11] + 1)
+	-- setup light view mtx.
+	local light_view = mat4.look_at(-light_dir, vec3(0, 0, 0), vec3(0, 0, 1))
+	local split_slices = split_frustum(
 		shadow.split_count,
 		0.01,
 		shadow.distance,
 		shadow.split_distribution
 	)
 	local depth_range = 500
-	local mtxProj = mat4.from_ortho(-1, 1, -1, 1, -depth_range, depth_range)
-	local lightProj = {}
-	local numCorners = 8
+	local mtx_proj = mat4.from_ortho(-1, 1, -1, 1, -1, depth_range)
+	local light_proj = {}
+	local num_corners = 8
 
-	for i=1, shadow.split_count do
-		local near = splitSlices[(i-1)*2+1]
-		local far  = splitSlices[(i-1)*2+2]
+	for i=1,shadow.split_count do
+		local near = split_slices[(i-1)*2+1]
+		local far  = split_slices[(i-1)*2+2]
 
-		-- Compute frustum corners for one split in world space.
-		local frustumCorners = ws_frustum_corners(proj, near, far, world_from_view)
+		-- compute frustum corners for one split in world space.
+		local frustum_corners = ws_frustum_corners(proj, near, far, world_from_view)
 
-		min = vec3(0, 0, 0)
-		max = vec3(0, 0, 0)
+		local min, max = vec3.zero, vec3.zero
 
-		for j=1, numCorners do
-			-- Transform to light space.
-			local lightSpaceFrustumCorner = vec3.from_table(lightView * frustumCorners[j])
+		for j=1,num_corners do
+			-- transform to light space.
+			local a = light_view * frustum_corners[j]
+			local ls_frustum_corner = vec3.from_table(a)
 
-			-- Update bounding box.
-			min = min:min(lightSpaceFrustumCorner)
-			max = max:max(lightSpaceFrustumCorner)
+			-- update bounding box.
+			min = min:min(ls_frustum_corner)
+			max = max:max(ls_frustum_corner)
 		end
 
-		local minproj = mul_vec3_persp(mtxProj, min)
-		local maxproj = mul_vec3_persp(mtxProj, max)
+		local minproj = mul_vec3_persp(mtx_proj, min)
+		local maxproj = mul_vec3_persp(mtx_proj, max)
 
 		local scalex = 2.0 / (maxproj.x - minproj.x)
 		local scaley = 2.0 / (maxproj.y - minproj.y)
@@ -126,9 +130,9 @@ local function setup_csm(shadow, light_dir, world_from_view, proj)
 		local offsety = -0.5 * (maxproj.y + minproj.y) * scaley
 
 		if shadow.stabilize then
-			local halfSize = shadow.res * 0.5
-			offsetx = math.ceil(offsetx * halfSize) / halfSize
-			offsety = math.ceil(offsety * halfSize) / halfSize
+			local half_size = shadow.res * 0.5
+			offsetx = math.ceil(offsetx * half_size) / half_size
+			offsety = math.ceil(offsety * half_size) / half_size
 		end
 
 		mtx_crop[1] = scalex
@@ -136,7 +140,7 @@ local function setup_csm(shadow, light_dir, world_from_view, proj)
 		mtx_crop[13] = offsetx
 		mtx_crop[14] = offsety
 
-		table.insert(lightProj, mtx_crop * mtxProj * lightView)
+		table.insert(light_proj, mtx_crop * mtx_proj * light_view)
 	end
 
 	local bias = mat4 {
@@ -145,112 +149,17 @@ local function setup_csm(shadow, light_dir, world_from_view, proj)
 		0.0, 0.0, 0.5, 0.0,
 		0.5, 0.5, 0.5, 1.0
 	}
-	local shadowMapMtx = {}
+	local shadow_map_mtx = {}
 	for i=1,shadow.split_count do
-		shadowMapMtx[i] = bias * lightProj[i]
+		shadow_map_mtx[i] = bias * light_proj[i]
 	end
 
 	return {
-		lights = lightProj,
-		shadows = shadowMapMtx
+		lights = light_proj,
+		shadows = shadow_map_mtx
 	}
 end
 
 return {
 	setup_csm = setup_csm
 }
-
---[[
-	export function setup_csm(shadow: ShadowSettings, light_dir: number[], world_from_view: Mat4, proj: Mat4) {
-		const near = (2 * proj[14]) / (2 * proj[10] - 2);
-		const far = ((proj[10] - 1) * near) / (proj[10] + 1);
-		const ldir = vec3(light_dir[0], light_dir[1], light_dir[2]);
-		const lightView = cpml.mat4.look_at(cpml.mat4(), ldir, vec3(0, 0, 0), vec3(0, 1, 0));
-		let distance = shadow.distance;
-		let bmin = vec3();
-		let bmax = vec3();
-		if (shadow.bounds) {
-			bmax = vec3(shadow.bounds.max[0], shadow.bounds.max[1], shadow.bounds.max[2]);
-			bmin = vec3(shadow.bounds.min[0], shadow.bounds.min[1], shadow.bounds.min[2]);
-			distance = cpml.vec3.len(cpml.vec3.sub(bmax, bmin)) * (1 + shadow.overlap);
-		}
-		distance = Math.min(far, distance);
-		const splitSlices = split_frustum(
-			shadow.split_count,
-			near,
-			distance,
-			shadow.split_distribution,
-			shadow.overlap ? shadow.overlap : 0.05
-		);
-		// better solution would be to intersect the bounding box provided
-		const depth_range = shadow.depth_range ? shadow.depth_range : distance;
-		const mtxProj = mat4.from_ortho(-1, 1, -1, 1, -depth_range, depth_range);
-		const vp = cpml.mat4.mul(cpml.mat4(), mtxProj, lightView);
-		const lightProj: Mat4[] = [];
-		const numCorners = 8;
-
-		for (let i = 0; i < shadow.split_count; i++) {
-			const near = splitSlices[i*2];
-			const far  = splitSlices[i*2+1];
-
-			// Compute frustum corners for one split in world space.
-			const frustumCorners = ws_frustum_corners(proj, near, far, world_from_view);
-
-			// const f4 = cpml.mat4.mul_vec4([0, 0, 0, 1], lightView, [ frustumCorners[0].x, frustumCorners[0].y, frustumCorners[0].z, 1 ]);
-			// const first = vec3(f4[0], f4[1], f4[2]);
-			const first = mul_vec3_persp(lightView, frustumCorners[0]);
-			min = first;
-			max = first;
-
-			for (let j = 1; j < numCorners; j++) {
-				// Transform to light space.
-				const lightSpaceFrustumCorner = mul_vec3_persp(lightView, frustumCorners[j]);
-
-				// Update bounding box.
-				min = vec3.component_min(min, lightSpaceFrustumCorner);
-				max = vec3.component_max(max, lightSpaceFrustumCorner);
-			}
-
-			if (shadow.overlap) {
-				min = vec3.sub(min, cpml.vec3(1 + shadow.overlap));
-				max = vec3.add(max, cpml.vec3(1 + shadow.overlap));
-			}
-
-			// clamp to world bounds if provided
-			if (shadow.bounds) {
-				min = vec3.component_min(min, bmax);
-				max = vec3.component_max(max, bmin);
-			}
-
-			const minproj = mul_vec3_persp(mtxProj, min);
-			const maxproj = mul_vec3_persp(mtxProj, max);
-
-			let scalex = 2.0 / (maxproj.x - minproj.x);
-			let scaley = 2.0 / (maxproj.y - minproj.y);
-
-			if (shadow.stabilize) {
-				const quantizer = 64.0;
-				scalex = quantizer / Math.ceil(quantizer / scalex);
-				scaley = quantizer / Math.ceil(quantizer / scaley);
-			}
-
-			let offsetx = -0.5 * (maxproj.x + minproj.x) * scalex;
-			let offsety = -0.5 * (maxproj.y + minproj.y) * scaley;
-
-			if (shadow.stabilize) {
-				const halfSize = shadow.res * 0.5;
-				offsetx = Math.ceil(offsetx * halfSize) / halfSize;
-				offsety = Math.ceil(offsety * halfSize) / halfSize;
-			}
-
-			mtxCrop[0] = scalex;
-			mtxCrop[5] = scaley;
-			mtxCrop[12] = offsetx;
-			mtxCrop[13] = offsety;
-
-			lightProj.push(mat4.mul(mat4(), mtxCrop, vp));
-		}
-
-		return lightProj;
-	}
-]]

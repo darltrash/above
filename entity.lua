@@ -276,8 +276,13 @@ local function tick(entities, dt, state)
                         local p = entity.position + entity.collider.offset
                         local v = entity.velocity * dt * 2
 
+                        local function query(min, max)
+                            local a = state.hash:query_cube(min.x, min.y, min.y, max.x, max.y, max.z)
+                            return a
+                        end
+
                         local new_position, new_velocity, planes =
-                            state.hash:check(p, v, entity.collider.radius)
+                            slam.check(p, v, entity.collider.radius, query)
 
                         entity.velocity = new_velocity / dt
 

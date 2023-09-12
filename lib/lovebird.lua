@@ -55,7 +55,7 @@ end
     body {
       margin: 0px;
       font-size: 14px;
-      font-family: helvetica, verdana, sans;
+      font-family: monospace;
       background: #FFFFFF;
     }
     form {
@@ -189,7 +189,7 @@ end
   <body>
     <div id="header">
       <div id="title">
-        <a href="https://github.com/rxi/lovebird">lovebird</a>
+        <a href="https://github.com/rxi/lovebird">lovebird (modded!)</a>
         <span id="version"><?lua echo(lovebird._version) ?></span>
       </div>
       <div id="status"></div>

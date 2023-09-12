@@ -6,7 +6,7 @@
 	vec4 effect(vec4 _, sampler2D tex, vec2 uv, vec2 sc) {
 		vec4 accum = vec4(0.0);
 		for (float i = 0.0; i < mip_count; i += 1.0) {
-			accum += textureLod(tex, uv, i) / mip_count;
+			accum += textureLod(tex, uv, mip_count) / mip_count;
 		} 
 		return accum;
 	}

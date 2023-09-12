@@ -90,8 +90,6 @@ local function render(call)
 		}
 	end
 
-	call.order = call.order or 0
-
 	if call.grab then
 		table.insert(grab_list, call)
 		return call
@@ -216,12 +214,14 @@ local function resize(w, h, scale)
 		mipmaps = "auto",
 		filter = "linear"
 	}
+	canvas_temp_a:setMipmapFilter("linear")
 
 	canvas_temp_b = canvas {
 		format = "rg11b10f",
 		mipmaps = "auto",
 		filter = "linear"
 	}
+	canvas_temp_b:setMipmapFilter("linear")
 
 	-- ////////////// SHADOWMAP ////////////
 
@@ -232,7 +232,7 @@ local function resize(w, h, scale)
 end
 
 local shadow_maps_res = 1024
-local shadow_msaa = 4
+local shadow_msaa = 0
 uniforms.shadow_maps = { unpack = true }
 for i=1, 4 do
 	uniforms.shadow_maps[i] = lg.newCanvas(
@@ -270,22 +270,6 @@ canvas_depth_c = lg.newCanvas(cuberes, cuberes, {
 })
 
 
-local stars = {}
-for x=1, 90 do
-	table.insert(stars, vector(
-		lm.random(0, 1000) / 1000,
-		lm.random(0, 1000) / 1000,
-		lm.random(0, 1000) / 1000
-	))
-end
-
-local function render_stars(w, h)
-	for k, v in ipairs(stars) do
-		lg.circle("fill", v.x*w, v.y*h, 6)
-	end
-end
-
-
 local function render_to(target)
 	local switch         = false
 	target.canvas_color  = target.canvas_color_a
@@ -299,35 +283,36 @@ local function render_to(target)
 		end
 
 		lg.push("all")
-		uniforms.back_color  = target.canvas_color
-		uniforms.back_depth  = target.canvas_depth
-		uniforms.back_normal = target.canvas_normal
+			uniforms.back_color  = target.canvas_color
+			uniforms.back_depth  = target.canvas_depth
+			uniforms.back_normal = target.canvas_normal
 
-		switch = not switch
+			switch = not switch
 
-		target.canvas_color  = switch
-			and target.canvas_color_b or target.canvas_color_a
+			target.canvas_color  = switch
+				and target.canvas_color_b or target.canvas_color_a
 
-		target.canvas_depth  = switch
-			and target.canvas_depth_b or target.canvas_depth_a
+			target.canvas_depth  = switch
+				and target.canvas_depth_b or target.canvas_depth_a
 
-		target.canvas_normal = switch
-			and target.canvas_normals_b or target.canvas_normals_a
+			target.canvas_normal = switch
+				and target.canvas_normals_b or target.canvas_normals_a
 
-		lg.setCanvas {
-			target.canvas_color and { target.canvas_color, face = target.face },
-			target.canvas_normal and { target.canvas_normal },
-			depthstencil = { target.canvas_depth }
-		}
+			lg.setCanvas {
+				target.canvas_color and { target.canvas_color, face = target.face },
+				target.canvas_normal and { target.canvas_normal },
+				depthstencil = { target.canvas_depth }
+			}
 
-		lg.clear(true, true, true)
-		lg.setColor(COLOR_WHITE)
+			lg.clear(true, true, true)
+			lg.setColor(COLOR_WHITE)
+			lg.setDepthMode("always", true)
 
-		lg.setShader(assets.shd_copy)
-		assets.shd_copy:send("color", uniforms.back_color)
-		assets.shd_copy:send("normal", uniforms.back_normal)
-		lg.setDepthMode("always", true)
-		lg.draw(uniforms.back_depth)
+			lg.setShader(assets.shd_copy)
+			assets.shd_copy:send("color", uniforms.back_color)
+			assets.shd_copy:send("normal", uniforms.back_normal)
+
+			lg.draw(uniforms.back_depth)
 		lg.pop()
 	end
 
@@ -410,7 +395,7 @@ local function render_to(target)
 		end
 
 		if target.shadow and call.no_shadow then
-			return
+			return false
 		end
 
 		local color = call.color or COLOR_WHITE
@@ -478,19 +463,22 @@ local function render_to(target)
 		return true
 	end
 
+	local order_cache = {}
+
 	local function get_order(call)
-		if call.order then
-			return call.order
+		if not order_cache[call] then
+			local order = 0
+
+			if call.box then
+				local origin = call.box.min + (call.box.max / 2)
+
+				order = vector.dist(eye, origin)
+			end
+
+			order_cache[call] = order
 		end
 
-		call.order = 0
-		if call.box then
-			local origin = (call.box.max + call.box.min) / 2
-
-			call.order = vector.dist(eye, origin)
-		end
-
-		return call.order
+		return order_cache[call]
 	end
 
 	----------------------------------------------
@@ -530,6 +518,7 @@ local function render_to(target)
 	return vertices, calls, grab_calls, lights
 end
 
+-- Create cubemap of world
 local function generate_cubemap(eye)
 	local format = { type = "cube", format = "rg11b10f", mipmaps = "auto" }
 
@@ -570,6 +559,26 @@ local function generate_ambient()
 	uniforms.cubemap:setFilter("linear", "linear")
 end
 
+-- b: temporary
+local function blur(a, b, p)
+	p = p or 1
+
+	lg.push("all")
+		lg.setShader(assets.shd_box_blur)
+		lg.setColor(1, 1, 1, 0.5)
+
+		lg.setCanvas(b)
+		lg.clear(1, 1, 1, 1)
+		assets.shd_box_blur:send("direction", {0, p})
+		lg.draw(a)
+
+		lg.setCanvas(a)
+		lg.clear(1, 1, 1, 1)
+		assets.shd_box_blur:send("direction", {p, 0})
+		lg.draw(b)
+	lg.pop()
+end
+
 local function draw(target, state)
 	target.canvas_color_a   = canvas_color_a
 	target.canvas_depth_a   = canvas_depth_a
@@ -579,108 +588,56 @@ local function draw(target, state)
 	target.canvas_depth_b   = canvas_depth_b
 	target.canvas_normals_b = canvas_normals_b
 
---	local width, height = target.canvas_color_a:getDimensions()
---
---	target.projection = mat4.from_perspective(-45, -width / height, 0.01, 300)
+	local width, height = target.canvas_color_a:getDimensions()
+
+	target.projection = mat4.from_perspective(-45, -width / height, 0.01, 300)
 
 	local total_calls = 0
-	if target.sun and false then
-		local shadow = {
-			split_count = 4,
+
+	if target.sun then
+		local setup = {
+			split_count = 1,
 			distance = 100,
 			split_distribution = 0.95,
-			stabilize = true,
+			stabilize = false,
 			res = shadow_maps_res
 		}
 
 		local inv_view = target.view:inverse()
 		local proj = target.projection
-		local c = csm.setup_csm(shadow, -target.sun:normalize(), inv_view, proj)
+		local c = csm.setup_csm(setup, -target.sun, inv_view, proj)
 
-		uniforms.shadow_matrix = {
+		uniforms.shadow_mats = {
 			unpack = true
 		}
 
-		for index=1, 4 do
+		for x=1, 1 do
 			local shadow = {
-				view = c.lights[index],
-				projection = mat4.identity(),
+				view = target.shadow_view,
+				projection = mat4.from_ortho(-15, 15, -10, 10, -2, 512),
 
 				no_lights = true,
 				no_cleanup = true,
 				no_sky = true,
 				shadow = true,
 
-				canvas_depth_a = uniforms.shadow_maps[index],
+				culling = "none",
 
-				shader = assets.shd_shadowmapper
+				canvas_color_a = uniforms.shadow_maps[x],
+				canvas_depth_a = canvas_depth_s,
+
+				shader = assets.shd_shadowmapper,
+				clear = COLOR_WHITE
 			}
 
 			local vertices, calls, grabs = render_to(shadow)
 			total_calls = total_calls + calls
 
-			table.insert(uniforms.shadow_matrix, shadow.view:inverse():to_columns())
-
-			--if index == 4 then
-			--	target.view = shadow.view
-			--	target.projection = mat4.identity()
-			--	target.no_sky = true
-			--end
-		end
-	end
-
-	if target.shadow_view then
-		local shadow = {
-			view = target.shadow_view,
-			projection = mat4.from_ortho(-15, 15, -10, 10, 0, 512),
-
-			no_lights = true,
-			no_cleanup = true,
-			no_sky = true,
-			shadow = true,
-
-			culling = "none",
-
-			canvas_color_a = uniforms.shadow_maps[1],
-			canvas_depth_a = canvas_depth_s,
-
-			shader = assets.shd_shadowmapper,
-			clear = {1, 1, 1, 1}
-		}
-
-		local vertices, calls, grabs = render_to(shadow)
-		total_calls = total_calls + calls
-
-		lg.push("all")
-			lg.setColor(1, 1, 1, 0.5)
-
-			lg.setCanvas(canvas_temp_s)
-			lg.setShader(assets.shd_box_blur)
-			lg.clear(1, 1, 1, 1)
-
-			assets.shd_box_blur:send("direction", {0, 1})
-			lg.draw(shadow.canvas_color)
-
-
-			lg.setCanvas(shadow.canvas_color)
-			lg.clear(1, 1, 1, 1)
-			assets.shd_box_blur:send("direction", {1, 0})
-			lg.draw(canvas_temp_s)
-
-		lg.pop()
-
-		uniforms.shadow_view = shadow.view
-		uniforms.shadow_projection = shadow.projection
-		uniforms.shadow_map = shadow.canvas_color
-
-		if false then
-			target.view = shadow.view
-			target.projection = shadow.projection
-			target.shader = assets.shd_none
-			target.no_sky = true
-			target.shadow = true
-			target.culling = "none"
-			target.shader = assets.shd_none
+			blur(shadow.canvas_color, canvas_temp_s, 1/2)
+			
+			--uniforms.shadow_mats[x] = (shadow.projection * shadow.view):to_columns()
+			uniforms.shadow_proj = shadow.projection
+			uniforms.shadow_view = shadow.view
 		end
 	end
 
@@ -698,7 +655,7 @@ local function draw(target, state)
 		state:debug("TCALLS: %i/200", total_calls)
 	end
 	
-	target.exposure = -6.5
+	target.exposure = -6.2
 
 	-- Generate light threshold data :)
 	lg.push("all")
@@ -710,8 +667,9 @@ local function draw(target, state)
 		lg.draw(target.canvas_color, 0, 0, 0, 0.5)
 	lg.pop()
 
-	lg.push("all")
+	lg.push("all") -- Mipmap blur for the bloom effect :)
 		lg.setBlendMode("replace", "premultiplied")
+
 		lg.setCanvas(canvas_temp_a)
 		lg.draw(canvas_light_pass)
 
@@ -734,8 +692,11 @@ local function draw(target, state)
 		lg.setCanvas(canvas_light_pass)
 		lg.setShader(assets.shd_accum_mip)
 		assets.shd_accum_mip:send("mip_count", canvas_temp_a:getMipmapCount()-1)
+
 		lg.draw(canvas_temp_a)
 	lg.pop()
+
+	--blur(canvas_light_pass, canvas_temp_b)
 
 	target.canvas_color:setFilter("nearest", "nearest")
 

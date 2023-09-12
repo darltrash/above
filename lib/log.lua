@@ -15,12 +15,12 @@ log.level = "trace"
 
 
 local modes = {
-  { name = "trace", color = "\27[34m", },
-  { name = "debug", color = "\27[36m", },
-  { name = "info",  color = "\27[32m", },
-  { name = "warn",  color = "\27[33m", },
-  { name = "error", color = "\27[31m", },
-  { name = "fatal", color = "\27[35m", },
+  { name = "trace", color = "\27[34m", html_color = "gray"},
+  { name = "debug", color = "\27[36m", html_color = "gray"},
+  { name = "info",  color = "\27[32m", html_color = "blue"},
+  { name = "warn",  color = "\27[33m", html_color = "orange"},
+  { name = "error", color = "\27[31m", html_color = "red"},
+  { name = "fatal", color = "\27[35m", html_color = "purple"},
 }
 
 
@@ -73,6 +73,13 @@ for i, x in ipairs(modes) do
     local msg = fmt:format(...)
     local info = debug.getinfo(2, "Sl")
     local lineinfo = info.short_src .. ":" .. info.currentline
+
+    local ok, lovebird = pcall(require, "lib.lovebird")
+    if ok then
+      local str = string.format("<span style='background:%s;color:white'>[%s] %s:</span> %s\n",
+                                x.html_color, nameupper, lineinfo, msg)
+      lovebird.print(str)
+    end
 
     -- Output to console
     print(string.format("%s[%-6s%s]%s %s: %s",

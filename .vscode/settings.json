@@ -1,4 +1,5 @@
 {
+    "Lua.runtime.version": "LuaJIT",
     "Lua.runtime.special": {
         "love.filesystem.load": "loadfile"
     },
@@ -7,7 +8,7 @@
         "/home/darl/.vscode/extensions/sumneko.lua-3.6.20-linux-x64/server/meta/73bf0615"
     ],
     "Lua.diagnostics.globals": [
-        "log"
+        "lovr"
     ],
     "Lua.workspace.checkThirdParty": false,
     "files.watcherExclude": {

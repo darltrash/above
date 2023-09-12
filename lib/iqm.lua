@@ -1,3 +1,5 @@
+---@diagnostic disable: param-type-mismatch
+
 local ffi  = require "ffi"
 ffi.cdef [[
     typedef uint32_t uint;
@@ -55,7 +57,7 @@ ffi.cdef [[
 ]]
 local c = ffi.C
 
--- MODDED FOR ABOVE
+-- MODDED FOR ABOVE/MEADOWS
 local iqm = {
 	_LICENSE     = "Inter-Quake Model Loader is distributed as public domain (Unlicense). See LICENSE.md for full text.",
 	_URL         = "https://github.com/excessive/iqm",

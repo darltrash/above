@@ -1,159 +1,102 @@
 #pragma language glsl3
-// Stolen from https://github.com/shakesoda/tinyfx/blob/master/examples/02-sky.glsl
+uniform mat4 model;
+uniform mat4 view;
+uniform mat4 projection;
 
-varying vec3 vw_position;
+varying vec4 cl_position;
+varying vec4 vw_position;
+varying vec3 vw_normal;
+varying vec4 vx_color;
+
+varying vec4 lc_position;
+
+#define sqr(a) (a*a)
+
+// Spherical harmonics, cofactor and improved diffuse
+// by the people at excessive ❤ moé 
 
 #ifdef VERTEX
-    uniform mat4 inverse_view_proj;
+    attribute vec3 VertexNormal;
 
-    vec4 position(mat4 mvp, vec4 vertex) { 
-        vec4 o = vec4(vertex.xy*vec2(-1.0, 1.0), 2.0 * step(0.5, vertex.z) - 1.0, 1.0);
-        vw_position = mat3(inverse_view_proj) * vec3(vertex.x, vertex.y, o.z);
+    // the thang that broke a month ago and i didnt even know about it
+    mat3 cofactor(mat4 _m) {
+        return mat3(
+            _m[1][1]*_m[2][2]-_m[1][2]*_m[2][1],
+            _m[1][2]*_m[2][0]-_m[1][0]*_m[2][2],
+            _m[1][0]*_m[2][1]-_m[1][1]*_m[2][0],
+            _m[0][2]*_m[2][1]-_m[0][1]*_m[2][2],
+            _m[0][0]*_m[2][2]-_m[0][2]*_m[2][0],
+            _m[0][1]*_m[2][0]-_m[0][0]*_m[2][1],
+            _m[0][1]*_m[1][2]-_m[0][2]*_m[1][1],
+            _m[0][2]*_m[1][0]-_m[0][0]*_m[1][2],
+            _m[0][0]*_m[1][1]-_m[0][1]*_m[1][0]
+        );
+    }
 
-        return o;
+    vec4 position( mat4 _, vec4 vertex_position ) {
+        //vertex_position.z = 1.0;
+        
+        lc_position = vertex_position;
+
+        vw_position = view * model * vertex_position;
+        vw_normal = cofactor(view * model) * VertexNormal;
+
+        cl_position = projection * vw_position;
+
+        vx_color = VertexColor;
+
+        return cl_position;
     }
 #endif
 
 #ifdef PIXEL
-    precision highp float;
+    uniform Image stars;
+    uniform Image MainTex;
+    uniform float daytime;
 
-    uniform vec4 sun_params;
+    float dither4x4(vec2 position, float brightness) {
+        mat4 dither_table = mat4(
+            0.0625, 0.5625, 0.1875, 0.6875, 
+            0.8125, 0.3125, 0.9375, 0.4375, 
+            0.2500, 0.7500, 0.1250, 0.6250, 
+            1.0000, 0.5000, 0.8750, 0.3750
+        );
 
-    const vec3 luma = vec3(0.299, 0.587, 0.114);
-    const vec3 cameraPos = vec3(0.0, 0.0, 0.0);
-    const float luminance = 1.05; // formerly uniform
-    const float turbidity = 8.0; // formerly uniform
-    const float reileigh = 1.25; // formerly uniform
-    const float mieCoefficient = 0.005;
-    const float mieDirectionalG = 0.8;
+        ivec2 p = ivec2(mod(position, 4.0));
+        
+        float a = step(float(p.x), 3.0);
+        float limit = mix(0.0, dither_table[p.y][p.x], a);
 
-    // constants for atmospheric scattering
-    const float e = 2.71828182845904523536028747135266249775724709369995957;
-    const float pi = 3.141592653589793238462643383279502884197169;
-
-    // refractive index of air
-    const float n = 1.0003;
-
-    // number of molecules per unit volume for air at 288.15K and 1013mb (sea level -45 celsius)
-    const float N = 2.545E25;
-
-    // depolatization factor for standard air
-    const float pn = 0.035;
-
-    // wavelength of used primaries, according to preetham
-    const vec3 lambda = vec3(680E-9, 550E-9, 450E-9);
-
-    // mie stuff
-    // K coefficient for the primaries
-    const vec3 K = vec3(0.686, 0.678, 0.666);
-    const float v = 4.0;
-
-    // optical length at zenith for molecules
-    const float rayleighZenithLength = 8.4E3;
-    const float mieZenithLength = 1.25E3;
-    const vec3 up = vec3(0.0, 1.0, 0.0);
-
-    const float EE = 1000.0;
-    const float sunAngularDiameterCos = 0.99996192306417*0.9995; // probably correct size, maybe
-
-    // earth shadow hack
-    const float steepness = 1.5;
-
-    vec3 tonemap_aces(vec3 x) {
-        float a = 2.51;
-        float b = 0.03;
-        float c = 2.43;
-        float d = 0.59;
-        float e = 0.14;
-        return clamp((x*(a*x+b))/(x*(c*x+d)+e), 0.0, 1.0);
+        return step(limit, brightness);
     }
 
-    vec3 totalRayleigh(vec3 lambda) {
-        return (8.0 * pow(pi, 3.0) * pow(pow(n, 2.0) - 1.0, 2.0) * (6.0 + 3.0 * pn)) / (3.0 * N * pow(lambda, vec3(4.0)) * (6.0 - 7.0 * pn));
+    float luma(vec3 color) {
+        return dot(color, vec3(0.299, 0.587, 0.114));
     }
 
-    // see http://blenderartists.org/forum/showthread.php?321110-Shaders-and-Skybox-madness
-    // A simplied version of the total Rayleigh scattering to works on browsers that use ANGLE
-    vec3 simplifiedRayleigh() {
-        return 0.00054532832366 / vec3(94.0, 40.0, 18.0);
-    }
+    // Actual math
+    void effect() {
+        float t = daytime;
+        vec3 a = Texel(MainTex, vec2(t, 0.75)).rgb;
+        vec3 b = Texel(MainTex, vec2(t, 0.25)).rgb;
 
-    float rayleighPhase(float cosTheta) {
-        return (3.0 / (16.0*pi)) * (1.0 + pow(cosTheta, 2.0));
-    }
+        vec3 o = a;
 
-    vec3 totalMie(vec3 lambda, vec3 K, float T) {
-        float c = (0.2 * T ) * 10E-18;
-        return 0.434 * c * pi * pow((2.0 * pi) / lambda, vec3(v - 2.0)) * K;
-    }
+        float m = sqr((lc_position.y + 0.1)*3.0);
+        
+        if (dither4x4(love_PixelCoord.xy, max(0.0, m)) > 0.5)
+            o = b;
 
-    float hgPhase(float cosTheta, float g) {
-        return (1.0 / (4.0*pi)) * ((1.0 - pow(g, 2.0)) / pow(1.0 - 2.0*g*cosTheta + pow(g, 2.0), 1.5));
-    }
+        vec2 u = (lc_position.xy + 1.0) * vec2(2.0, 3.0) * 1.5;
+        u.x += t * 3.0;
+        u.y += t * 4.0;
+        float stars = Texel(stars, u).a;
+        stars *= max(0.0, sin(3.1415926535898 * (0.5 + t) * 2));
+        o += stars * stars * 0.5;
 
-    float sunIntensity(float zenithAngleCos) {
-        // See https://github.com/mrdoob/three.js/issues/8382
-        float cutoffAngle = pi/1.95;
-        return EE * max(0.0, 1.0 - pow(e, -((cutoffAngle - acos(zenithAngleCos))/steepness)));
-    }
+        if (lc_position.y < 0.0)
+            o = b;
 
-    vec4 effect(vec4 _, Image tex, vec2 uv, vec2 screen_coords) {
-        float sunfade = 1.0-clamp(1.0-exp((sun_params.y/450000.0)),0.0,1.0);
-        float reileighCoefficient = reileigh - (1.0* (1.0-sunfade));
-        vec3 sunDirection = normalize(sun_params.xyz);
-        float sunE = sunIntensity(dot(sunDirection, up));
-
-        // extinction (absorbtion + out scattering)
-        // rayleigh coefficients
-        vec3 betaR = totalRayleigh(lambda) * reileighCoefficient;
-
-        // mie coefficients
-        vec3 betaM = totalMie(lambda, K, turbidity) * mieCoefficient;
-
-        // optical length
-        // cutoff angle at 90 to avoid singularity in next formula.
-        float zenithAngle = acos(max(0.0, dot(up, normalize(vw_position.xyz - cameraPos))));
-        float sR = rayleighZenithLength / (cos(zenithAngle) + 0.15 * pow(93.885 - ((zenithAngle * 180.0) / pi), -1.253));
-        float sM = mieZenithLength / (cos(zenithAngle) + 0.15 * pow(93.885 - ((zenithAngle * 180.0) / pi), -1.253));
-
-        // combined extinction factor
-        vec3 Fex = exp(-(betaR * sR + betaM * sM));
-
-        // in scattering
-        float cosTheta = dot(normalize(vw_position.xyz - cameraPos), sunDirection);
-
-        float rPhase = rayleighPhase(cosTheta*0.5+0.5);
-        vec3 betaRTheta = betaR * rPhase;
-
-        float mPhase = hgPhase(cosTheta, mieDirectionalG);
-        vec3 betaMTheta = betaM * mPhase;
-
-        vec3 Lin = pow(sunE * ((betaRTheta + betaMTheta) / (betaR + betaM)) * (1.0 - Fex),vec3(1.5));
-        float sun_dot_up = dot(up, sunDirection);
-
-        Lin *= mix(vec3(1.0),pow(sunE * ((betaRTheta + betaMTheta) / (betaR + betaM)) * Fex,vec3(1.0/2.0)),clamp(pow(1.0-sun_dot_up,5.0),0.0,1.0));
-
-        // night sky
-        vec3 direction = normalize(vw_position.xyz - cameraPos);
-        float theta = acos(direction.y); // elevation --> y-axis, [-pi/2, pi/2]
-        float phi = atan(direction.z/direction.x); // azimuth --> x-axis [-pi/2, pi/2]
-        vec3 L0 = vec3(0.1) * Fex;
-
-        // composition + solar disc
-        float sundisk = smoothstep(sunAngularDiameterCos,sunAngularDiameterCos+0.0001,cosTheta);
-        L0 += (sunE * 19000.0 * Fex)*sundisk;
-
-        vec3 texColor = (Lin+L0);
-        texColor *= 0.04;
-        texColor += vec3(0.0,0.001,0.0025)*0.3;
-
-        vec3 color = log2(2.0/pow(luminance,4.0))*texColor;
-
-        vec3 retColor = pow(color, vec3(1.0/(1.2+(1.2*sunfade))));
-
-        retColor = mix(retColor * 0.75, retColor, clamp(dot(direction, up) * 0.5 + 0.5, 0.0, 1.0));
-        retColor *= retColor;
-
-        return vec4(pow(retColor * 0.75, vec3(2.2)) * 6.0, 1.0);
+        love_Canvases[0] = vec4(o * 160.0, 1.0);
     }
 #endif
