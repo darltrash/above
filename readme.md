@@ -9,6 +9,7 @@
     Requirements: Some posix-esque interface, WGET, Make, zip, unzip, rsync, git
 
     Command:
+
         git clone --recurse-submodules https://github.com/darltrash/above
         cd above
         make win32 # change to win64 if you want 64 bit binaries
@@ -17,6 +18,7 @@
     Requirements: Linux/WSL (GLIBC), WGET, Make, Appimagetool, zip, rsync, git
 
     Command:
+
         git clone --recurse-submodules https://github.com/darltrash/above
         cd above
         make appimage
@@ -25,6 +27,7 @@
     Requirements: Some posix-esque interface, Make, zip, rsync, git
 
     Command:
+
         git clone --recurse-submodules https://github.com/darltrash/above
         cd above
         make love
@@ -42,15 +45,18 @@ things that only serve a purpose for development; such things
 being deleted in the built versions of this game.
 
 # Useful environment variables:
-    To control above's engine directly you can use a set of specific
-    environment variables, such as:
+To control above's engine directly you can use a set of specific
+environment variables, such as:
 
-	ABOVE_LOW_END: Boolean, Disables post-processing if not null.
-	ABOVE_DEBUG: Boolean, Enables debug mode if not null (does not work in prebuilt binaries).
-	ABOVE_FPS: Boolean, Shows FPS if not null.
-	ABOVE_LINEAR: Boolean, Makes everything look awful for no reason if not null.
-	ABOVE_NO_POST: Boolean, Disables post-processing if not null.
-	ABOVE_VOLUME: Number, Sets the audio volume globally (0 is mute, 1 is normal)
-	ABOVE_FULLSCREEN: Boolean, Sets the fullscreen mode to on if not null
-	ABOVE_SCALE: Number: Sets the downscaling amount, 1 is no downscaling.
-	ABOVE_VSYNC: Number: Sets VSYNC, (0: No VSYNC, 1: Normal, 2: Half, etc)
+| Environment var.   | Type      | Description                                             |
+|--------------------|-----------|---------------------------------------------------------|
+| `ABOVE_LOW_END   ` | `Boolean` | Enables hardware potato mode                            |    
+| `ABOVE_DEBUG     ` | `Boolean` | Enables debug mode, does not work on release binaries   |       
+| `ABOVE_FPS       ` | `Boolean` | Enables FPS counter :)                                  |      
+| `ABOVE_LINEAR    ` | `Boolean` | Enables linear interpolation for textures, don't enable |       
+| `ABOVE_NO_POST   ` | `Boolean` | Disables post-processing                                |    
+| `ABOVE_VOLUME    ` | `Number ` | Sets the audio volume                                   |     
+| `ABOVE_FULLSCREEN` | `Boolean` | Sets the default fullscreen mode                        |         
+| `ABOVE_SCALE     ` | `Number ` | Sets the size of each pixel squared                     |     
+| `ABOVE_VSYNC     ` | `Number ` | Sets VSYNC (0: No VSYNC, 1: Normal, 2: Half, etc)       |
+| `ABOVE_LEVEL     ` | `String ` | Sets the bootup level, requires ABOVE_DEBUG to be true  |
