@@ -21,7 +21,7 @@ local initializers = {
 
         entity.controller = "player"
         entity.velocity = vector(0, 0, 0)
-        entity.scale = vector(0, 0, 0)
+        entity.scale = vector(1, 1, 1)
         entity.rotation = vector(0, 0, 0)
         entity.camera_target = true
 
@@ -30,7 +30,7 @@ local initializers = {
 
         entity.animation = 0
         entity.flip_x = 1
-        entity.atlas = assets.tex_hirsch
+        entity.meshmap = assets.mod_hirsch
         entity.collider = {
             offset = vector(0, 0.5, 0),
             radius = vector(0.2, 0.5, 0.1),
@@ -82,29 +82,10 @@ end
 --------------------------------------------------------------
 
 local PLAYER_ANIMS = { -- 🚶+🦌
-    -- wait, dont the swedish like, eat these things
-    -- not like that's going to stop me from basing the Everfest after Midsummer
-
-    -- I'VE JUST REALIZED, THAT THING MY AUNT BROUGHT ME FROM FINLAND WASNT NORMAL MEAT
-    -- o h    n o e s 
-    {
-        { 0,   0, 56, 56, off = 0 },
-        { 56,  0, 56, 56, off = 1 },
-        { 0,   0, 56, 56, off = 0 },
-        { 112, 0, 56, 56, off = 1 },
-    },
-
-    {
-        { 0,   56, 56, 56, off = 0 },
-        { 56,  56, 56, 56, off = 1 },
-        { 0,   56, 56, 56, off = 0 },
-        { 112, 56, 56, 56, off = 1 },
-    },
-
-    {
-        { 0,   112, 56, 56, off = 0 },
-        { 112, 112, 56, 56, off = 1 },
-    }
+    -- I forgive you, that shit was bussing
+    { "front1", "front2", "front1", "front3" },
+    { "back1", "back2", "back1", "back3" },
+    { "side1", "side2" }
 }
 
 local controllers = {
@@ -115,7 +96,7 @@ local controllers = {
         local velocity = vector(0, 0, 0)
 
         if (not entity.interacting_with) and require("ui").done then
-            velocity = vector(dir.x, 0, dir.y) * 3
+            velocity = vector(dir.x, 0, dir.y) * 10
 
             local mag = velocity:magnitude()
             if mag > 0 then
@@ -127,7 +108,7 @@ local controllers = {
                 if entity.animation == 0 then
                     entity.animation = 1
                 end
-                entity.animation = entity.animation + dt * mag * 1.2
+                entity.animation = entity.animation + dt * mag * 0.4
             else
                 entity.animation = 0
             end
@@ -155,13 +136,17 @@ local controllers = {
             entity.tint[4] = fam.lerp(entity.tint[4], 1, dt * 5) + (1 / 8)
         end
 
+        local a = math.floor(entity.animation)
+        if a ~= entity.last_animation then
+            entity.last_animation = a
+
+            entity.scale.y = 0.7
+        end
+
+        entity.scale.y = fam.lerp(entity.scale.y, 1, dt * 20)
+
         local anim = PLAYER_ANIMS[entity.animation_index]
-        entity.sprite = anim[(math.floor(entity.animation) % #anim) + 1]
-
-        entity.scale.y = fam.lerp(entity.scale.y, entity.sprite.sx or 1, dt * 20)
-
-        entity.offset.y = fam.lerp(entity.offset.y, -entity.sprite.off * 0.14, dt * 25)
-
+        entity.mesh_index = anim[(a % #anim) + 1]
         entity.velocity = entity.velocity + velocity
     end,
 }
@@ -363,7 +348,8 @@ local function render(entities, state, delta, alpha)
                 local call = {
                     color = entity.tint,
                     model = mat4.from_transform(pos, rot, scl),
-                    mesh = entity.mesh
+                    mesh = entity.mesh,
+                    culling = entity.culling
                 }
 
                 if entity.flip_x and entity.scale then
@@ -389,6 +375,20 @@ local function render(entities, state, delta, alpha)
                     })
 
                     call.mesh = assets.mod_quad
+                end
+
+                if entity.meshmap then
+                    call.mesh = entity.meshmap
+                    call.translucent = 1
+
+                    for _, buffer in ipairs(entity.meshmap.meshes) do
+                        if buffer.name == entity.mesh_index then
+                            call.range = { buffer.first, buffer.last - buffer.first }
+                            call.material = "general"
+                            call.culling = "none"
+                            break
+                        end
+                    end
                 end
 
                 if call.mesh then

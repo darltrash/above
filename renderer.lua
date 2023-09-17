@@ -321,7 +321,7 @@ local function render_to(target)
 	local width, height = c:getDimensions()
 
 	uniforms.view = target.view
-	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 1 }))
+	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 0 }))
 	uniforms.eye = eye
 
 	uniforms.projection = target.projection or mat4.from_perspective(-45, -width / height, 0.01, 300)
@@ -374,7 +374,7 @@ local function render_to(target)
 	if not target.no_sky then
 		local call = render {
 			mesh = assets.mod_sphere.mesh,
-			model = mat4.from_transform(eye, 0, 90),
+			model = mat4.from_transform(eye, 0, 150),
 			depth = "lequal",
 			material = "sky"
 		}
@@ -614,7 +614,7 @@ local function draw(target, state)
 		for x=1, 1 do
 			local shadow = {
 				view = target.shadow_view,
-				projection = mat4.from_ortho(-15, 15, -10, 10, -2, 512),
+				projection = mat4.from_ortho(-40, 40, -40, 40, -2, 512),
 
 				no_lights = true,
 				no_cleanup = true,

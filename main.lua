@@ -499,7 +499,7 @@ function love.update(dt)
 	if true then
 		local eye
 		do
-			eye = (vector(0, 1.5, -6) * state.zoom) + state.target
+			eye = (vector(0, 1.5, -6) * state.zoom * 4) + state.target
 
 			if state.camera_box then
 				local p = state.camera_box.position
@@ -524,7 +524,7 @@ function love.update(dt)
 		renderer.uniforms.sun = state.render_target.sun
 		renderer.uniforms.sun_direction = (position+off):normalize()
 		state.render_target.sun = (position+off):normalize()
-		state.shadow_view_matrix = mat4.look_at(state.target+state.render_target.sun*6, state.target+off, { y = 1 })
+		state.shadow_view_matrix = mat4.look_at(state.target+state.render_target.sun*17, state.target+off, { y = 1 })
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)
