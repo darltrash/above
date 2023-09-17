@@ -334,7 +334,7 @@ varying vec3 wl_normal;
         // Lighting! (Diffuse)
         vec3 normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
         vec3 s = textureLod(cubemap, normalize(wl_normal), 7).rgb;
-        vec3 ambient = s * s * 0.006; // vec4(sh(harmonics, normal), 1.0)
+        vec3 ambient = s * s * 0.004; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 diffuse = vec3(0.0, 0.0, 0.0);
         vec3 specular = vec3(0.0, 0.0, 0.0);
@@ -381,7 +381,7 @@ varying vec3 wl_normal;
         // Rim light at night!
         float rim = gsf(normal, -i, i);
         float nighty = max(0.0, sin((daytime+0.5)*PI*2.0));
-        diffuse += rim * 0.7 * s * nighty;
+        diffuse += rim * 0.4 * s * nighty;
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
