@@ -96,7 +96,7 @@ local controllers = {
         local velocity = vector(0, 0, 0)
 
         if (not entity.interacting_with) and require("ui").done then
-            velocity = vector(dir.x, 0, dir.y) * 10
+            velocity = vector(dir.x, 0, dir.y) * 5
 
             local mag = velocity:magnitude()
             if mag > 0 then

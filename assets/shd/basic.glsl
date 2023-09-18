@@ -90,6 +90,8 @@ varying vec3 wl_normal;
     uniform vec3 sun_direction;
     uniform float daytime;
 
+    uniform float grid_mode;
+
     float roughness = 0.1;
 
     float dither4x4(vec2 position, float brightness) {
@@ -377,11 +379,11 @@ varying vec3 wl_normal;
 
             diffuse += shadow * d * sun_color * 70.0;
         }
-
+        
         // Rim light at night!
         float rim = gsf(normal, -i, i);
         float nighty = max(0.0, sin((daytime+0.5)*PI*2.0));
-        diffuse += rim * 0.4 * s * nighty;
+        diffuse += rim * 0.6 * s * nighty;
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
@@ -389,6 +391,20 @@ varying vec3 wl_normal;
 
         // Evrathing togetha
         vec4 albedo = Texel(MainTex, uv) * VaryingColor;
+
+        vec3 wlk_position = wl_position.xyz / wl_position.w;
+        bool g = false;
+        if (mod(wlk_position.x, 2.0) > 1.0)
+            g = !g;
+
+        if (mod(wlk_position.z+1.0, 2.0) > 1.0)
+            g = !g;
+
+        if (mod(wlk_position.y+1.0, 2.0) > 1.0)
+            g = !g;
+
+        if (g && grid_mode > 0.5) albedo.rgb *= 0.5;
+
 
         vec4 o = albedo;
         o.rgb = albedo.rgb * (diffuse + ambient) + specular;

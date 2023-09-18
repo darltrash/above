@@ -148,13 +148,13 @@ local function render_level()
 	local pos = state.target:copy()
 	pos.y = 0
 
---	renderer.render {
---		mesh = assets.mod_water,
---		color = fam.hex("#a46cff"),
---		model = mat4.from_transform(pos, 0, 100),
---		order = math.huge,
---		material = "water"
---	}
+	renderer.render {
+		mesh = assets.mod_water,
+		color = fam.hex("#a46cff"),
+		model = mat4.from_transform(pos, 0, 100),
+		order = math.huge,
+		material = "water"
+	}
 
 	for _, instance in ipairs(grass_meshes) do
 		instance.material = "grass"
@@ -241,14 +241,14 @@ function state.load_map(what)
 
 					local area = triarea(v1, v2, v3)
 
-					for x = 1, math.floor(area * 50) do
+					for x = 1, math.floor(area * 20) do
 						local a = love.math.random(0, 100) / 100
 						local b = love.math.random(0, 100) / 100
 						local p = v1:lerp(v2, a):lerp(v3, b)
 						local c = fam.lerp(fam.lerp(c1, c2, a), c3, b)
 
 						local k = p * 0.25
-						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.5) * c
+						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.7) * c
 
 						local r = lm.random(-1, 1)
 
@@ -499,7 +499,7 @@ function love.update(dt)
 	if true then
 		local eye
 		do
-			eye = (vector(0, 1.5, -6) * state.zoom * 4) + state.target
+			eye = (vector(0, 1.5, -6) * state.zoom * 1.8) + state.target
 
 			if state.camera_box then
 				local p = state.camera_box.position
@@ -553,7 +553,7 @@ function love.update(dt)
 			)
 
 			state.view_matrix = state.view_matrix *
-				mat4.from_transform(offset * 0.05 * 0.5, 0, 1)
+				mat4.from_transform(offset * 0.05, 0, 1)
 		end
 
 		if settings.debug then -- SUPER COOL FEATURE!

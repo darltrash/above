@@ -404,6 +404,7 @@ local function render_to(target)
 		uniforms.model = call.model or mat4.identity()
 		uniforms.translucent = call.translucent or 0
 		uniforms.glow = call.glow or 0
+		uniforms.grid_mode = call.grid_mode and 1 or 0
 
 		-- Just so i can abstract away the IQM/EXM types :)
 		local mesh = call.mesh
@@ -614,7 +615,7 @@ local function draw(target, state)
 		for x=1, 1 do
 			local shadow = {
 				view = target.shadow_view,
-				projection = mat4.from_ortho(-40, 40, -40, 40, -2, 512),
+				projection = mat4.from_ortho(-25, 25, -25, 25, -2, 512),
 
 				no_lights = true,
 				no_cleanup = true,

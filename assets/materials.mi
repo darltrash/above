@@ -45,3 +45,7 @@ texture: clouds
 culling: front
 shader: unshaded
 glow: 10
+
+# OH MEIN GOTT HE HITTIN THE GRITTY!!!!!!!!!!!!!
+[griddy]
+grid_mode: yes
