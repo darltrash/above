@@ -244,6 +244,11 @@ varying vec3 wl_normal;
         vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*7.0).rgb * fresnel * 0.1;
         vec3 diffuse = ambient;
 
+        // Rim light at night!
+        float rim = gsf(normal, -i, i);
+        float nighty = max(0.0, sin((daytime+0.5)*PI*2.0));
+        diffuse += rim * 1.3 * s * nighty * roughness;
+
         for(int k=0; k<light_amount; ++k) { // For each light
             vec3 position = (view * vec4(light_positions[k], 1.0)).xyz;
             vec3 light_color = light_colors[k].rgb * light_colors[k].a;
