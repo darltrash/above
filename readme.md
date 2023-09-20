@@ -5,17 +5,10 @@
 [Youtube](https://youtu.be/sVQhsT1TEOA)
 
 # How to build:
-- ## Windows (x86 and x86_64):
-    Requirements: Some posix-esque interface, WGET, Make, zip, unzip, rsync, git
-
-    Command:
-
-        git clone https://github.com/darltrash/above
-        cd above
-        make win32 # change to win64 if you want 64 bit binaries
+The built binaries will end up on `out/`.
 
 - ## Linux (Appimage, GLIBC 64 bits):
-    Requirements: Linux/WSL (GLIBC), WGET, Make, Appimagetool, zip, rsync, git
+    **Requirements:** Linux/WSL (GLIBC), WGET, Make, Appimagetool, zip, rsync, git
 
     Command:
 
@@ -23,8 +16,30 @@
         cd above
         make appimage
 
+- ## MacOS **(BETA)**:
+    **Requirements:** MacOS, Make, zip, rsync, git
+
+    This is in beta mostly because macOS doesn't trust my game :(
+
+    Command:
+
+        git clone https://github.com/darltrash/above
+        cd above
+        make mac
+
+- ## Windows (x86 and x86_64):
+    **Requirements:** Some posix-esque interface, WGET, Make, zip, unzip, rsync, git
+
+    Command:
+
+        git clone https://github.com/darltrash/above
+        cd above
+        make win32 # change to win64 if you want 64 bit binaries
+
 - ## Everything else:
-    Requirements: Some posix-esque interface, Make, zip, rsync, git
+    **Requirements:** Some posix-esque interface, Make, zip, rsync, git
+
+    This will generate a .love file you can open up using [Löve](https://love2d.org).
 
     Command:
 
