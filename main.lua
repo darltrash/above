@@ -22,7 +22,7 @@ do
 	settings.no_post    = os.getenv("ABOVE_NO_POST") or settings.low_end
 	settings.volume     = os.getenv("ABOVE_VOLUME")
 	settings.fullscreen = os.getenv("ABOVE_FULLSCREEN") and true or false
-	settings.scale      = os.getenv("ABOVE_SCALE")
+	settings.scale      = 1
 	settings.vsync      = tonumber(os.getenv("ABOVE_VSYNC")) or 1
 	settings.profile    = os.getenv("ABOVE_PROFILE")
 
@@ -151,9 +151,10 @@ local function render_level()
 	renderer.render {
 		mesh = assets.mod_water,
 		color = fam.hex("#a46cff"),
-		model = mat4.from_transform(pos, 0, 100),
+		model = mat4.from_transform(0, 0, 1),
 		order = math.huge,
-		material = "water"
+		material = "water",
+		no_shadow = true
 	}
 
 	for _, instance in ipairs(grass_meshes) do
@@ -655,7 +656,7 @@ function love.draw()
 		target.canvas_color:setFilter("nearest")
 		lg.setShader(assets.shd_post)
 		lg.scale(state.scale)
-		assets.shd_post:send("light", target.canvas_light_pass)
+		--assets.shd_post:send("light", target.canvas_light_pass)
 		--assets.shd_post:send("resolution", { target.canvas_light_pass:getDimensions() })
 		assets.shd_post:send("exposure", target.exposure)
 		lg.draw(target.canvas_color)

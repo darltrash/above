@@ -4,6 +4,8 @@ local log = require "lib.log"
 -- Here comes the 
 --                disgusting hack!
 
+local template = love.filesystem.read("assets/shk/template.glsl")
+
 local loaders = {
     mod = function (what)
         return exm.load("assets/mod/"..what..".exm")
@@ -19,6 +21,12 @@ local loaders = {
 
     shd = function (what)
         return lg.newShader("assets/shd/"..what..".glsl")
+    end,
+
+    shk = function (what)
+        local text = love.filesystem.read("assets/shk/"..what..".glsl")
+        local g = template:gsub("<template>", text)
+        return lg.newShader(g)
     end,
 
     tex = function (what)

@@ -45,8 +45,10 @@ local materials = assert(mimi.load("assets/materials.mi"))
 log.info("Loaded materials")
 
 for _, material in pairs(materials) do
-	if material.shader then
-		material.shader = assets["shd_" .. material.shader]
+	if material.shader_true then
+		material.shader = assets["shd_" .. material.shader_true]
+	elseif material.shader then
+		material.shader = assets["shk_" .. material.shader]
 	end
 
 	if material.texture then
@@ -90,8 +92,16 @@ local function render(call)
 		}
 	end
 
+	if call.shader then
+		call.grab =
+			call.shader:hasUniform("back_color")  or
+			call.shader:hasUniform("back_normal") or
+			call.shader:hasUniform("back_depth")
+	end
+
 	if call.grab then
 		table.insert(grab_list, call)
+
 		return call
 	end
 
@@ -321,11 +331,13 @@ local function render_to(target)
 	local width, height = c:getDimensions()
 
 	uniforms.view = target.view
-	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 0 }))
+	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 1 }))
 	uniforms.eye = eye
 
 	uniforms.projection = target.projection or mat4.from_perspective(-45, -width / height, 0.01, 300)
 	uniforms.inverse_proj = uniforms.projection:inverse()
+
+	uniforms.inverse_view = target.view:inverse()
 	local view_proj = uniforms.projection * uniforms.view
 
 	local view_frustum = frustum.from_mat4(view_proj)
@@ -436,7 +448,7 @@ local function render_to(target)
 		end
 
 		-- Default to basic shader
-		local shader = target.shader or call.shader or assets.shd_basic
+		local shader = target.shader or call.shader or assets.shk_basic
 		if call.grab and not target.shader then
 			grab()
 		end
@@ -656,7 +668,7 @@ local function draw(target, state)
 		state:debug("TCALLS: %i/200", total_calls)
 	end
 	
-	target.exposure = -6.2
+	target.exposure = -6.5
 
 	-- Generate light threshold data :)
 	lg.push("all")

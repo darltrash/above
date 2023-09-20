@@ -5,18 +5,18 @@ translucent: 1
 texture: general
 
 [unshaded]
-shader: unshaded
+unshaded: yes
 glow: 300
 no_shadow: yes
 
 [glow]
-shader: unshaded
+unshaded: true
 glow: 300
 # no_shadow: yes
 
 [glass]
 #unshaded: yes
-shader: glass
+#shader: glass
 grab: yes
 
 [grass]
@@ -26,26 +26,32 @@ translucent: 1
 ignore: yes
 
 [magic]
-shader: magic
+#shader: magic
 texture: white
 culling: none
 no_shadow: yes
 
 [cubemap]
-shader: cubemap_test
+shader_true: cubemap_test
 culling: none
 
 [sky]
 culling: front
-shader: sky
+shader_true: sky
 texture: sky_gradient
 
 [clouds]
 texture: clouds
 culling: front
-shader: unshaded
+unshaded: yes
 glow: 10
 
 # OH MEIN GOTT HE HITTIN THE GRITTY!!!!!!!!!!!!!
 [griddy]
-grid_mode: yes
+shader: griddy
+
+[water]
+shader: water
+
+[oooshiny]
+shader: oooshiny

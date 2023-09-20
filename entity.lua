@@ -148,6 +148,8 @@ local controllers = {
         local anim = PLAYER_ANIMS[entity.animation_index]
         entity.mesh_index = anim[(a % #anim) + 1]
         entity.velocity = entity.velocity + velocity
+
+        --state.map_lights[1].position = entity.position + vector(0, 3, 0)
     end,
 }
 
@@ -251,8 +253,8 @@ local function tick(entities, dt, state)
                 -- TODO: FIX FORCE MATH!
                 if not state.settings.no_physics then
                     if entity.mass then
-                        --entity.gravity = (entity.gravity or 0) + 10 * dt
-                        --entity.velocity.y = entity.velocity.y - entity.gravity
+                        entity.gravity = (entity.gravity or 0) + 10 * dt
+                        entity.velocity.y = entity.velocity.y - entity.gravity
 
                         entity.velocity.y = entity.velocity.y - dt * 64
                     end
