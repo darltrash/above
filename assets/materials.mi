@@ -13,20 +13,8 @@ no_shadow: yes
 unshaded: true
 glow: 300
 
-[glass]
-grab: yes
-
-[grass]
-translucent: 1
-
 [invisible]
 ignore: yes
-
-[magic]
-#shader: magic
-texture: white
-culling: none
-no_shadow: yes
 
 [sky]
 culling: front
@@ -38,6 +26,7 @@ shader: griddy
 
 [water]
 shader: water
+no_shadow: true
 
 [oooshiny]
 shader: oooshiny

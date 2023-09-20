@@ -5,7 +5,8 @@
     },
     "Lua.workspace.library": [
         "${3rd}/love2d/library",
-        "/home/darl/.vscode/extensions/sumneko.lua-3.6.20-linux-x64/server/meta/73bf0615"
+        "/home/darl/.vscode/extensions/sumneko.lua-3.6.20-linux-x64/server/meta/73bf0615",
+        "${3rd}/lovr/library"
     ],
     "Lua.diagnostics.globals": [
         "lovr"
@@ -18,5 +19,7 @@
         "**/.hg/store/**": true,
         ".flatpak/**": true,
         "_build/**": true
-    }
+    },
+    "todo-tree.tree.scanMode": "workspace",
+    "Lua.runtime.builtin": {}
 }
