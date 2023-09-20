@@ -19,11 +19,35 @@ varying vec4 vx_color;
 varying vec4 wl_position;
 varying vec3 wl_normal;
 
+uniform float time;
+
 #define PI 3.1415926535898
 #define sqr(a) ((a)*(a))
 #define cub(a) ((a)*(a)*(a))
 #define saturate(a) (clamp(a, 0.0, 1.0))
 #define fma(a, b, c) ((a) * (b) + (c))
+
+// SUPER SPECIAL TEMPLATEY STUFF! 
+
+    uniform Image MainTex;
+    uniform Image back_depth;
+
+    float metalness;
+    float roughness;
+    vec4 color;
+    vec3 albedo;
+    vec3 normal;
+    vec2 uv;
+    float alpha;
+    vec3 back_position;
+    vec2 back_uv;
+
+#define tex MainTex
+#line 1
+    <template>
+#line 44
+
+// HERE IT ENDS
 
 #ifdef VERTEX
     attribute vec3 VertexNormal;
@@ -44,12 +68,17 @@ varying vec3 wl_normal;
     }
 
     vec4 position( mat4 _, vec4 vertex_position ) {
-        wl_position = model * vertex_position;
-        vw_position = view * model * vertex_position;
-        cl_position = projection * view * model * vertex_position;
-
         vw_normal = cofactor(view * model) * VertexNormal;
         wl_normal = cofactor(model) * VertexNormal;
+
+#ifdef vertexed
+    wl_position = vertex(model * vertex_position);
+#else
+    wl_position = model * vertex_position;
+#endif
+
+        vw_position = view * wl_position;
+        cl_position = projection * vw_position;
 
         vx_color = VertexColor;
 
@@ -58,8 +87,6 @@ varying vec3 wl_normal;
 #endif
 
 #ifdef PIXEL
-    uniform Image MainTex;
-
     uniform float glow;
 
     // Lighting!
@@ -69,7 +96,6 @@ varying vec3 wl_normal;
     uniform vec4 light_colors[LIGHT_AMOUNT];
     uniform int light_amount;
 
-    uniform float time;
     uniform vec4 clip;
     uniform float translucent = 0.4; // useful for displaying flat things
     uniform float fleshy = 0.4; 
@@ -82,20 +108,6 @@ varying vec3 wl_normal;
     uniform float daytime;
 
     uniform float grid_mode;
-
-#define tex MainTex
-    
-    uniform Image back_depth;
-
-    float metalness;
-    float roughness;
-    vec4 color;
-    vec3 albedo;
-    vec3 normal;
-    vec2 uv;
-    float alpha;
-    vec3 back_position;
-    vec2 back_uv;
 
     float dither4x4(vec2 position, float brightness) {
         float dither_table[16] = float[16](
@@ -201,11 +213,6 @@ varying vec3 wl_normal;
         
         return nom / denom;
     }
-
-
-#line 1
-<template>
-#line 208
 
     // Actual math
     void effect() {
