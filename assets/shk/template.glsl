@@ -135,7 +135,7 @@ uniform float time;
         float ndi = max(0.5, dot(n, i));
         float base_ndl = dot(n, l);
 
-        float k = roughness * 0.5;
+        float k = max(0.01, 1.0-roughness) * 0.5;
         float ndl = linearstep(0.0 - fleshy, 1.0, dot(n, l));
         float sl = ndl / (ndl * (1.0 - k) + k);
         float sv = ndi / (ndi * (1.0 - k) + k);
@@ -248,7 +248,7 @@ uniform float time;
         float ldh = max(0.25, dot(normal, i));
         float fresnel = schlick_ior_fresnel(ior, ldh);
         vec3 kn = normalize(eye-wl_position.xyz);
-        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*7.0).rgb * fresnel * 0.1;
+        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*7.0).rgb * fresnel * 0.05;
         vec3 diffuse = ambient;
 
         // Rim light at night!
