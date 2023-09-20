@@ -37,6 +37,11 @@ local loaders = {
     end
 }
 
+local emoji = {
+    mod = "📐", mus = "🎵", sfx = "🎧",
+    shd = "🌈", shk = "✨", tex = "😀"
+}
+
 local loaded = 1
 local ret = setmetatable({
     fnt_main = lg.newFont("assets/fnt_monogram.ttf", 16),
@@ -44,8 +49,9 @@ local ret = setmetatable({
 
 }, {
     __index = function (self, index)
-        self[index] = loaders[index:sub(1, 3)](index:sub(5))
-        log.info("'%s' loaded and cached!", index)
+        local a = index:sub(1, 3)
+        self[index] = loaders[a](index:sub(5))
+        log.info("%s '%s' loaded and cached!", emoji[a], index)
         loaded = loaded + 1
         return self[index]
     end,

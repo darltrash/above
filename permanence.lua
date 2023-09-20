@@ -8,7 +8,7 @@ permanence.data = {
     [0] = "Hello! Careful with not breaking things!"
 }
 
-lf.setIdentity("above")
+lf.setIdentity("meadows")
 
 log.info("Savefiles at '%s'", lf.getAppdataDirectory())
 

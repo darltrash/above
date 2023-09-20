@@ -13,6 +13,7 @@ lang.by_locale()
 local goodbye = fam.choice(lang.UI_GOODBYE)
 
 -- SOME SETTINGS (sadly it uses env vars)
+-- TODO: MOVE THIS TO "settings.lua"!
 local settings = {}
 do
 	settings.low_end    = os.getenv("ABOVE_LOW_END")
@@ -54,7 +55,6 @@ _G.ls = love.system
 
 la.setVolume(tonumber(settings.volume) or 1)
 
-log.info("Hello, fellow nerd! This is shit you shouldnt normally care about")
 log.info("I love you! HAVE A GREAT TIME!")
 
 local assets = require "assets"
@@ -96,7 +96,7 @@ local state = {
 	hash = fam.hash3.new()
 }
 
--- huge inspiration:
+-- (used to be a) huge inspiration:
 -- https://www.youtube.com/watch?v=6DRMC8-ZSIg&t=1066s
 
 local camera_rotation = vector(0, 0, 0)

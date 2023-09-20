@@ -394,7 +394,7 @@ local function render_to(target)
 		call.texture:setFilter("linear", "linear")
 	end
 
-	lg.setShader(assets.shd_basic)
+	lg.setShader(assets.shk_basic)
 
 	local vertices = 0
 

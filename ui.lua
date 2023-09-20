@@ -4,8 +4,6 @@ local fam      = require "fam"
 local input    = require "input"
 local language = require "language"
 
-local missions = require "missions"
-
 math.randomseed(os.time())
 
 local ui = {
@@ -29,7 +27,6 @@ end
 
 ui.update = function(self, dt)
     dialog:update(dt)
-    missions:update(dt)
 
     local dir = input.get_direction()
     if math.abs(dir.y) > 0.2 and mode ~= "intro" and not ui.done then
@@ -102,7 +99,6 @@ ui.draw = function(self, w, h, state)
     lg.clear(0, 0, 0, alpha * 0.6)
 
     dialog:draw()
-    missions:draw()
 
     do -- Do daytime animation
         lg.push()

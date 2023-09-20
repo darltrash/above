@@ -205,7 +205,7 @@ varying vec3 wl_normal;
 
 #line 1
 <template>
-#line 195
+#line 208
 
     // Actual math
     void effect() {
@@ -240,7 +240,8 @@ varying vec3 wl_normal;
         float ior = 1.8 * (metalness * 100);
         float ldh = max(0.25, dot(normal, i));
         float fresnel = schlick_ior_fresnel(ior, ldh);
-        vec3 specular = textureLod(cubemap, reflect(normalize(eye-wl_position.xyz), wl_normal.xyz), roughness*7.0).rgb * fresnel * 0.05;
+        vec3 kn = normalize(eye-wl_position.xyz);
+        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*7.0).rgb * fresnel * 0.1;
         vec3 diffuse = ambient;
 
         for(int k=0; k<light_amount; ++k) { // For each light
@@ -273,7 +274,7 @@ varying vec3 wl_normal;
             float s = ggx(normal, i, normalize(vs - vw_position.xyz), ior);
 
             diffuse  += shadow * sun_color * d * 70.0;
-            specular += shadow * sun_color * s;
+            specular += shadow * sun_color * s * 0.2;
         }
 
         vec4 o = vec4((albedo * diffuse) + specular, alpha);

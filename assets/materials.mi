@@ -12,11 +12,8 @@ no_shadow: yes
 [glow]
 unshaded: true
 glow: 300
-# no_shadow: yes
 
 [glass]
-#unshaded: yes
-#shader: glass
 grab: yes
 
 [grass]
@@ -31,22 +28,11 @@ texture: white
 culling: none
 no_shadow: yes
 
-[cubemap]
-shader_true: cubemap_test
-culling: none
-
 [sky]
 culling: front
 shader_true: sky
 texture: sky_gradient
 
-[clouds]
-texture: clouds
-culling: front
-unshaded: yes
-glow: 10
-
-# OH MEIN GOTT HE HITTIN THE GRITTY!!!!!!!!!!!!!
 [griddy]
 shader: griddy
 

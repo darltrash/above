@@ -1,6 +1,6 @@
 function love.conf(t)
     t.window.resizable = true
-    t.window.title = "ABOVE"
+    t.window.title = "Meadows*"
     t.window.width = 900
     t.window.height = 600
     t.gammacorrect = true
