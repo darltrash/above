@@ -35,7 +35,7 @@ do
 	settings.fps_camera = false
 end
 
-log.usecolor = not (love.system.getOS() == "Windows" or os.getenv("no_color"))
+log.usecolor = not (love.system.getOS() == "Windows" or os.getenv("NO_COLOR"))
 
 if not settings.linear then
 	love.graphics.setDefaultFilter("nearest", "nearest")

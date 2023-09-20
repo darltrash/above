@@ -59,3 +59,5 @@ environment variables, such as:
 | `ABOVE_SCALE     ` | `Number ` | Sets the size of each pixel squared                     |     
 | `ABOVE_VSYNC     ` | `Number ` | Sets VSYNC (0: No VSYNC, 1: Normal, 2: Half, etc)       |
 | `ABOVE_LEVEL     ` | `String ` | Sets the bootup level, requires ABOVE_DEBUG to be true  |
+
+This programs respects the [`NO_COLOR` directive](https://no-color.org/).

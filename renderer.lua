@@ -247,7 +247,7 @@ uniforms.shadow_maps = { unpack = true }
 for i=1, 4 do
 	uniforms.shadow_maps[i] = lg.newCanvas(
 		shadow_maps_res, shadow_maps_res, {
-		format = "rg16f",
+		format = "r16f",
 		msaa = shadow_msaa
 	})
 
