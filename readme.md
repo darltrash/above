@@ -10,7 +10,7 @@
 
     Command:
 
-        git clone --recurse-submodules https://github.com/darltrash/above
+        git clone https://github.com/darltrash/above
         cd above
         make win32 # change to win64 if you want 64 bit binaries
 
@@ -19,7 +19,7 @@
 
     Command:
 
-        git clone --recurse-submodules https://github.com/darltrash/above
+        git clone https://github.com/darltrash/above
         cd above
         make appimage
 
@@ -28,7 +28,7 @@
 
     Command:
 
-        git clone --recurse-submodules https://github.com/darltrash/above
+        git clone https://github.com/darltrash/above
         cd above
         make love
 
@@ -53,8 +53,7 @@ environment variables, such as:
 | `ABOVE_LOW_END   ` | `Boolean` | Enables hardware potato mode                            |    
 | `ABOVE_DEBUG     ` | `Boolean` | Enables debug mode, does not work on release binaries   |       
 | `ABOVE_FPS       ` | `Boolean` | Enables FPS counter :)                                  |      
-| `ABOVE_LINEAR    ` | `Boolean` | Enables linear interpolation for textures, don't enable |       
-| `ABOVE_NO_POST   ` | `Boolean` | Disables post-processing                                |    
+| `ABOVE_LINEAR    ` | `Boolean` | Enables linear interpolation for textures, don't enable |
 | `ABOVE_VOLUME    ` | `Number ` | Sets the audio volume                                   |     
 | `ABOVE_FULLSCREEN` | `Boolean` | Sets the default fullscreen mode                        |         
 | `ABOVE_SCALE     ` | `Number ` | Sets the size of each pixel squared                     |     

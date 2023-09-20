@@ -20,7 +20,6 @@ do
 	settings.debug      = os.getenv("ABOVE_DEBUG")
 	settings.fps        = os.getenv("ABOVE_FPS") or settings.debug
 	settings.linear     = os.getenv("ABOVE_LINEAR") -- cursed mode
-	settings.no_post    = os.getenv("ABOVE_NO_POST") or settings.low_end
 	settings.volume     = os.getenv("ABOVE_VOLUME")
 	settings.fullscreen = os.getenv("ABOVE_FULLSCREEN") and true or false
 	settings.scale      = 1
