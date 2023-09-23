@@ -97,7 +97,7 @@ uniform float time;
     uniform int light_amount;
 
     uniform vec4 clip;
-    uniform float translucent = 0.4; // useful for displaying flat things
+    uniform float translucent = 0.0; // useful for displaying flat things
     uniform float fleshy = 0.4; 
 
     uniform Image sun_gradient;
@@ -252,9 +252,9 @@ uniform float time;
         vec3 diffuse = ambient;
 
         // Rim light at night!
-        float rim = gsf(normal, -i, i);
+        //float rim = gsf(normal, -i, i);
         float nighty = max(0.0, sin((daytime+0.5)*PI*2.0));
-        diffuse += rim * 1.3 * s * nighty * roughness;
+        //diffuse += rim * 1.3 * s * nighty * roughness;
 
         for(int k=0; k<light_amount; ++k) { // For each light
             vec3 position = (view * vec4(light_positions[k], 1.0)).xyz;
@@ -287,6 +287,13 @@ uniform float time;
 
             diffuse  += shadow * sun_color * d * 70.0;
             specular += shadow * sun_color * s * 0.2;
+
+            vec3 vsk = (view * vec4(sun_direction * vec3(1.0, -1.0, 1.0), 0.0)).xyz;
+            float dk = gsf(normal, vsk, i);
+            float sk = ggx(normal, i, normalize(vsk - vw_position.xyz), ior);
+
+            diffuse += nighty * dk * 40.0 * vec3(0.1, 0.2, 1.0);
+            specular += nighty * sk * 0.2;
         }
 
         vec4 o = vec4((albedo * diffuse) + specular, alpha);

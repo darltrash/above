@@ -4,5 +4,5 @@ void pixel() {
     albedo.rgb = other.rgb;
     alpha = other.a;
 
-    roughness = 0.0;
+    roughness = 1.0;
 }

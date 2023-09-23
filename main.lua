@@ -7,6 +7,8 @@ local vector = require "lib.vec3"
 local json = require "lib.json"
 local log = require "lib.log"
 
+local utf8 = require "utf8"
+
 local lang = require "language"
 lang.by_locale()
 
@@ -62,6 +64,8 @@ local entities = require "entity"
 local renderer = require "renderer"
 local permanence = require "permanence"
 --local _settings = require "settings"
+local dialog = require "dialog"
+
 
 local state = {
 	entities = { hash = {} },
@@ -622,6 +626,32 @@ function love.update(dt)
 	end
 end
 
+local function print(font, text, x, y, scale, length)
+	lg.push("all")
+		lg.setShader(assets.shd_sdf_font)
+		assets.shd_sdf_font:send("thicc", 0.4)
+
+		lg.scale(scale)
+
+		local tx = x
+		local ty = y + font.characters["A"].height
+		
+		for c in text:gmatch(utf8.charpattern) do
+			if c == "\n" then
+				tx = x
+				ty = ty + font.characters["A"].height - 8
+			elseif c == "\t" then
+				tx = tx + font.characters["A"].width * 4
+			else
+				local n = love.math.noise(tx/10, ty/10)
+				local t = font.characters[c]
+				love.graphics.draw(font.image, t.quad, tx-t.originX, ty-t.originY, n/16)
+				tx = tx + t.advance
+			end
+		end
+	lg.pop()
+end
+
 log.info("Resolution is [%ix%i]", lg.getDimensions())
 
 function love.draw()
@@ -683,6 +713,11 @@ function love.draw()
 	end
 
 	r()
+
+--	local fnt = assets.fnt_atkinson
+--	--lg.setShader(assets.shd_sdf_font)
+--	--lg.draw(fnt.image)
+--	print(fnt, "Meadows*\nFor me and for you!\n\tSuér sexo", 10, 10, 1/2)
 end
 
 -- i love you,

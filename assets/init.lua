@@ -1,5 +1,6 @@
 local exm = require "lib.iqm"
 local log = require "lib.log"
+local json = require "lib.json" -- Move this to bitser stuff? Maybe not.
 
 -- Here comes the 
 --                disgusting hack!
@@ -34,18 +35,32 @@ local loaders = {
         out:setWrap("repeat", "repeat")
         out:setFilter("nearest", "nearest")
         return out
+    end,
+
+    fnt = function (what)
+        local text  = love.filesystem.read("assets/fnt/"..what..".json")
+        local image = lg.newImage("assets/fnt/"..what..".png")
+
+        local data = json.decode(text)
+        data.image = image
+
+        for _, value in pairs(data.characters) do
+            value.quad = lg.newQuad(value.x, value.y, value.width, value.height, data.width, data.height)
+        end
+
+        return data
     end
 }
 
 local emoji = {
     mod = "📐", mus = "🎵", sfx = "🎧",
-    shd = "🌈", shk = "✨", tex = "😀"
+    shd = "🌈", shk = "✨", tex = "😀",
+    fnt = "✒️"
 }
 
 local loaded = 1
 local ret = setmetatable({
     fnt_main = lg.newFont("assets/fnt_monogram.ttf", 16),
-    fnt_title = lg.newFont("assets/fnt_tilt.ttf", 100),
 
 }, {
     __index = function (self, index)

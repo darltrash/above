@@ -51,16 +51,6 @@ local tostring = function(...)
   return table.concat(t, " ")
 end
 
-local channel
-if not love.graphics then -- RUNNING ON A THREAD!
-  channel = love.thread.getChannel("print")
-  log.outfile = false
-
-  function print(a)
-    channel:push(a)
-  end
-end
-
 for i, x in ipairs(modes) do
   local nameupper = x.name:upper()
   log[x.name] = function(fmt, ...)

@@ -1,0 +1,5 @@
+Things to do (in order of importance):
+- fix cascaded shadow maps
+- finish input abstraction
+- finish configuration file abstraction
+- create flatpak binary
