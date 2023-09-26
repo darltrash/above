@@ -175,17 +175,16 @@ local function resize(w, h, scale)
 
 	canvas_color_a = canvas {
 		format = "rg11b10f",
-		mipmaps = "auto",
+		mipmaps = "manual",
 		filter = "nearest"
 	}
 	canvas_normals_a = canvas {
 		format = "rgb10a2",
-		mipmaps = "auto",
+		mipmaps = "manual",
 		filter = "linear"
 	}
 	canvas_depth_a   = canvas {
 		format = "depth24",
-		mipmaps = "manual",
 		readable = true,
 		filter = "linear"
 	}
@@ -194,17 +193,16 @@ local function resize(w, h, scale)
 
 	canvas_color_b = canvas {
 		format = "rg11b10f",
-		mipmaps = "auto",
+		mipmaps = "manual",
 		filter = "nearest"
 	}
 	canvas_normals_b = canvas {
 		format = "rgb10a2",
-		mipmaps = "auto",
+		mipmaps = "manual",
 		filter = "linear"
 	}
 	canvas_depth_b = canvas {
 		format = "depth24",
-		mipmaps = "manual",
 		readable = true,
 		filter = "linear"
 	}
@@ -294,9 +292,17 @@ local function render_to(target)
 	target.canvas_depth  = target.canvas_depth_a
 	target.canvas_normal = target.canvas_normals_a
 
+	local function set_canvas()
+		lg.setCanvas {
+			target.canvas_color and { target.canvas_color, face = target.face },
+			target.canvas_normal and { target.canvas_normal },
+			depthstencil = target.canvas_depth and { target.canvas_depth }
+		}
+	end
+
 	local function grab()
 		-- Does not have a swappable canvas, ignore.
-		if not target.canvas_color_b then
+		if not target.canvas_depth_b then
 			return
 		end
 
@@ -316,19 +322,22 @@ local function render_to(target)
 			target.canvas_normal = switch
 				and target.canvas_normals_b or target.canvas_normals_a
 
-			lg.setCanvas {
-				target.canvas_color and { target.canvas_color, face = target.face },
-				target.canvas_normal and { target.canvas_normal },
-				depthstencil = { target.canvas_depth }
-			}
+			set_canvas()
 
 			lg.clear(true, true, true)
 			lg.setColor(COLOR_WHITE)
 			lg.setDepthMode("always", true)
 
 			lg.setShader(assets.shd_copy)
-			assets.shd_copy:send("color", uniforms.back_color)
-			assets.shd_copy:send("normal", uniforms.back_normal)
+			if uniforms.back_color then
+				uniforms.back_color:generateMipmaps()
+				assets.shd_copy:send("color", uniforms.back_color)
+			end
+
+			if uniforms.back_normal then
+				uniforms.back_normal:generateMipmaps()
+				assets.shd_copy:send("normal", uniforms.back_normal)
+			end
 
 			lg.draw(uniforms.back_depth)
 		lg.pop()
@@ -385,11 +394,7 @@ local function render_to(target)
 
 	-- Push the state, so now any changes will only happen locally
 	lg.push("all")
-	lg.setCanvas {
-		target.canvas_color and { target.canvas_color, face = target.face },
-		target.canvas_normal and { target.canvas_normal },
-		depthstencil = { target.canvas_depth }
-	}
+	set_canvas()
 	if target.clear ~= false then
 		lg.clear(target.clear or true, true, true, true, true, true, true)
 	end
@@ -465,11 +470,7 @@ local function render_to(target)
 		end
 
 		-- Set the fricken canvas
-		lg.setCanvas {
-			target.canvas_color and { target.canvas_color, face = target.face },
-			target.canvas_normal and { target.canvas_normal },
-			depthstencil = { target.canvas_depth }
-		}
+		set_canvas()
 		lg.setDepthMode(call.depth or "less", true)
 		lg.setMeshCullMode(target.culling or call.culling or "back")
 
@@ -549,7 +550,6 @@ local function generate_cubemap()
 
 	local target = {
 		canvas_color_a = uniforms.cubemap or lg.newCanvas(cuberes, cuberes, format),
-		canvas_depth_a = canvas_depth_c,
 		no_sky = true,
 		no_cleanup = true,
 
@@ -565,7 +565,6 @@ local function generate_cubemap()
 
 	local call = render {
 		mesh = assets.mod_sphere.mesh,
-		model = mat4.from_transform(0, 0, 1),
 		material = "sky",
 		depth = "always"
 	}

@@ -532,7 +532,8 @@ function love.update(dt)
 		local true_sun = (position+off):normalize()
 		renderer.uniforms.sun_direction = true_sun
 		renderer.uniforms.sun = (position+off):normalize()
-		state.render_target.sun = position:normalize()
+		local is_day = (state.daytime > 0 and state.daytime < 0.5) 
+		state.render_target.sun = is_day and position:normalize() or false
 		state.shadow_view_matrix = mat4.look_at(state.target+true_sun*17, state.target+off, { y = 1 })
 
 		renderer.generate_ambient()
