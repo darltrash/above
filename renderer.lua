@@ -390,7 +390,9 @@ local function render_to(target)
 		target.canvas_normal and { target.canvas_normal },
 		depthstencil = { target.canvas_depth }
 	}
-	lg.clear(target.clear or true, true, true, true, true, true, true)
+	if target.clear ~= false then
+		lg.clear(target.clear or true, true, true, true, true, true, true)
+	end
 
 	lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
 
@@ -552,6 +554,7 @@ local function generate_cubemap()
 		no_cleanup = true,
 
 		projection = mat4.from_perspective(-90, -1, 0.01, 300),
+		clear = false
 	}
 
 	local directions = {
@@ -563,8 +566,8 @@ local function generate_cubemap()
 	local call = render {
 		mesh = assets.mod_sphere.mesh,
 		model = mat4.from_transform(0, 0, 1),
-		order = math.huge,
-		material = "sky"
+		material = "sky",
+		depth = "always"
 	}
 
 	call.texture:setFilter("linear", "linear")
