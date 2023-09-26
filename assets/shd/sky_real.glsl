@@ -7,9 +7,8 @@ varying vec3 vw_position;
     uniform mat4 inverse_view_proj;
 
     vec4 position(mat4 mvp, vec4 vertex) { 
-        vec4 o = vec4(vertex.xy*vec2(-1.0, 1.0), 2.0 * step(0.5, vertex.z) - 1.0, 1.0);
+        vec4 o = vec4(vertex.xy * vec2(-1.0, 1.0), 2.0 * step(0.5, vertex.z) - 1.0, 1.0);
         vw_position = mat3(inverse_view_proj) * vec3(vertex.x, vertex.y, o.z);
-
         return o;
     }
 #endif
@@ -120,7 +119,7 @@ varying vec3 vw_position;
         vec3 Fex = exp(-(betaR * sR + betaM * sM));
 
         // in scattering
-        float cosTheta = dot(normalize(vw_position.xyz - cameraPos), sunDirection);
+        float cosTheta = dot(normalize(vw_position.xyz), sunDirection);
 
         float rPhase = rayleighPhase(cosTheta*0.5+0.5);
         vec3 betaRTheta = betaR * rPhase;
@@ -134,7 +133,7 @@ varying vec3 vw_position;
         Lin *= mix(vec3(1.0),pow(sunE * ((betaRTheta + betaMTheta) / (betaR + betaM)) * Fex,vec3(1.0/2.0)),clamp(pow(1.0-sun_dot_up,5.0),0.0,1.0));
 
         // night sky
-        vec3 direction = normalize(vw_position.xyz - cameraPos);
+        vec3 direction = normalize(vw_position.xyz);
         float theta = acos(direction.y); // elevation --> y-axis, [-pi/2, pi/2]
         float phi = atan(direction.z/direction.x); // azimuth --> x-axis [-pi/2, pi/2]
         vec3 L0 = vec3(0.1) * Fex;
@@ -154,6 +153,6 @@ varying vec3 vw_position;
         retColor = mix(retColor * 0.75, retColor, clamp(dot(direction, up) * 0.5 + 0.5, 0.0, 1.0));
         retColor *= retColor;
 
-        return vec4(pow(retColor * 0.75, vec3(2.2)) * 6.0, 1.0);
+        return vec4(retColor, 1.0) * 8.0;
     }
 #endif

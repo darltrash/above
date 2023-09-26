@@ -17,6 +17,6 @@
 
         o.rgb *= exp2(exposure);
         
-        return normalize(o) * smoothstep(1.0, 2.0, luma(o.rgb)) * 10.0;
+        return normalize(o) * smoothstep(1.0, 2.0, luma(o.rgb)) * 30.0;
     }
 #endif

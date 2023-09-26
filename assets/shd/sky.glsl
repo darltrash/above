@@ -1,4 +1,5 @@
 #pragma language glsl3
+
 uniform mat4 model;
 uniform mat4 view;
 uniform mat4 projection;
@@ -80,23 +81,12 @@ varying vec4 lc_position;
         vec3 a = Texel(MainTex, vec2(t, 0.75)).rgb;
         vec3 b = Texel(MainTex, vec2(t, 0.25)).rgb;
 
-        vec3 o = a;
-
-        float m = sqr((lc_position.y + 0.1)*3.0);
-        
-        if (dither4x4(love_PixelCoord.xy, max(0.0, m)) > 0.5)
-            o = b;
-
-        vec2 u = (lc_position.xy + 1.0) * vec2(2.0, 3.0) * 1.5;
-        u.x += t * 3.0;
-        u.y += t * 4.0;
-        float stars = Texel(stars, u).a;
-        stars *= max(0.0, sin(3.1415926535898 * (0.5 + t) * 2));
-        o += stars * stars * 0.5;
+        float m = (lc_position.y + 0.1) * 3.0;
+        vec3 o = mix(a, b, clamp(m, 0.0, 1.0));
 
         if (lc_position.y < 0.0)
-            o = b;
+            o = b*0.5;
 
-        love_Canvases[0] = vec4(o * 160.0, 1.0);
+        love_Canvases[0] = vec4(o * 130.0, 1.0);
     }
 #endif

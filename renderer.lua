@@ -16,7 +16,8 @@ local canvas_flat
 
 local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
-local canvas_temp_a, canvas_temp_b, canvas_temp_s
+local canvas_temp_a,  canvas_temp_b,    canvas_temp_s
+local canvas_reflection
 local canvas_normals_c, canvas_depth_c
 local canvas_light_pass = {}
 local canvas_depth_s
@@ -191,18 +192,27 @@ local function resize(w, h, scale)
 
 	-- ////////////// B CANVAS /////////////
 
-	canvas_color_b   = canvas {
+	canvas_color_b = canvas {
 		format = "rg11b10f",
 		mipmaps = "auto",
 		filter = "nearest"
 	}
-	canvas_normals_b    = canvas {
+	canvas_normals_b = canvas {
 		format = "rgb10a2",
 		mipmaps = "auto",
 		filter = "linear"
 	}
-	canvas_depth_b      = canvas {
+	canvas_depth_b = canvas {
 		format = "depth24",
+		mipmaps = "manual",
+		readable = true,
+		filter = "linear"
+	}
+	
+	-- ////////////// REFLECTION ///////////
+
+	canvas_reflection = canvas {
+		format = "rg11b10f",
 		mipmaps = "manual",
 		readable = true,
 		filter = "linear"
@@ -247,8 +257,7 @@ uniforms.shadow_maps = { unpack = true }
 for i=1, 4 do
 	uniforms.shadow_maps[i] = lg.newCanvas(
 		shadow_maps_res, shadow_maps_res, {
-		format = "r16f",
-		msaa = shadow_msaa
+		format = "r16f"
 	})
 
 	uniforms.shadow_maps[i]:setFilter("linear", "linear")
@@ -266,7 +275,6 @@ canvas_depth_s = lg.newCanvas(shadow_maps_res, shadow_maps_res, {
 	format = "depth24",
 	msaa = shadow_msaa
 })
-
 
 canvas_normals_c = lg.newCanvas(cuberes, cuberes, {
 	format = "rgb10a2",
@@ -334,7 +342,7 @@ local function render_to(target)
 	local eye = vector.from_table(uniforms.view:multiply_vec4({ 0, 0, 0, 1 }))
 	uniforms.eye = eye
 
-	uniforms.projection = target.projection or mat4.from_perspective(-45, -width / height, 0.01, 300)
+	uniforms.projection = target.projection or mat4.from_perspective(45, width / height, 0.01, 300)
 	uniforms.inverse_proj = uniforms.projection:inverse()
 
 	uniforms.inverse_view = target.view:inverse()
@@ -344,7 +352,6 @@ local function render_to(target)
 
 	local lights = 0
 	if not target.no_lights then -- Lighting code
-		uniforms.ambient = fam.hex("#30298f", 20)
 		uniforms.light_positions = { unpack = true }
 		uniforms.light_colors = { unpack = true }
 
@@ -359,7 +366,9 @@ local function render_to(target)
 				lights = lights + 1
 			end
 
-			light_list[i] = nil
+			if not target.no_cleanup then
+				light_list[i] = nil
+			end
 		end
 
 		uniforms.light_amount = lights
@@ -372,6 +381,8 @@ local function render_to(target)
 		uniforms.light_colors = nil
 	end
 
+	uniforms.trim = target.reflection_pass or false
+
 	-- Push the state, so now any changes will only happen locally
 	lg.push("all")
 	lg.setCanvas {
@@ -379,19 +390,36 @@ local function render_to(target)
 		target.canvas_normal and { target.canvas_normal },
 		depthstencil = { target.canvas_depth }
 	}
-	lg.clear(target.clear or true, true, true)
+	lg.clear(target.clear or true, true, true, true, true, true, true)
 
 	lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
 
 	if not target.no_sky then
-		local call = render {
-			mesh = assets.mod_sphere.mesh,
-			model = mat4.from_transform(eye, 0, 150),
-			depth = "lequal",
-			material = "sky"
-		}
+		if target.cubemap_generator then
+			--lg.push("all")
+			--	lg.setShader(assets.shd_sky_real)
+			--	local m = uniforms.view * uniforms.projection
+			--	assets.shd_sky_real:send("inverse_view_proj", "column", m:inverse():to_columns())
+			--	assets.shd_sky_real:send("sun_params", {target.sun.x, target.sun.y, target.sun.z, -1})
+			--	lg.rectangle("fill", -1, -1, 2, 2)
+			--lg.pop()
 
-		call.texture:setFilter("linear", "linear")
+			local call = render {
+				mesh = assets.mod_sphere.mesh,
+				model = mat4.from_transform(eye, 0, 1),
+				order = math.huge,
+				material = "sky"
+			}
+	
+			call.texture:setFilter("linear", "linear")
+		else
+			render {
+				mesh = assets.mod_sphere.mesh,
+				model = mat4.from_transform(eye*vector(1, 0, 1), 0, 200),
+				shader = assets.shd_cubemap,
+				culling = "none"
+			}
+		end
 	end
 
 	lg.setShader(assets.shk_basic)
@@ -482,8 +510,9 @@ local function render_to(target)
 		if not order_cache[call] then
 			local order = 0
 
-			if call.box then
-				local origin = call.box.min + (call.box.max / 2)
+			local box = call.box
+			if box then
+				local origin = box.min + (box.max / 2)
 
 				order = vector.dist(eye, origin)
 			end
@@ -532,13 +561,16 @@ local function render_to(target)
 end
 
 -- Create cubemap of world
-local function generate_cubemap(eye)
+local function generate_cubemap(sun)
 	local format = { type = "cube", format = "rg11b10f", mipmaps = "auto" }
 
 	local target = {
 		canvas_color_a = uniforms.cubemap or lg.newCanvas(cuberes, cuberes, format),
 		canvas_depth_a = canvas_depth_c,
 		canvas_normals_a = canvas_normals_c,
+
+		sun = sun,
+		cubemap_generator = true,
 
 		projection = mat4.from_perspective(-90, -1, 0.01, 300)
 	}
@@ -565,8 +597,8 @@ local function generate_cubemap(eye)
 	return target
 end
 
-local function generate_ambient()
-	local target = generate_cubemap(vector(0, 0, 0))
+local function generate_ambient(sun)
+	local target = generate_cubemap(sun)
 
 	uniforms.cubemap = target.canvas_color
 	uniforms.cubemap:setFilter("linear", "linear")
@@ -607,7 +639,7 @@ local function draw(target, state)
 
 	local total_calls = 0
 
-	if target.sun then
+	if target.sun then -- Shadow mapping
 		local setup = {
 			split_count = 1,
 			distance = 100,
@@ -627,7 +659,7 @@ local function draw(target, state)
 		for x=1, 1 do
 			local shadow = {
 				view = target.shadow_view,
-				projection = mat4.from_ortho(-25, 25, -25, 25, -2, 512),
+				projection = mat4.from_ortho(-30, 30, -30, 30, -2, 512),
 
 				no_lights = true,
 				no_cleanup = true,
@@ -646,13 +678,52 @@ local function draw(target, state)
 			local vertices, calls, grabs = render_to(shadow)
 			total_calls = total_calls + calls
 
-			blur(shadow.canvas_color, canvas_temp_s, 1/2)
+			blur(shadow.canvas_color, canvas_temp_s, 1)
 			
 			--uniforms.shadow_mats[x] = (shadow.projection * shadow.view):to_columns()
 			uniforms.shadow_proj = shadow.projection
 			uniforms.shadow_view = shadow.view
 		end
 	end
+
+	if target.reflection then
+		-- canvas_reflection
+		local reflection = {
+			view = target.reflection,
+			projection = target.projection,
+			no_cleanup = true,
+			shadow = true,
+
+			canvas_color_a   = canvas_color_a,
+			canvas_depth_a   = canvas_depth_a,
+			canvas_normals_a = canvas_normals_a,
+		
+			canvas_color_b   = canvas_color_b,
+			canvas_depth_b   = canvas_depth_b,
+			canvas_normals_b = canvas_normals_b,
+
+			sun = target.sun,
+
+			reflection_pass = true,
+
+			clear = COLOR_WHITE
+		}
+
+		local vertices, calls, grabs = render_to(reflection)
+
+		lg.push("all")
+			lg.setCanvas(canvas_reflection)
+			lg.clear(0, 0, 0, 0)
+			lg.draw(reflection.canvas_color)
+		lg.pop()
+
+		uniforms.reflection = canvas_reflection
+		uniforms.reflection_matrix = reflection.view
+
+		total_calls = total_calls + calls
+	end
+
+	target.clear = true
 
 	local vertices, calls, grabs, lights = render_to(target)
 	total_calls = total_calls + calls

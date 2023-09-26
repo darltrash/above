@@ -34,7 +34,7 @@
         float l = luma(c);
         c = mix(c, mix(color_a.rgb, color_b.rgb, l), power);
 
-        //c += Texel(light, uv).rgb * 50.0;
+        c += Texel(light, uv).rgb * 0.0001;
 
         c += length(c) * 0.1;
 

@@ -12,6 +12,8 @@ local utf8 = require "utf8"
 local lang = require "language"
 lang.by_locale()
 
+--jit.opt.start("-dce", 3)
+
 local goodbye = fam.choice(lang.UI_GOODBYE)
 
 -- SOME SETTINGS (sadly it uses env vars)
@@ -153,11 +155,11 @@ local function render_level()
 
 	renderer.render {
 		mesh = assets.mod_water,
-		color = fam.hex("#a46cff"),
 		model = mat4.from_transform(0, 0, 1),
 		order = math.huge,
 		material = "water",
-		no_shadow = true
+		no_shadow = true,
+		no_reflection = true
 	}
 
 	for _, instance in ipairs(grass_meshes) do
@@ -494,11 +496,10 @@ function love.update(dt)
 	-- Useful for shaders :)
 	renderer.uniforms.time = state.time
 
-	state.daytime = state.daytime + dt * 0.01
+	-- A day (including night) is equal to 5 minutes
+	state.daytime = state.daytime + dt / (5 * 60)
 	state.daytime = state.daytime % 1
 	renderer.uniforms.daytime = state.daytime
-
-	renderer.generate_ambient()
 
 	if true then
 		local eye
@@ -516,19 +517,25 @@ function love.update(dt)
 
 		state.view_matrix = mat4.look_at(eye, state.target + vector(0, 0.5, 0), { y = 1 })
 
+		local f = vector(1, -1, 1)
+		state.render_target.reflection = mat4.look_at(eye * f, state.target + vector(0, 0.5, 0), { y = 1 })
+
 		local d = (state.daytime * 360)
 		local position = vector(
-			math.cos((d / 360)*3.14*2),
-			math.sin((d / 360)*3.14*2),
+			math.cos((d / 360) * math.pi * 2),
+			math.sin((d / 360) * math.pi * 2),
 			-0.5
 		) * 10
 
 
 		local off = vector(0, 0, 5)
-		renderer.uniforms.sun = state.render_target.sun
-		renderer.uniforms.sun_direction = (position+off):normalize()
-		state.render_target.sun = (position+off):normalize()
-		state.shadow_view_matrix = mat4.look_at(state.target+state.render_target.sun*17, state.target+off, { y = 1 })
+		local true_sun = (position+off):normalize()
+		renderer.uniforms.sun_direction = true_sun
+		renderer.uniforms.sun = (position+off):normalize()
+		state.render_target.sun = position:normalize()
+		state.shadow_view_matrix = mat4.look_at(state.target+true_sun*17, state.target+off, { y = 1 })
+
+		renderer.generate_ambient(position:normalize())
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)
@@ -626,32 +633,6 @@ function love.update(dt)
 	end
 end
 
-local function print(font, text, x, y, scale, length)
-	lg.push("all")
-		lg.setShader(assets.shd_sdf_font)
-		assets.shd_sdf_font:send("thicc", 0.4)
-
-		lg.scale(scale)
-
-		local tx = x
-		local ty = y + font.characters["A"].height
-		
-		for c in text:gmatch(utf8.charpattern) do
-			if c == "\n" then
-				tx = x
-				ty = ty + font.characters["A"].height - 8
-			elseif c == "\t" then
-				tx = tx + font.characters["A"].width * 4
-			else
-				local n = love.math.noise(tx/10, ty/10)
-				local t = font.characters[c]
-				love.graphics.draw(font.image, t.quad, tx-t.originX, ty-t.originY, n/16)
-				tx = tx + t.advance
-			end
-		end
-	lg.pop()
-end
-
 log.info("Resolution is [%ix%i]", lg.getDimensions())
 
 function love.draw()
@@ -685,21 +666,29 @@ function love.draw()
 		target.canvas_color:setFilter("nearest")
 		lg.setShader(assets.shd_post)
 		lg.scale(state.scale)
-		--assets.shd_post:send("light", target.canvas_light_pass)
-		--assets.shd_post:send("resolution", { target.canvas_light_pass:getDimensions() })
+		assets.shd_post:send("light", target.canvas_light_pass)
 		assets.shd_post:send("exposure", target.exposure)
 		lg.draw(target.canvas_color)
+
+		if settings.debug then
+			local stats = lg.getStats()
+			state:debug("")
+			state:debug("--- LOVE.GRAPHICS ---")
+			state:debug("CALLS: %i", stats.drawcalls)
+			state:debug("IMGS:  %i", stats.images)
+			--state:debug("IMGS:  %i", stats.texturememory)
+		end
+
+		ui:draw(w / state.scale, h / state.scale, state)
 
 		lg.setShader()
 		lg.setBlendMode("alpha")
 		lg.setFont(assets.fnt_main)
 		for i, v in ipairs(state.debug_lines) do
-			lg.print(v, 4, 8 * (i - 1))
+			lg.print(v, 4, 16 * (i - 1), 0, 2)
 
 			state.debug_lines[i] = nil
 		end
-
-		ui:draw(w / state.scale, h / state.scale, state)
 
 		lg.scale(1/state.scale)
 		lg.scale(state.scale+1)
@@ -713,11 +702,6 @@ function love.draw()
 	end
 
 	r()
-
---	local fnt = assets.fnt_atkinson
---	--lg.setShader(assets.shd_sdf_font)
---	--lg.draw(fnt.image)
---	print(fnt, "Meadows*\nFor me and for you!\n\tSuér sexo", 10, 10, 1/2)
 end
 
 -- i love you,

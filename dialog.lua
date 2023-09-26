@@ -159,54 +159,72 @@ local function printw(text, x, y, w, h, color, highlight, center)
     end
 end
 
-dialog.draw = function(self)
-    lg.push("all")
-        lg.translate(0, (a * a) * (H / 2))
+--local batch = lg.newSpriteBatch(fn)
+local function draw_text(font, text, x, y, scale, length)
+	lg.push("all")
+		lg.setShader(assets.shd_sdf_font)
+		assets.shd_sdf_font:send("thicc", 0.4)
+        local sw = false
+        local kh = false
 
-        local y = H * 0.7
-        local m = 4
-        local mm = 4
-        
-        local n = (1.1-a) ^ 2
+		lg.scale(scale)
 
-        local DARK = fam.hex("#0d0025", n)
-        lg.setColor(DARK)
-        lg.rectangle("fill", 1+m, y+m, (W-2)-(m*2), (H-y)-1-(m*2), 5)
-
-        local tx = 8+m+mm
-        local ty = y+m+mm+5
-
-        local LIGHT = fam.hex("#dadada", n)
-        local HIGHLIGHT = fam.hex("#bc81ff", n)
-        lg.setColor(LIGHT)
-
-        printw(
-            sub(self.text, 1, self.length), tx, ty,
-            (W-2)-(m*4)-(mm*3), (H-y)-(m*4)-(mm*2),
-            LIGHT, HIGHLIGHT, self.center
-        )
-
-        lg.setColor(fam.hex("#0d0025", dialog.options_lerp))
-        lg.rectangle("fill", W-100-m, y+m, 100, (H-y)-1-(m*2), 5)
-
-        lg.setColor(fam.hex("#2f1b55", dialog.options_lerp))
-        lg.rectangle("fill", W-100-m, y+m+(dialog.selected_lerp*12)+2, 100, 12)
-
-        lg.setColor(fam.hex("#dadada", dialog.options_lerp))
-        for i, v in ipairs(dialog.options) do
-            lg.print(v, (W-100-m)+8, y+m+(i*12))
-        end
-
-        lg.setColor(LIGHT)
-
-        if ready and (math.floor((lt.getTime() * 2)%2)==0) then
-            -- i'm using a circle as a triangle (ho)
-            if dialog.use_options then
-                lg.circle("fill", W-100-m, y+m+(dialog.selected_lerp*12)+8, 4, 3)
-
+		local tx = (x/scale)
+		local ty = (y/scale) + font.characters["A"].height
+		
+		for c in text:gmatch(utf8.charpattern) do
+			if c == "\n" then
+				tx = x / scale
+				ty = ty + font.characters["A"].height
+			elseif c == "\t" then
+				tx = tx + font.characters["A"].width * 4
+            elseif c == "*" then
+                sw = not sw
+                assets.shd_sdf_font:send("thicc", sw and 0.8 or 0.35)
+            elseif c == "~" then
+                kh = not kh
             else
-                lg.circle("fill", W-m-mm-10, y+((H-y)-1-2-(mm*3))-2, 4, 3)
-            end
+                local nx = lt.getTime()*0.2
+                local ny = (lt.getTime()+0.3)*0.3
+				local n = love.math.noise((tx/10)+nx, (ty/10)+ny)
+				local t = font.characters[c]
+                local r = math.sin((ny*4)+(tx*0.5))*(kh and 4 or 0)
+				lg.draw(font.image, t.quad, tx-t.originX, ty-t.originY+r, (n-0.5)/14)
+				tx = tx + t.advance
+			end
+		end
+	lg.pop()
+end
+
+dialog.draw = function(self)
+    k = fam.lerp(k, self.busy and 1 or 0, lt.getDelta()*10)
+    if true then return end
+    lg.push("all")
+        if k < 0.999 then
+            lg.setShader(assets.shd_bwapbwap)
+            assets.shd_bwapbwap:send("time", lt.getTime())
+            lg.setColor(fam.hex"473b78")
+
+            lg.rectangle("fill", -90, 20+(k*70), 180, 70-(k*70), 9, 9, 3)
+
+            lg.stencil(function ()
+                lg.rectangle("fill", -90, 20+(k*70), 180, 70-(k*70), 9, 9, 3)
+            end)
+            lg.setStencilTest("greater", 0)
+
+            local message = "\nThis is but a test of my *nifty powers!*\nMy *SDF TEXT RENDERER* in action!\n\nI'm ~*POWERFUL NOW*~"
+
+            lg.setColor(1, 1, 1, 1)
+            lg.polygon("fill", {
+                80-4, 80-4,
+                80+4, 80-4,
+                80+0, 80+4
+            })
+
+            lg.setColor(1, 1, 1, 1)
+            draw_text(assets.fnt_atkinson, message, -80, 25, 1/7)
+        else
+            self.busy = false
         end
     lg.pop()
 end

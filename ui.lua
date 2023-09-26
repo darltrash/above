@@ -89,72 +89,13 @@ end
 
 ui.draw = function(self, w, h, state)
     lg.push("all")
-    lg.reset()
-    lg.setShader(assets.shd_2d)
-    lg.setBlendMode("replace")
-    lg.setFont(assets.fnt_main)
-    lg.setLineStyle("rough")
+        local s = math.max(1, math.min(w, h)/200)
+        lg.scale(s)
+        lg.translate(w/s/2, h/s/2)
+        --lg.rectangle("fill", 10, 10, 30, 30)
 
-    lg.setCanvas(canvas)
-    lg.clear(0, 0, 0, alpha * 0.6)
-
-    dialog:draw()
-
-    do -- Do daytime animation
-        lg.push()
-            lg.translate(150, 30)
-            local x = -math.cos(state.daytime * math.pi * 2)
-            local y = -math.sin(state.daytime * math.pi * 2)
-
-            lg.setColor(fam.hex "#4e0097")
-            lg.setLineWidth(6)
-            lg.ellipse("line", 0, 0, 20, 10)
-            lg.circle("fill", x*20, y*10, 7, 5)
-
-            lg.setColor(fam.hex "#ffffff")
-            lg.setLineWidth(1)
-            lg.ellipse("line", 0, 0, 20, 10)
-            lg.circle("fill", x*20, y*10, 4, 5)
-        lg.pop()
-    end
-
-    --lg.setColor(1, 1, 1, 1/4)
-    --lg.rectangle("line", 1, 1, 299, 299)
-
-    if not ui.done then
-        lg.setShader(assets.shd_2d_magic)
-        lg.setColor(0, 0, 0, alpha)
-        assets.shd_2d_magic:send("perlin", assets.tex_perlin)
-        assets.shd_2d_magic:send("time", lt.getTime())
-        lg.rectangle("fill", 0, 0, 300, 300)
-        lg.setShader(assets.shd_2d)
-
-        lg.translate(math.floor(-real_x * 300), math.floor(-real_y * 300))
-
-        lg.setColor(fam.hex "#4e0097")
-        lg.rectangle("fill", 150 - 30, 150 - 30, 60, 60)
-
-        local r = math.sin(lt.getTime() * 1.3) * 0.1
-        lg.setColor(fam.hex "#ffffff")
-        print_center("meadows", 150, 147 + (r * 3), assets.fnt_title, r, 0.5)
-        print_center(language.UI_PRESS_ANY_KEY, 150, 240)
-
-        -- SAVES
-        print_center(language.UI_SAVE_SELECT, 150, 360)
-
-        for i = 0, 2 do
-            local a = (i == selection) and sel_alpha or (1 / 6)
-            lg.setColor(fam.hex("#4e0097", a))
-            box(language.UI_SAVE_NEW_FILE, 40 - (a * 2), 390 + (45 * i) - (a * 2), 220 + (a * 4), 40 + (a * 4))
-        end
-    end
+        dialog:draw()
     lg.pop()
-
-    local scale = math.floor(math.min(w, h) / 300)
-    local x = w / 2
---    if state.
-
-    lg.draw(canvas, x, h / 2, 0, scale, scale, 150, 150)
 end
 
 return ui

@@ -19,7 +19,7 @@
 
         float k = 1.0-mix(0.6, 1.0, thicc);
         float b = linearstep(k, k+0.1, a);
-        color.a *= b*b; 
+        color.a *= b; 
         
         return color;
     }

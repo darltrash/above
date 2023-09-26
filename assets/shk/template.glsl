@@ -15,11 +15,13 @@ varying vec4 cl_position;
 varying vec4 vw_position;
 varying vec3 vw_normal;
 varying vec4 vx_color;
+varying vec4 vx_position;
 
 varying vec4 wl_position;
 varying vec3 wl_normal;
 
 uniform float time;
+uniform bool trim = true;
 
 #define PI 3.1415926535898
 #define sqr(a) ((a)*(a))
@@ -37,6 +39,7 @@ uniform float time;
     vec4 color;
     vec3 albedo;
     vec3 normal;
+    vec3 incoming;
     vec2 uv;
     float alpha;
     vec3 back_position;
@@ -45,7 +48,7 @@ uniform float time;
 #define tex MainTex
 #line 1
     <template>
-#line 44
+#line 49
 
 // HERE IT ENDS
 
@@ -70,6 +73,8 @@ uniform float time;
     vec4 position( mat4 _, vec4 vertex_position ) {
         vw_normal = cofactor(view * model) * VertexNormal;
         wl_normal = cofactor(model) * VertexNormal;
+
+        vx_position = vertex_position;
 
 #ifdef vertexed
     wl_position = vertex(model * vertex_position);
@@ -216,12 +221,15 @@ uniform float time;
 
     // Actual math
     void effect() {
+        if (trim && wl_position.y < 0.0) discard;
+
         // Lighting! (Diffuse)
         normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 s = textureLod(cubemap, normalize(wl_normal), 7).rgb;
-        vec3 ambient = s * s * 0.004; // vec4(sh(harmonics, normal), 1.0)
+        vec3 s = textureLod(cubemap, normalize(wl_normal), 4).rgb;
+        vec3 ambient = s * s * 0.007; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 i = normalize(-vw_position.xyz);
+        incoming = i;
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
@@ -235,10 +243,8 @@ uniform float time;
         albedo = vec3(1.0);
         alpha = 1.0;
 
-#ifdef grab
         float s_depth = Texel(back_depth, back_uv.xy).r;
         back_position = calculate_view_position(back_uv.xy, s_depth);
-#endif
 
         pixel();
 
@@ -248,7 +254,7 @@ uniform float time;
         float ldh = max(0.25, dot(normal, i));
         float fresnel = schlick_ior_fresnel(ior, ldh);
         vec3 kn = normalize(eye-wl_position.xyz);
-        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*7.0).rgb * fresnel * 0.05;
+        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*8.0).rgb * fresnel * 0.05;
         vec3 diffuse = ambient;
 
         // Rim light at night!
@@ -275,7 +281,10 @@ uniform float time;
         }
    
         {
-            vec3 sun_color = Texel(sun_gradient, vec2(daytime, 0.5)).rgb;
+            //float daily = max(pow(sin(daytime*2*PI), 0.2), 0);
+            //vec3 sun_color = textureLod(cubemap, sun_direction, 10).rgb * 0.02 * daily;
+
+            vec3 sun_color = texture(sun_gradient, vec2(daytime, 1.0)).rgb;
 
             vec4 p = shadow_proj * shadow_view * wl_position;
             p = p * 0.5 + 0.5;

@@ -95,6 +95,10 @@ local controllers = {
 
         local velocity = vector(0, 0, 0)
 
+        if state.settings.fps_camera then
+            entity.tint[4] = 0
+        end
+
         if (not entity.interacting_with) and require("ui").done then
             velocity = vector(dir.x, 0, dir.y) * 5
 
@@ -358,7 +362,7 @@ local function render(entities, state, delta, alpha)
                     entity.scale.x = fam.decay(entity.scale.x, entity.flip_x, 3, delta)
                 end
 
-                if entity.sprite then
+                if entity.sprite and false then
                     call.culling = "none"
                     call.translucent = 0.5
 
