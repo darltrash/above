@@ -13,14 +13,17 @@
 	}
 
     uniform float thicc = 1.0;
+    uniform vec4 outline = vec4(0.0);
 
     vec4 effect(vec4 color, Image tex, vec2 uv, vec2 screen_coords) {
         float a = Texel(tex, uv).r;
 
+        vec4 o = vec4(0.0);
+
         float k = 1.0-mix(0.6, 1.0, thicc);
         float b = linearstep(k, k+0.1, a);
-        color.a *= b; 
-        
-        return color;
+        o += color * b; 
+
+        return o;
     }
 #endif

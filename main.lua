@@ -535,7 +535,7 @@ function love.update(dt)
 		state.render_target.sun = position:normalize()
 		state.shadow_view_matrix = mat4.look_at(state.target+true_sun*17, state.target+off, { y = 1 })
 
-		renderer.generate_ambient(position:normalize())
+		renderer.generate_ambient()
 
 		if settings.fps_camera then
 			local pos = state.target + vector(0, 1, 0)
@@ -547,6 +547,7 @@ function love.update(dt)
 			)
 
 			state.view_matrix = mat4.look_at(pos, pos + rot, { y = 1 })
+			state.render_target.reflection = mat4.look_at(pos * f, pos + rot, { y = 1 })
 		end
 
 		renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
@@ -635,6 +636,28 @@ end
 
 log.info("Resolution is [%ix%i]", lg.getDimensions())
 
+local function draw_text(font, text, x, y, scale)
+	lg.push("all")
+		lg.setShader(assets.shd_sdf_font)
+		assets.shd_sdf_font:send("thicc", 0.8)
+
+		lg.scale(scale)
+
+		local tx = (x/scale)
+		local ty = (y/scale) + font.characters["A"].height
+
+		for c in text:gmatch(utf8.charpattern) do
+			local nx = lt.getTime()*0.2
+			local ny = (lt.getTime()+0.3)*0.3
+			local n = love.math.noise((tx/10)+nx, (ty/10)+ny)
+			local t = font.characters[c] or font.characters["?"]
+		
+			lg.draw(font.image, t.quad, tx-t.originX, ty-t.originY, (n-0.5)/14)
+			tx = tx + t.advance
+		end
+	lg.pop()
+end
+
 function love.draw()
 	-- If the canvas hasnt been created yet
 	local w, h = lg.getDimensions()
@@ -692,12 +715,13 @@ function love.draw()
 
 		lg.scale(1/state.scale)
 		lg.scale(state.scale+1)
-		lg.setColor(0, 0, 0, state.escape * state.escape)
-		lg.rectangle("line", (w / (state.scale * 2)) - 73, 2, w, 12)
-		lg.setColor(0, 0, 0, 1)
-		lg.rectangle("fill", (w / (state.scale * 2)) - 73, 2, w, 12 * (state.escape * state.escape))
+		local k = fam.hex"#18002e"
+		lg.setColor(k[1], k[2], k[3], state.escape * state.escape)
+		lg.rectangle("line", (w / (state.scale * 2)) - 120, 2, w, 20)
+		lg.setColor(k[1], k[2], k[3], 1)
+		lg.rectangle("fill", (w / (state.scale * 2)) - 120, 2, w, 20 * (state.escape * state.escape))
 		lg.setColor(1, 1, 1, state.escape * state.escape)
-		lg.print(goodbye, (w / (state.scale * 2)) - 70)
+		draw_text(assets.fnt_atkinson, goodbye, (w / (state.scale * 2)) - 115, 4, 1/4)
 		lg.pop()
 	end
 

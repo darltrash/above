@@ -22,7 +22,7 @@ local canvas_normals_c, canvas_depth_c
 local canvas_light_pass = {}
 local canvas_depth_s
 
-local cuberes = 256
+local cuberes = 64
 
 -- CONSTANTS
 local COLOR_WHITE = { 1, 1, 1, 1 }
@@ -395,31 +395,12 @@ local function render_to(target)
 	lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
 
 	if not target.no_sky then
-		if target.cubemap_generator then
-			--lg.push("all")
-			--	lg.setShader(assets.shd_sky_real)
-			--	local m = uniforms.view * uniforms.projection
-			--	assets.shd_sky_real:send("inverse_view_proj", "column", m:inverse():to_columns())
-			--	assets.shd_sky_real:send("sun_params", {target.sun.x, target.sun.y, target.sun.z, -1})
-			--	lg.rectangle("fill", -1, -1, 2, 2)
-			--lg.pop()
-
-			local call = render {
-				mesh = assets.mod_sphere.mesh,
-				model = mat4.from_transform(eye, 0, 1),
-				order = math.huge,
-				material = "sky"
-			}
-	
-			call.texture:setFilter("linear", "linear")
-		else
-			render {
-				mesh = assets.mod_sphere.mesh,
-				model = mat4.from_transform(eye*vector(1, 0, 1), 0, 200),
-				shader = assets.shd_cubemap,
-				culling = "none"
-			}
-		end
+		render {
+			mesh = assets.mod_sphere.mesh,
+			model = mat4.from_transform(eye*vector(1, 0, 1), 0, 200),
+			shader = assets.shd_cubemap,
+			culling = "front"
+		}
 	end
 
 	lg.setShader(assets.shk_basic)
@@ -561,18 +542,16 @@ local function render_to(target)
 end
 
 -- Create cubemap of world
-local function generate_cubemap(sun)
-	local format = { type = "cube", format = "rg11b10f", mipmaps = "auto" }
+local function generate_cubemap()
+	local format = { type = "cube", format = "rg11b10f" }
 
 	local target = {
 		canvas_color_a = uniforms.cubemap or lg.newCanvas(cuberes, cuberes, format),
 		canvas_depth_a = canvas_depth_c,
-		canvas_normals_a = canvas_normals_c,
+		no_sky = true,
+		no_cleanup = true,
 
-		sun = sun,
-		cubemap_generator = true,
-
-		projection = mat4.from_perspective(-90, -1, 0.01, 300)
+		projection = mat4.from_perspective(-90, -1, 0.01, 300),
 	}
 
 	local directions = {
@@ -580,6 +559,15 @@ local function generate_cubemap(sun)
 		vector(0, 1, 0), vector(0, -1, 0), -- bottom vs top
 		vector(0, 0, 1), vector(0, 0, -1), -- front vs back
 	}
+
+	local call = render {
+		mesh = assets.mod_sphere.mesh,
+		model = mat4.from_transform(0, 0, 1),
+		order = math.huge,
+		material = "sky"
+	}
+
+	call.texture:setFilter("linear", "linear")
 
 	for index, direction in ipairs(directions) do
 		local up = vector(0, 1, 0)
@@ -594,11 +582,13 @@ local function generate_cubemap(sun)
 		render_to(target)
 	end
 
+	render_list = {}
+
 	return target
 end
 
-local function generate_ambient(sun)
-	local target = generate_cubemap(sun)
+local function generate_ambient()
+	local target = generate_cubemap()
 
 	uniforms.cubemap = target.canvas_color
 	uniforms.cubemap:setFilter("linear", "linear")
@@ -694,15 +684,8 @@ local function draw(target, state)
 			no_cleanup = true,
 			shadow = true,
 
-			canvas_color_a   = canvas_color_a,
+			canvas_color_a   = canvas_reflection,
 			canvas_depth_a   = canvas_depth_a,
-			canvas_normals_a = canvas_normals_a,
-		
-			canvas_color_b   = canvas_color_b,
-			canvas_depth_b   = canvas_depth_b,
-			canvas_normals_b = canvas_normals_b,
-
-			sun = target.sun,
 
 			reflection_pass = true,
 
@@ -711,11 +694,11 @@ local function draw(target, state)
 
 		local vertices, calls, grabs = render_to(reflection)
 
-		lg.push("all")
-			lg.setCanvas(canvas_reflection)
-			lg.clear(0, 0, 0, 0)
-			lg.draw(reflection.canvas_color)
-		lg.pop()
+		--lg.push("all")
+		--	lg.setCanvas(canvas_reflection)
+		--	lg.clear(0, 0, 0, 0)
+		--	lg.draw(reflection.canvas_color)
+		--lg.pop()
 
 		uniforms.reflection = canvas_reflection
 		uniforms.reflection_matrix = reflection.view
@@ -742,43 +725,43 @@ local function draw(target, state)
 	target.exposure = -6.5
 
 	-- Generate light threshold data :)
-	lg.push("all")
-		lg.setCanvas(canvas_light_pass)
-		lg.setShader(assets.shd_light)
-		assets.shd_light:send("exposure", target.exposure)
-		lg.clear(0, 0, 0, 0)
-		target.canvas_color:setFilter("linear", "linear")
-		lg.draw(target.canvas_color, 0, 0, 0, 0.5)
-	lg.pop()
+--	lg.push("all")
+--		lg.setCanvas(canvas_light_pass)
+--		lg.setShader(assets.shd_light)
+--		assets.shd_light:send("exposure", target.exposure)
+--		lg.clear(0, 0, 0, 0)
+--		target.canvas_color:setFilter("linear", "linear")
+--		lg.draw(target.canvas_color, 0, 0, 0, 0.5)
+--	lg.pop()
 
-	lg.push("all") -- Mipmap blur for the bloom effect :)
-		lg.setBlendMode("replace", "premultiplied")
-
-		lg.setCanvas(canvas_temp_a)
-		lg.draw(canvas_light_pass)
-
-		lg.setCanvas(canvas_temp_b)
-		canvas_temp_a:generateMipmaps()
-
-		lg.setShader(assets.shd_blur_mip)
-		for i=1, canvas_temp_a:getMipmapCount() do
-			lg.setCanvas(canvas_temp_b, i)
-			assets.shd_blur_mip:send("direction_mip", {1, 0, i})
-			lg.draw(canvas_temp_a, -1, -1)
-		end
-
-		for i=1, canvas_temp_a:getMipmapCount() do
-			lg.setCanvas(canvas_temp_a, i)
-			assets.shd_blur_mip:send("direction_mip", {0, 1, i})
-			lg.draw(canvas_temp_b, -1, -1)
-		end
-
-		lg.setCanvas(canvas_light_pass)
-		lg.setShader(assets.shd_accum_mip)
-		assets.shd_accum_mip:send("mip_count", canvas_temp_a:getMipmapCount()-1)
-
-		lg.draw(canvas_temp_a)
-	lg.pop()
+--	lg.push("all") -- Mipmap blur for the bloom effect :)
+--		lg.setBlendMode("replace", "premultiplied")
+--
+--		lg.setCanvas(canvas_temp_a)
+--		lg.draw(canvas_light_pass)
+--
+--		lg.setCanvas(canvas_temp_b)
+--		canvas_temp_a:generateMipmaps()
+--
+--		lg.setShader(assets.shd_blur_mip)
+--		for i=1, canvas_temp_a:getMipmapCount() do
+--			lg.setCanvas(canvas_temp_b, i)
+--			assets.shd_blur_mip:send("direction_mip", {1, 0, i})
+--			lg.draw(canvas_temp_a, -1, -1)
+--		end
+--
+--		for i=1, canvas_temp_a:getMipmapCount() do
+--			lg.setCanvas(canvas_temp_a, i)
+--			assets.shd_blur_mip:send("direction_mip", {0, 1, i})
+--			lg.draw(canvas_temp_b, -1, -1)
+--		end
+--
+--		lg.setCanvas(canvas_light_pass)
+--		lg.setShader(assets.shd_accum_mip)
+--		assets.shd_accum_mip:send("mip_count", canvas_temp_a:getMipmapCount()-1)
+--
+--		lg.draw(canvas_temp_a)
+--	lg.pop()
 
 	--blur(canvas_light_pass, canvas_temp_b)
 

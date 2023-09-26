@@ -225,7 +225,7 @@ uniform bool trim = true;
 
         // Lighting! (Diffuse)
         normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 s = textureLod(cubemap, normalize(wl_normal), 4).rgb;
+        vec3 s = textureLod(cubemap, normalize(wl_normal), 0).rgb;
         vec3 ambient = s * s * 0.007; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 i = normalize(-vw_position.xyz);
@@ -254,7 +254,8 @@ uniform bool trim = true;
         float ldh = max(0.25, dot(normal, i));
         float fresnel = schlick_ior_fresnel(ior, ldh);
         vec3 kn = normalize(eye-wl_position.xyz);
-        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*8.0).rgb * fresnel * 0.05;
+        vec3 specular = vec3(0.0);
+        //textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*8.0).rgb * fresnel * 0.05;
         vec3 diffuse = ambient;
 
         // Rim light at night!
@@ -297,7 +298,7 @@ uniform bool trim = true;
             diffuse  += shadow * sun_color * d * 70.0;
             specular += shadow * sun_color * s * 0.2;
 
-            vec3 vsk = (view * vec4(sun_direction * vec3(1.0, -1.0, 1.0), 0.0)).xyz;
+            vec3 vsk = (view * vec4(sun_direction * vec3(-1.0, -1.0, 1.0), 0.0)).xyz;
             float dk = gsf(normal, vsk, i);
             float sk = ggx(normal, i, normalize(vsk - vw_position.xyz), ior);
 

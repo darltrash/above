@@ -171,6 +171,8 @@ local function draw_text(font, text, x, y, scale, length)
 
 		local tx = (x/scale)
 		local ty = (y/scale) + font.characters["A"].height
+
+        assets.shd_sdf_font:send("outline", fam.hex"473b78")
 		
 		for c in text:gmatch(utf8.charpattern) do
 			if c == "\n" then
@@ -180,7 +182,7 @@ local function draw_text(font, text, x, y, scale, length)
 				tx = tx + font.characters["A"].width * 4
             elseif c == "*" then
                 sw = not sw
-                assets.shd_sdf_font:send("thicc", sw and 0.8 or 0.35)
+                assets.shd_sdf_font:send("thicc", sw and 0.8 or 0.4)
             elseif c == "~" then
                 kh = not kh
             else
@@ -189,6 +191,8 @@ local function draw_text(font, text, x, y, scale, length)
 				local n = love.math.noise((tx/10)+nx, (ty/10)+ny)
 				local t = font.characters[c]
                 local r = math.sin((ny*4)+(tx*0.5))*(kh and 4 or 0)
+                
+                lg.setColor(1, 1, 1, 1)
 				lg.draw(font.image, t.quad, tx-t.originX, ty-t.originY+r, (n-0.5)/14)
 				tx = tx + t.advance
 			end
@@ -203,8 +207,8 @@ dialog.draw = function(self)
         if k < 0.999 then
             lg.setShader(assets.shd_bwapbwap)
             assets.shd_bwapbwap:send("time", lt.getTime())
-            lg.setColor(fam.hex"473b78")
-
+            
+            lg.setColor(fam.hex"#18002e")
             lg.rectangle("fill", -90, 20+(k*70), 180, 70-(k*70), 9, 9, 3)
 
             lg.stencil(function ()
@@ -221,7 +225,6 @@ dialog.draw = function(self)
                 80+0, 80+4
             })
 
-            lg.setColor(1, 1, 1, 1)
             draw_text(assets.fnt_atkinson, message, -80, 25, 1/7)
         else
             self.busy = false
