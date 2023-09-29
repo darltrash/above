@@ -97,8 +97,9 @@ local state = {
 	render_target = {},
 
 	daytime = 0.1,
+	time_speed = 1,
 
-	hash = fam.hash3.new()
+	hash = fam.hash3.new(0.3)
 }
 
 -- (used to be a) huge inspiration:
@@ -497,7 +498,7 @@ function love.update(dt)
 	renderer.uniforms.time = state.time
 
 	-- A day (including night) is equal to 5 minutes
-	state.daytime = state.daytime + dt / (5 * 60)
+	state.daytime = state.daytime + (state.time_speed * dt) / (5 * 60)
 	state.daytime = state.daytime % 1
 	renderer.uniforms.daytime = state.daytime
 
