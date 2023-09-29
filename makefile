@@ -7,6 +7,23 @@ $(shell mkdir -p .temp)
 GREEN='\033[0;32m'
 NC='\033[0m'
 
+generate-icons:
+	rm -rf assets/img/icons/*
+	flatpak run org.inkscape.Inkscape -w 512  -h 512  assets/img/icon.svg -o assets/img/icons/icon512.png
+	flatpak run org.inkscape.Inkscape -w 256  -h 256  assets/img/icon.svg -o assets/img/icons/icon256.png
+	flatpak run org.inkscape.Inkscape -w 128  -h 128  assets/img/icon.svg -o assets/img/icons/icon128.png
+	flatpak run org.inkscape.Inkscape -w 32   -h 32   assets/img/icon.svg -o assets/img/icons/icon32.png
+	flatpak run org.inkscape.Inkscape -w 16   -h 16   assets/img/icon.svg -o assets/img/icons/icon16.png
+	optipng assets/img/icons/*
+	png2icns assets/img/icons/icon.icns assets/img/icons/*
+
+	convert assets/img/icons/icon128.png -bordercolor white -border 0 \
+      \( -clone 0 -resize 16x16 \) \
+      \( -clone 0 -resize 32x32 \) \
+      \( -clone 0 -resize 48x48 \) \
+      \( -clone 0 -resize 64x64 \) \
+      -delete 0 -alpha off -colors 256 assets/img/icons/icon.ico
+
 # TODO: Make this target produce only run ONCE per makefile execution!
 love: # REQUIRES RSYNC, ZIP
 	rm -rf .temp/*
@@ -43,8 +60,9 @@ appimage: love # REQUIRES RSYNC, WGET, GLIBC, ZIP, APPIMAGETOOL
 	cd ..
 	cat .temp/squashfs-root/bin/love out/above.love > .temp/squashfs-root/bin/above
 	chmod +x .temp/squashfs-root/bin/above
-	rm .temp/squashfs-root/bin/love .temp/squashfs-root/love.desktop
+	rm .temp/squashfs-root/bin/love .temp/squashfs-root/love.desktop .temp/squashfs-root/love.svg
 	cp assets/game.desktop .temp/squashfs-root/love.desktop
+	cp assets/img/icon.svg .temp/squashfs-root/meadows.svg
 	appimagetool .temp/squashfs-root out/above.appimage
 	@echo -e ${GREEN}///// BUILT 64 BIT APPIMAGE${NC}
 

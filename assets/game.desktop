@@ -5,5 +5,5 @@ Exec=above %f
 Type=Application
 Categories=Game;
 Terminal=false
-Icon=love
+Icon=meadows
 NoDisplay=true

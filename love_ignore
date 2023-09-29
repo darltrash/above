@@ -17,6 +17,7 @@ concept/
 flatpak*
 .gitignore
 archive/
+assets/img/
 
 assets/rik/
 assets/mod/rik.exm

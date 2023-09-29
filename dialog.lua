@@ -202,7 +202,7 @@ end
 
 dialog.draw = function(self)
     k = fam.lerp(k, self.busy and 1 or 0, lt.getDelta()*10)
-    if true then return end
+    --if true then return end
     lg.push("all")
         if k < 0.999 then
             lg.setShader(assets.shd_bwapbwap)

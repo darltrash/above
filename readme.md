@@ -1,7 +1,10 @@
-# MEADOWS*
+<br>
 
-# DEMO:
-![banner](./screenshot.png)
+![banner](./assets/img/isotype.png)
+
+<br>
+
+![banner](./assets/img/screenshot.png)
 [Youtube](https://youtu.be/sVQhsT1TEOA)
 
 # How to build:
