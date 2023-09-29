@@ -225,7 +225,7 @@ function state.load_map(what)
 				local n = vector.normalize(vector.cross(v2 - v1, v3 - v1))
 				local floor_dot = n:dot(vector(0, 1, 0))
 
-				if floor_dot > 0.9 then
+				if floor_dot > 0.95 then
 					local grass_mesh = {
 						box = {
 							min = vector(),
@@ -262,8 +262,8 @@ function state.load_map(what)
 						local v2 = process(p + vector(0.2, 0, 0):rotate(r, vector(0, 1, 0)) * (0.2 + c))
 						local v3 = process(p + vector(0, 1, 0) * i)
 
-						local top = color_lerp("#01c265", "#01c265", i)
-						local bot = fam.hex("#01c265", 1)
+						local top = color_lerp("#01c265", "#cfff70", i)
+						local bot = fam.hex("#3ca370", 1)
 
 						table.insert(triangles, { v1.x, v1.y, v1.z, 0, 0, 1, bot[1], bot[2], bot[3], 1 })
 						table.insert(triangles, { v3.x, v3.y, v3.z, 0, 0, 1, top[1], top[2], top[3], 1 })

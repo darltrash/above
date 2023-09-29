@@ -39,14 +39,14 @@ local function mul_vec3_persp(a, b)
 	local z = b.x * a[3] + b.y * a[7] + b.z * a[11] + a[15]
 	local w = b.x * a[4] + b.y * a[8] + b.z * a[12] + a[16]
 	local inv_w = sign(w)/w
-	local a = vec3(x, y, z) * inv_w
-	a.w = w * inv_w
-	
-	return a
+	local g = vec3(x*inv_w, y*inv_w, z*inv_w)
+	g.w = 1
+
+	return g
 end
 
 local function ws_frustum_corners(_proj, _near, _far, _inv_view_mtx)
-	-- h=1.0/tan(rad(fovy) * 0.5), w=1.0/(h*aspect). invert them back.
+	-- h=1.0/tan(rad(fovy) * 0.5), w=1.0/(h*aspect). invert them rgba.xback.
 	local proj_width = 1.0/_proj[1]
 	local proj_height = 1.0/_proj[6]
 
@@ -68,6 +68,8 @@ local function ws_frustum_corners(_proj, _near, _far, _inv_view_mtx)
 	}
 end
 
+local min = vec3(0, 0, 0)
+local max = vec3(0, 0, 0)
 local mtx_crop = mat4 {
 	2, 0, 0, 0,
 	0, 2, 0, 0,
@@ -83,14 +85,14 @@ local function setup_csm(shadow, light_dir, world_from_view, proj)
 	-- local near = (2 * proj[15]) / (2 * proj[11] - 2)
 	-- local far = ((proj[11] - 1) * near) / (proj[11] + 1)
 	-- setup light view mtx.
-	local light_view = mat4.look_at(-light_dir, vec3(0, 0, 0), vec3(0, 0, 1))
+	local light_view = mat4.look_at(light_dir, vec3(0, 0, 0), vec3(1, 0, 0))
 	local split_slices = split_frustum(
 		shadow.split_count,
 		0.01,
 		shadow.distance,
 		shadow.split_distribution
 	)
-	local depth_range = 500
+	local depth_range = 250
 	local mtx_proj = mat4.from_ortho(-1, 1, -1, 1, -1, depth_range)
 	local light_proj = {}
 	local num_corners = 8
@@ -102,7 +104,8 @@ local function setup_csm(shadow, light_dir, world_from_view, proj)
 		-- compute frustum corners for one split in world space.
 		local frustum_corners = ws_frustum_corners(proj, near, far, world_from_view)
 
-		local min, max = vec3.zero, vec3.zero
+		min = vec3(0, 0, 0)
+		max = vec3(0, 0, 0)
 
 		for j=1,num_corners do
 			-- transform to light space.

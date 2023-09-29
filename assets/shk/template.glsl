@@ -6,10 +6,7 @@ uniform mat4 projection;
 uniform mat4 inverse_proj;
 
 uniform mat4 shadow_mats[4];
-uniform mat4 shadow_proj;
-uniform mat4 shadow_view;
-uniform sampler2D shadow_maps[4];
-uniform sampler2D shadow_map;
+uniform sampler2DShadow shadow_maps[4];
 
 varying vec4 cl_position;
 varying vec4 vw_position;
@@ -174,6 +171,48 @@ uniform bool trim = true;
         return variance / (variance + d*d);
     }
 
+
+    float sample_map(int index, vec4 texCoord, float bias) {
+        switch (index) {
+            case  0: return textureProj(shadow_maps[0], texCoord, bias);
+            case  1: return textureProj(shadow_maps[1], texCoord, bias);
+            case  2: return textureProj(shadow_maps[2], texCoord, bias);
+            default: return textureProj(shadow_maps[3], texCoord, bias);
+        }
+    }
+
+    float sample_shadow() {
+        for (int i=0; i<2; ++i) {
+            vec4 ss_position = shadow_mats[i] * wl_position; 
+            ss_position.xyz = ss_position.xyz * 0.5 + 0.5;
+
+            vec2 texCoord = ss_position.xy/ss_position.w;
+
+            bool outside = any(greaterThan(texCoord, vec2(1.0)))
+                        || any(lessThan   (texCoord, vec2(0.0)));
+
+            if (outside)
+                continue;
+
+            int radius = 1;
+            vec2 pixel_size = 1.0 / textureSize(shadow_maps[0], 0);
+            float shadow = 0.0;
+            ss_position.z -= 0.001;
+
+            vec4 s = ss_position;
+
+            for (int y=-radius; y<=radius; ++y)
+                for (int x=-radius; x<=radius; ++x) {
+                    shadow += sample_map(i, vec4(s.xy + vec2(x, y) * pixel_size, s.zw), 0.0);
+                }
+                
+            // visibility
+            return shadow / pow((radius * 2 + 1), 2); // ss_positionfloat(i+1);
+        }
+
+        return 1.0;
+    }
+
     vec3 calculate_view_position(vec2 uv, float z) {
         // don't allow 0.0/1.0, because the far plane can be infinite
         const float threshold = 0.000001;
@@ -225,8 +264,8 @@ uniform bool trim = true;
 
         // Lighting! (Diffuse)
         normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 s = textureLod(cubemap, normalize(wl_normal), 0).rgb;
-        vec3 ambient = s * s * 0.007; // vec4(sh(harmonics, normal), 1.0)
+        vec3 s = textureLod(cubemap, normalize(wl_normal), 5).rgb;
+        vec3 ambient = s * 0.8; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 i = normalize(-vw_position.xyz);
         incoming = i;
@@ -254,8 +293,7 @@ uniform bool trim = true;
         float ldh = max(0.25, dot(normal, i));
         float fresnel = schlick_ior_fresnel(ior, ldh);
         vec3 kn = normalize(eye-wl_position.xyz);
-        vec3 specular = vec3(0.0);
-        //textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*8.0).rgb * fresnel * 0.05;
+        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*4.0).rgb * fresnel * 0.05;
         vec3 diffuse = ambient;
 
         // Rim light at night!
@@ -287,10 +325,7 @@ uniform bool trim = true;
 
             vec3 sun_color = texture(sun_gradient, vec2(daytime, 1.0)).rgb;
 
-            vec4 p = shadow_proj * shadow_view * wl_position;
-            p = p * 0.5 + 0.5;
-            float shadow = vsm(shadow_maps[0], p, 0.0, 8000.0, 30.9);
-            
+            float shadow = sample_shadow();
             vec3 vs = (view * vec4(sun_direction, 0.0)).xyz;
             float d = gsf(normal, vs, i);
             float s = ggx(normal, i, normalize(vs - vw_position.xyz), ior);

@@ -128,6 +128,8 @@ local function uniform_update(shader)
 				shader:send(k, v:to_array())
 			elseif type(v) == "table" and v.unpack then
 				shader:send(k, unpack(v))
+			elseif type(v) == "table" and v.mat4_unpack then
+				shader:send(k, "column", unpack(v))
 			else
 				shader:send(k, v)
 			end
@@ -252,13 +254,16 @@ end
 local shadow_maps_res = 1024
 local shadow_msaa = 0
 uniforms.shadow_maps = { unpack = true }
-for i=1, 4 do
-	uniforms.shadow_maps[i] = lg.newCanvas(
+for i=1, 2 do
+	local k = lg.newCanvas(
 		shadow_maps_res, shadow_maps_res, {
-		format = "r16f"
+		format = "depth24", readable = true
 	})
 
-	uniforms.shadow_maps[i]:setFilter("linear", "linear")
+	k:setFilter("linear", "linear")
+	k:setDepthSampleMode("greater")
+
+	uniforms.shadow_maps[i] = k
 end
 
 canvas_temp_s = lg.newCanvas(
@@ -268,22 +273,6 @@ canvas_temp_s = lg.newCanvas(
 })
 
 canvas_temp_s:setFilter("linear", "linear")
-
-canvas_depth_s = lg.newCanvas(shadow_maps_res, shadow_maps_res, {
-	format = "depth24",
-	msaa = shadow_msaa
-})
-
-canvas_normals_c = lg.newCanvas(cuberes, cuberes, {
-	format = "rgb10a2",
-	mipmaps = "auto",
-})
-
-canvas_depth_c = lg.newCanvas(cuberes, cuberes, {
-	format = "depth24",
-	mipmaps = "manual",
-	readable = true
-})
 
 
 local function render_to(target)
@@ -396,7 +385,7 @@ local function render_to(target)
 	lg.push("all")
 	set_canvas()
 	if target.clear ~= false then
-		lg.clear(target.clear or true, true, true, true, true, true, true)
+		lg.clear(target.clear or {0, 0, 0, 0}, true, true, true, true, true, true)
 	end
 
 	lg.setBlendMode("replace") -- NO BLENDING ALLOWED IN MY GAME.
@@ -633,25 +622,25 @@ local function draw(target, state)
 
 	if target.sun then -- Shadow mapping
 		local setup = {
-			split_count = 1,
-			distance = 100,
-			split_distribution = 0.95,
-			stabilize = false,
+			split_count = 2,
+			distance = 50,
+			split_distribution = 0.65,
+			stabilize = true,
 			res = shadow_maps_res
 		}
 
 		local inv_view = target.view:inverse()
 		local proj = target.projection
-		local c = csm.setup_csm(setup, -target.sun, inv_view, proj)
+		local c = csm.setup_csm(setup, target.sun, inv_view, proj)
 
 		uniforms.shadow_mats = {
-			unpack = true
+			mat4_unpack = true
 		}
 
-		for x=1, 1 do
+		for x=1, setup.split_count do
 			local shadow = {
-				view = target.shadow_view,
-				projection = mat4.from_ortho(-30, 30, -30, 30, -2, 512),
+				view = c.shadows[x],
+				projection = mat4.identity(),
 
 				no_lights = true,
 				no_cleanup = true,
@@ -660,8 +649,7 @@ local function draw(target, state)
 
 				culling = "none",
 
-				canvas_color_a = uniforms.shadow_maps[x],
-				canvas_depth_a = canvas_depth_s,
+				canvas_depth_a = uniforms.shadow_maps[x],
 
 				shader = assets.shd_shadowmapper,
 				clear = COLOR_WHITE
@@ -670,11 +658,9 @@ local function draw(target, state)
 			local vertices, calls, grabs = render_to(shadow)
 			total_calls = total_calls + calls
 
-			blur(shadow.canvas_color, canvas_temp_s, 1)
+			--blur(shadow.canvas_color, canvas_temp_s, 1)
 			
-			--uniforms.shadow_mats[x] = (shadow.projection * shadow.view):to_columns()
-			uniforms.shadow_proj = shadow.projection
-			uniforms.shadow_view = shadow.view
+			uniforms.shadow_mats[x] = shadow.view:to_columns()
 		end
 	end
 

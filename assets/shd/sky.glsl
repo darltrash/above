@@ -65,8 +65,8 @@ varying vec4 lc_position;
         float n = clamp(m, 0.0, 1.3);
         vec3 o = mix(a, b, n);
 
-        //if (lc_position.y < 0.0)
-        //    o = b*0.5;
+        if (lc_position.y < 0.0)
+            o = b*0.8;
 
         love_Canvases[0] = vec4(o * 130.0, 1.0);
     }
