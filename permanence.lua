@@ -22,11 +22,12 @@ permanence.load = function(slot)
     local file = ".SAVE" .. slot
     log.info("Loading save '%s'", file)
 
+    permanence.slot = slot
+
     local data, err = lf.read(file)
     if not data then return end
 
     permanence.data = assert(bitser.loads(data))
-    permanence.slot = slot
     return true
 end
 

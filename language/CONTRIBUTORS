@@ -31,4 +31,8 @@ engine should be able to load it as normal :)
 code or have a debug binary, but instead just a
 regular ol' release binary)
 
+Some rules to follow:
+  - Keep the original symbols (*, ~, etc)
+  - Read the annotations I left as comments.
+
 Thanks for reading!

@@ -64,7 +64,7 @@ local emoji = {
 
 local loaded = 1
 local ret = setmetatable({
-    fnt_main = lg.newFont("assets/fnt_monogram.ttf", 16),
+    fnt_main = lg.newFont("assets/fnt/monogram.ttf", 16),
 
 }, {
     __index = function (self, index)
