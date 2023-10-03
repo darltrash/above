@@ -207,7 +207,7 @@ uniform bool trim = true;
                 }
                 
             // visibility
-            return shadow / pow((radius * 2 + 1), 2); // ss_positionfloat(i+1);
+            return shadow / pow((radius * 2 + 1), 2); // float(i+1);
         }
 
         return 1.0;

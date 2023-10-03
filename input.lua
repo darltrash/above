@@ -18,7 +18,9 @@ local modes = {
             left   = { "a", "left" },
             right  = { "d", "right" },
             action = { "return", "z" },
-            jump   = { "space", "x" }
+            jump   = { "space", "x" },
+            menu   = { "escape" },
+            items  = { "c", "rshift" }
         },
 
         get_direction = function(self)

@@ -99,7 +99,7 @@ local controllers = {
             entity.tint[4] = 0
         end
 
-        if (not entity.interacting_with) and require("ui").done then
+        if require("ui").done then
             velocity = vector(dir.x, 0, dir.y) * 5
 
             local mag = velocity:magnitude()
@@ -112,7 +112,7 @@ local controllers = {
                 if entity.animation == 0 then
                     entity.animation = 1
                 end
-                entity.animation = entity.animation + dt * mag * 0.4
+                entity.animation = entity.animation + dt * mag * 0.7
             else
                 entity.animation = 0
             end
@@ -145,6 +145,7 @@ local controllers = {
             entity.last_animation = a
 
             entity.scale.y = 0.7
+            --assets.sfx_step:play()
         end
 
         entity.scale.y = fam.lerp(entity.scale.y, 1, dt * 20)

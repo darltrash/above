@@ -1,6 +1,7 @@
 local input  = require "input"
 local fam    = require "fam"
 local utf8   = require "utf8"
+local ui     = require "ui"
 local assets = require "assets"
 
 local dialog = {}
@@ -72,7 +73,9 @@ dialog.on_tick = function (self, dt)
     end
 
     k = math.floor(self.length)
-    self.length = math.min(self.length + dt * 18 * speed * self.speed, #self.text)
+    if a < 0.1 then
+        self.length = math.min(self.length + dt * 18 * speed * self.speed, #self.text)
+    end
 
     ready = math.floor(self.length) == #self.text
     if ready and input.just_pressed("action") and self.busy then
@@ -108,7 +111,7 @@ dialog.update = function (self, dt)
     local k = dialog.use_options and ready
     local n = k and 1 or 0
 
-    a = fam.decay(a, self.busy and 0 or 1, 1.5, dt)
+    a = fam.decay(a, self.busy and 0 or 1, 2, dt)
 
     dialog.options_lerp = fam.lerp(dialog.options_lerp, n, 8 * dt)
     if dialog.options_lerp > 0.99 then
@@ -126,98 +129,25 @@ local function sub(s,i,j)
     return string.sub(s,i,j-1)
 end
 
-local function printw(text, x, y, w, h, color, highlight, center)
-    local tx = x
-    local ty = y
-
-    if center then
-        -- HACK
-        tx = x + ((w/2) - (assets.fnt_main:getWidth(dialog.text)/2))
-        ty = y + ((h/2) - assets.fnt_main:getHeight())
-    end
-
-    local ox = tx
-    local oy = ty
-    local sw = false
-    local sh = false
-
-    for char in text:gmatch(utf8.charpattern) do
-        if char == "~" then
-            sw = not sw
-        elseif char == "^" then
-            sh = not sh
-        elseif char == "\n" then
-            tx = ox
-            ty = ty + assets.fnt_main:getHeight()
-        elseif string.byte(char) < 32 then
-        else
-            lg.setColor(sh and highlight or color)
-            local i = sw and math.sin((lt.getTime() * 5) + tx) or 0
-            lg.print(char, tx, ty+i)
-            tx = tx + assets.fnt_main:getWidth(char)
-        end
-    end
-end
-
 --local batch = lg.newSpriteBatch(fn)
-local function draw_text(font, text, x, y, scale, length)
-	lg.push("all")
-		lg.setShader(assets.shd_sdf_font)
-		assets.shd_sdf_font:send("thicc", 0.4)
-        local sw = false
-        local kh = false
 
-		lg.scale(scale)
-
-		local tx = (x/scale)
-		local ty = (y/scale) + font.characters["A"].height
-
-        assets.shd_sdf_font:send("outline", fam.hex"473b78")
-		
-		for c in text:gmatch(utf8.charpattern) do
-			if c == "\n" then
-				tx = x / scale
-				ty = ty + font.characters["A"].height
-			elseif c == "\t" then
-				tx = tx + font.characters["A"].width * 4
-            elseif c == "*" then
-                sw = not sw
-                assets.shd_sdf_font:send("thicc", sw and 0.8 or 0.4)
-            elseif c == "~" then
-                kh = not kh
-            else
-                local nx = lt.getTime()*0.2
-                local ny = (lt.getTime()+0.3)*0.3
-				local n = love.math.noise((tx/10)+nx, (ty/10)+ny)
-				local t = font.characters[c]
-                local r = math.sin((ny*4)+(tx*0.5))*(kh and 4 or 0)
-                
-                lg.setColor(1, 1, 1, 1)
-				lg.draw(font.image, t.quad, tx-t.originX, ty-t.originY+r, (n-0.5)/14)
-				tx = tx + t.advance
-			end
-		end
-	lg.pop()
-end
+-- i wrote this while listening to this:
+-- https://www.youtube.com/watch?v=bFZPbqGYCKY
 
 dialog.draw = function(self)
-    k = fam.lerp(k, self.busy and 1 or 0, lt.getDelta()*10)
-    --if true then return end
     lg.push("all")
-        if k < 0.999 then
+        if a < 0.999 then
             lg.setShader(assets.shd_bwapbwap)
-            assets.shd_bwapbwap:send("time", lt.getTime())
             
-            lg.setColor(fam.hex"#18002e")
-            lg.rectangle("fill", -90, 20+(k*70), 180, 70-(k*70), 9, 9, 3)
+            lg.setColor(fam.hex("#18002e", 1-(a*1.3)))
+            lg.rectangle("fill", -90, 20+(a*70), 180, 70-(a*70), 9*(1-a), 9*(1-a), 3)
 
             lg.stencil(function ()
-                lg.rectangle("fill", -90, 20+(k*70), 180, 70-(k*70), 9, 9, 3)
+                lg.rectangle("fill", -90, 20+(a*70), 180, 70-(a*70), 9, 9, 3)
             end)
             lg.setStencilTest("greater", 0)
 
-            local message = "\nThis is but a test of my *nifty powers!*\nMy *SDF TEXT RENDERER* in action!\n\nI'm ~*POWERFUL NOW*~"
-
+            local message = sub(dialog.text, 1, self.length)
             lg.setColor(1, 1, 1, 1)
             lg.polygon("fill", {
                 80-4, 80-4,
@@ -225,9 +155,22 @@ dialog.draw = function(self)
                 80+0, 80+4
             })
 
-            draw_text(assets.fnt_atkinson, message, -80, 25, 1/7)
-        else
-            self.busy = false
+            lg.translate(-80, 30)
+
+            local c = 1/7
+
+            local x, y = 5, 0
+            if dialog.center then
+                c = 1/6
+                local w, h = ui.text_length(assets.fnt_atkinson, dialog.text, c)
+
+                x = (160/2)-(w/2)
+                y = (50/2)-(h*0.5)
+            end
+
+            ui.draw_text(assets.fnt_atkinson, message, x, y, c)
+            --lg.rectangle("fill", 0, 0, 160, 50)
+
         end
     lg.pop()
 end

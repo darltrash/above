@@ -24,6 +24,9 @@ generate-icons:
       \( -clone 0 -resize 64x64 \) \
       -delete 0 -alpha off -colors 256 assets/img/icons/icon.ico
 
+scripting:
+	moonc scripts/*.moon
+
 # TODO: Make this target produce only run ONCE per makefile execution!
 love: # REQUIRES RSYNC, ZIP
 	rm -rf .temp/*

@@ -2,7 +2,7 @@ local assets = require "assets"
 local fam = require "fam"
 local mat4 = require "lib.mat4"
 local vector = require "lib.vec3"
-local mimi = require "lib.mimi"
+local toml = require "lib.toml"
 local log = require "lib.log"
 local frustum = require "frustum"
 local json = require "lib.json"
@@ -18,9 +18,7 @@ local canvas_color_a, canvas_normals_a, canvas_depth_a
 local canvas_color_b, canvas_normals_b, canvas_depth_b
 local canvas_temp_a,  canvas_temp_b,    canvas_temp_s
 local canvas_reflection
-local canvas_normals_c, canvas_depth_c
 local canvas_light_pass = {}
-local canvas_depth_s
 
 local cuberes = 64
 
@@ -42,7 +40,8 @@ local uniforms = {
 uniforms.perlin:setFilter("linear", "linear")
 uniforms.sun_gradient:setFilter("linear", "linear")
 
-local materials = assert(mimi.load("assets/materials.mi"))
+local data = lf.read("assets/materials.toml")
+local materials = assert(toml.parse(data))
 log.info("Loaded materials")
 
 for _, material in pairs(materials) do
@@ -251,7 +250,7 @@ local function resize(w, h, scale)
 	}
 end
 
-local shadow_maps_res = 1024
+local shadow_maps_res = 1028
 local shadow_msaa = 0
 uniforms.shadow_maps = { unpack = true }
 for i=1, 2 do
@@ -395,7 +394,11 @@ local function render_to(target)
 			mesh = assets.mod_sphere.mesh,
 			model = mat4.from_transform(eye*vector(1, 0, 1), 0, 200),
 			shader = assets.shd_cubemap,
-			culling = "front"
+			order = 999999,
+			culling = "front",
+			--no_depth_write = true,
+			--depth = "never",
+			name = "sky"
 		}
 	end
 
@@ -460,7 +463,7 @@ local function render_to(target)
 
 		-- Set the fricken canvas
 		set_canvas()
-		lg.setDepthMode(call.depth or "less", true)
+		lg.setDepthMode(call.depth or "less", not call.no_depth_write)
 		lg.setMeshCullMode(target.culling or call.culling or "back")
 
 		lg.setColor(color)

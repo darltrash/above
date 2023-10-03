@@ -1,0 +1,32 @@
+[paper]
+translucent = 1
+
+[general]
+texture = "general"
+
+[unshaded]
+unshaded = true
+glow = 100
+no_shadow = true
+
+[glow]
+unshaded = true
+glow = 100
+
+[invisible]
+ignore = true
+
+[sky]
+culling = "front"
+shader_true = "sky"
+texture = "sky_gradient"
+
+[griddy]
+shader = "griddy"
+
+[water]
+shader = "water"
+no_shadow = true
+
+[oooshiny]
+shader = "oooshiny"

@@ -37,6 +37,10 @@ local loaders = {
         return out
     end,
 
+    txd = function (what)
+        return love.image.newImageData("assets/tex/"..what..".png")
+    end,
+
     fnt = function (what)
         local text  = love.filesystem.read("assets/fnt/"..what..".json")
         local image = lg.newImage("assets/fnt/"..what..".png")
@@ -55,7 +59,7 @@ local loaders = {
 local emoji = {
     mod = "📐", mus = "🎵", sfx = "🎧",
     shd = "🌈", shk = "✨", tex = "😀",
-    fnt = "✒️"
+    fnt = "✒️", txd = "🤯"
 }
 
 local loaded = 1

@@ -22,12 +22,12 @@ local settings = {}
 do
 	settings.low_end    = os.getenv("ABOVE_LOW_END")
 	settings.debug      = os.getenv("ABOVE_DEBUG")
-	settings.fps        = os.getenv("ABOVE_FPS") or settings.debug
+	settings.fps        = 1 or os.getenv("ABOVE_FPS") or settings.debug
 	settings.linear     = os.getenv("ABOVE_LINEAR") -- cursed mode
 	settings.volume     = os.getenv("ABOVE_VOLUME")
 	settings.fullscreen = os.getenv("ABOVE_FULLSCREEN") and true or false
 	settings.scale      = 1
-	settings.vsync      = tonumber(os.getenv("ABOVE_VSYNC")) or 1
+	settings.vsync      = 0 or tonumber(os.getenv("ABOVE_VSYNC")) or 1
 	settings.profile    = os.getenv("ABOVE_PROFILE")
 
 	settings.disable_wobble = os.getenv("ABOVE_NO_WOBBLE")
@@ -67,6 +67,7 @@ local renderer = require "renderer"
 local permanence = require "permanence"
 --local _settings = require "settings"
 local dialog = require "dialog"
+local scripts = require "scripts"
 
 
 local state = {
@@ -136,7 +137,8 @@ local rika
 
 local function render_level()
 	-- MAP STUFF
-	for _, buffer in ipairs(state.map.meshes) do
+local scripts = require "scripts"
+for _, buffer in ipairs(state.map.meshes) do
 		local a = renderer.render {
 			mesh = state.map.mesh,
 			range = { buffer.first, buffer.last - buffer.first },
@@ -217,7 +219,7 @@ function state.load_map(what)
 	state.triangles = {}
 	local vertex_map = map.mesh:getVertexMap()
 	for index, mesh in ipairs(map.meshes) do
-		if mesh.material:match("grassful") then
+		if false and mesh.material:match("grassful") then
 			for i = mesh.first, mesh.last - 1, 3 do -- Triangles
 				local v1 = vector(map.mesh:getVertexAttribute(vertex_map[i + 0], 1))
 				local v2 = vector(map.mesh:getVertexAttribute(vertex_map[i + 1], 1))
@@ -226,7 +228,7 @@ function state.load_map(what)
 				local n = vector.normalize(vector.cross(v2 - v1, v3 - v1))
 				local floor_dot = n:dot(vector(0, 1, 0))
 
-				if floor_dot > 0.95 then
+				if floor_dot > 0.9 then
 					local grass_mesh = {
 						box = {
 							min = vector(),
@@ -255,7 +257,7 @@ function state.load_map(what)
 						local c = fam.lerp(fam.lerp(c1, c2, a), c3, b)
 
 						local k = p * 0.25
-						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.7) * c
+						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.7) * c * (floor_dot / 0.9)
 
 						local r = lm.random(-1, 1)
 
@@ -298,6 +300,7 @@ function state.load_map(what)
 					last.box.max = last.box.max:max(v)
 				end
 			else
+				-- OH MEIN GOTT MESHBOX REFERENCE
 				mesh.box = {
 					min = vector(0, 0, 0),
 					max = vector(0, 0, 0)
@@ -311,6 +314,7 @@ function state.load_map(what)
 
 				table.insert(meshes, mesh)
 				last = mesh
+				last.count = 0
 			end
 		end
 
@@ -400,6 +404,8 @@ function love.load()
 		love.profiler.setclock(love.timer.getTime)
 		love.profiler.start()
 	end
+
+	ui.load()
 end
 
 -- Handle window resize and essentially canvas (destruction and re)creation
@@ -420,13 +426,15 @@ function love.keypressed(k)
 		settings.fps_camera = not settings.fps_camera
 		love.mouse.setRelativeMode(settings.fps_camera)
 		love.mouse.setGrabbed(settings.fps_camera)
+	elseif (k == "b") then
+		scripts.spawn "npc_magical"
 	end
 
 	if settings.debug then
 		if (k == "y") then
-			state.daytime = state.daytime - (1 / 16)
+			state.daytime = state.daytime - (1 / 32)
 		elseif (k == "u") then
-			state.daytime = state.daytime + (1 / 16)
+			state.daytime = state.daytime + (1 / 32)
 		end
 	end
 end
@@ -472,6 +480,7 @@ function love.update(dt)
 
 		state.entities = entities.tick(state.entities, timestep, state)
 		ui:on_tick(timestep)
+		scripts.update()
 
 		n = n + 1
 		if n == 5 then
@@ -498,7 +507,7 @@ function love.update(dt)
 	renderer.uniforms.time = state.time
 
 	-- A day (including night) is equal to 5 minutes
-	state.daytime = state.daytime + (state.time_speed * dt) / (5 * 60)
+	state.daytime = state.daytime + (state.time_speed * dt) / (10 * 60)
 	state.daytime = state.daytime % 1
 	renderer.uniforms.daytime = state.daytime
 
@@ -599,6 +608,7 @@ function love.update(dt)
 		state:debug("SIZE:   %ix%i",  lg.getDimensions())
 		state:debug("INSIZE: %ix%i",  w/state.scale, h/state.scale)
 		state:debug("CYCLE:  %f",     state.daytime)
+		state:debug("SCRIPT: %s",     scripts.name)
 
 		state:debug("")
 		state:debug("CAMERA: X%im Y%im Z%im", state.target.x, state.target.y, state.target.z)
