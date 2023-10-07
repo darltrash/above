@@ -30,7 +30,7 @@ JULY 28, 2023
 
     I have been learning more about rendering stuff, i still have a lot to do
     I wonder if the CRT aesthetic still fits, and I've been wondering if to make
-    something like a first person exploration game set in the indoors
+    something like a first person exploration game set in the indoors 
 
     I am a bit afraid.
 

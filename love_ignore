@@ -10,12 +10,11 @@ flatpak*
 *.blend
 *.blend*
 *.desktop
-*.obj
 *.md
 *.py
 *.sh
-*.desktop
 *.moon
+*.plist
 
 .*/
 love_ignore

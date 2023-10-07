@@ -406,6 +406,13 @@ function love.load()
 	end
 
 	ui.load()
+
+	scripts.env.state = state
+	scripts.env.assets = assets
+
+	if settings.debug and os.getenv("USER")~="darl" then
+		scripts.spawn "000_helloworld"
+	end
 end
 
 -- Handle window resize and essentially canvas (destruction and re)creation
@@ -478,9 +485,10 @@ function love.update(dt)
 			state.new_entities[index] = nil
 		end
 
-		state.entities = entities.tick(state.entities, timestep, state)
-		ui:on_tick(timestep)
+		scripts.env.entities = state.entities.hash
 		scripts.update()
+		entities.tick(state.entities, timestep, state)
+		ui:on_tick(timestep)
 
 		n = n + 1
 		if n == 5 then
@@ -514,7 +522,7 @@ function love.update(dt)
 	if true then
 		local eye
 		do
-			eye = (vector(0, 1.5, -6) * state.zoom * 1.8) + state.target
+			eye = (vector(0, 1.9, -6) * state.zoom * 1.3) + state.target
 
 			if state.camera_box then
 				local p = state.camera_box.position
@@ -558,7 +566,7 @@ function love.update(dt)
 			)
 
 			state.view_matrix = mat4.look_at(pos, pos + rot, { y = 1 })
-			state.render_target.reflection = mat4.look_at(pos * f, pos + rot, { y = 1 })
+			state.render_target.reflection = mat4.look_at(pos * f, (pos*f) + rot, { y = 1 })
 		end
 
 		renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1

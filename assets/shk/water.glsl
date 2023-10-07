@@ -44,8 +44,8 @@ void pixel() {
 
     albedo.rgb = mix(origin, k, t);
 
-    roughness = 1.0;
-    metalness = 0.0;
+    roughness = 0.0;
+    metalness = 0.5;
 
     vec4 x = projection * reflection_matrix * wl_position;
     vec2 v = (x.xy / x.w) * 0.5 + 0.5;

@@ -1,5 +1,8 @@
 local log = require "lib.log"
-local backup = require "language.en"
+local toml = require "lib.toml"
+
+local data = love.filesystem.read("language/en.toml")
+local backup = toml.parse(data)
 local strings = {}
 
 local lang = {}
@@ -19,14 +22,9 @@ lang.load = function (name)
             return false
         end
 
-        local l, err = loadstring(f)()
-        if err then
-            log.info("Could not read language file %s, error:\n\t%s", name, err)
-            return false
-        end
-
-        if type(l)~="table" then
-            log.info("Could not read language file %s, error:\n\t%s", name, "Table return expected!")
+        local ok, l = pcall(toml.parse, f)
+        if not ok then
+            log.info("Could not read language file %s, error:\n\t%s", name, l)
             return false
         end
 

@@ -1,0 +1,24 @@
+- Why Lua?
+    Because it's a language that I feel like I "dominate", and I have
+    a lot of experience with Löve and LuaJIT
+
+- Why .EXM for models? Why not any other format?
+    Because all other formats posed too much complexity or weren't 
+    efficient enough.
+
+    OBJ is too naive and it's not a binary format, GLTF is far too
+    complex and has a lot of features I won't use, etc.
+
+    Plus, I'm friends with the developer of .EXM and he gave me all 
+    his tooling for it.
+
+- Why not pixel art? Isn't drawing a quad far more efficient?
+    It IS more efficient, but it also just looks worse and I'm 
+    honestly way too tired of pixel art.
+
+    Plus, it isn't efficient enough to make a difference :P 
+
+- Why TOML?
+    Because it's readable and understandable, I used my own format
+    before but I decided to use TOML instead because it actually had
+    a proper VSCode extension (plus support for many other editors)

@@ -1,0 +1,4 @@
+[freckles_test]
+meshmap = "freckles"
+mesh_index = "front1"
+interact = "npc_magical"

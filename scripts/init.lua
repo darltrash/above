@@ -3,7 +3,7 @@ local log = require "lib.log"
 
 local scripts = {}
 
-scripts.spawn = function (fnc, ...)
+scripts.spawn = function (fnc, after, ...)
     log.info("📜 Spawned routine \"%s\"", fnc)
 
     scripts.name = "<ANONYMOUS>"
@@ -14,6 +14,8 @@ scripts.spawn = function (fnc, ...)
 
     scripts.coroutine = coroutine.create(setfenv(fnc, scripts.env))
     coroutine.resume(scripts.coroutine, ...)
+
+    scripts.after = after
 end
 
 scripts.update = function ()
@@ -23,6 +25,10 @@ scripts.update = function ()
     if not ok then
         scripts.coroutine = nil
         scripts.name = nil
+        if scripts.after then
+            scripts.after()
+            scripts.after = nil
+        end
     end
 end
 

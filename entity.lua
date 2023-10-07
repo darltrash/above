@@ -5,6 +5,7 @@ local fam = require "fam"
 local scripts = require "scripts"
 local slam = require "lib.slam"
 local log = require "lib.log"
+local toml = require "lib.toml"
 
 local assets = require "assets"
 local renderer = require "renderer"
@@ -13,6 +14,9 @@ local permanence = require "permanence"
 ---------------------------------------------------------------
 
 local coyote_time = 1 / 16
+
+local data = love.filesystem.read("scripts/entities.toml")
+local templates = toml.parse(data)
 
 
 local initializers = {
@@ -51,8 +55,17 @@ local initializers = {
 
     ["npc"] = function(entity, state, script)
         entity.sprite = { 0, 224, 32, 32 }
-        entity.routine = script
-        entity.scripts = {}
+        entity.scale = vector(1, 1, 1)
+
+        local template = templates[script]
+        if template then
+            for name, value in pairs(template) do
+                entity[name] = value
+            end
+            entity.meshmap = assets["mod_"..entity.meshmap]
+        end
+
+        entity.id = "npc/"..script
     end
 }
 
@@ -82,7 +95,6 @@ end
 --------------------------------------------------------------
 
 local PLAYER_ANIMS = { -- 🚶+🦌
-    -- I forgive you, that shit was bussing
     { "front1", "front2", "front1", "front3" },
     { "back1", "back2", "back1", "back3" },
     { "side1", "side2" }
@@ -141,14 +153,6 @@ local controllers = {
         end
 
         local a = math.floor(entity.animation)
-        if a ~= entity.last_animation then
-            entity.last_animation = a
-
-            entity.scale.y = 0.7
-            --assets.sfx_step:play()
-        end
-
-        entity.scale.y = fam.lerp(entity.scale.y, 1, dt * 20)
 
         local anim = PLAYER_ANIMS[entity.animation_index]
         entity.mesh_index = anim[(a % #anim) + 1]
@@ -159,25 +163,11 @@ local controllers = {
 }
 
 local function tick(entities, dt, state)
-    local new_entities = { hash = entities.hash }
+    local player = entities.hash.player
 
-    local player       = new_entities.hash.player
+    for i=#entities, 1, -1 do
+        local entity = entities[i]
 
-    for _, entity in ipairs(entities) do
-        if entity.delete then
-            if entity.id then
-                new_entities.hash[entity.id] = nil
-            end
-
-            if player and player.interacting_with == entity then
-                player.interacting_with = nil
-            end
-        else
-            table.insert(new_entities, entity)
-        end
-    end
-
-    for _, entity in ipairs(new_entities) do
         if entity.scale then
             entity.past_scale = entity.scale:copy()
         end
@@ -205,28 +195,14 @@ local function tick(entities, dt, state)
             end
         end
 
-        if entity.routine then
-            local routine = scripts[entity.routine]
-            if routine then
-                table.insert(entity.scripts, coroutine.create(routine))
+        if entity.meshmap then
+            if entity.past_mesh_index ~= entity.mesh_index then
+                entity.past_mesh_index = entity.mesh_index
+                
+                entity.scale.y = 0.7
             end
-            entity._routine = entity.routine
-            entity.routine = nil
-        end
 
-        if entity.scripts then
-            local i = #entity.scripts
-            if i > 0 then
-                local ok = coroutine.resume(entity.scripts[i], entity, dt, state)
-                if not ok then
-                    entity.scripts[i] = nil
-
-                    if entity.interact_routine == i then
-                        entity.in_interaction = false
-                        player.interacting_with = nil
-                    end
-                end
-            end
+            entity.scale.y = fam.lerp(entity.scale.y, 1, dt * 20)
         end
 
         if entity.position then
@@ -235,14 +211,12 @@ local function tick(entities, dt, state)
             if player and entity.interact then
                 local interaction = 0
 
-                if (dist < (entity.distance or 2)) and not player.interacting_with then
+                if (dist < (entity.distance or 3)) and not scripts.coroutine then
                     interaction = 1
 
                     if input.just_pressed("action") then
                         assets.sfx_done:play()
-                        player.interacting_with = entity
-                        entity.routine = entity.interact
-                        entity.interact_routine = #entity.scripts + 1
+                        scripts.spawn(entity.interact, nil, entity)
                     end
                 end
 
@@ -316,9 +290,17 @@ local function tick(entities, dt, state)
                 control(entity, dt, state)
             end
         end
-    end
+        
+        if entity.delete then
+            if player and player.interacting_with == entity then
+                player.interacting_with = nil
+            end
 
-    return new_entities
+            entities[i] = entities[#entities]
+            entities[#entities] = nil
+            entities.hash[entity.id] = nil
+        end
+    end
 end
 
 local function render(entities, state, delta, alpha)
@@ -363,27 +345,6 @@ local function render(entities, state, delta, alpha)
                     entity.scale.x = fam.decay(entity.scale.x, entity.flip_x, 3, delta)
                 end
 
-                if entity.sprite and false then
-                    call.culling = "none"
-                    call.translucent = 0.5
-
-                    call.texture = entity.atlas or assets.tex_main
-                    call.clip = {
-                        entity.sprite[1] / call.texture:getWidth(),
-                        entity.sprite[2] / call.texture:getHeight(),
-                        entity.sprite[3] / call.texture:getWidth(),
-                        entity.sprite[4] / call.texture:getHeight(),
-                    }
-
-                    call.model = call.model * mat4.from_scale({
-                        entity.sprite[3]/56,
-                        entity.sprite[4]/56,
-                        1
-                    })
-
-                    call.mesh = assets.mod_quad
-                end
-
                 if entity.meshmap then
                     call.mesh = entity.meshmap
                     call.translucent = 1
@@ -414,7 +375,7 @@ local function render(entities, state, delta, alpha)
                         }
                     end
 
-                    local pos = pos - vector(0, 0.3, 0)
+                    local pos = pos + vector(0, 0.1, 0)
 
                     renderer.render {
                         culling = "none",
@@ -442,7 +403,7 @@ local function render(entities, state, delta, alpha)
 
                 if entity.interaction_anim then
                     local e = fam.lerp(entity._interaction_anim, entity.interaction_anim, alpha)
-                    local k = vector(0, 0.1 + (e * e * 0.8), -0.05)
+                    local k = vector(0, 0.4 + (e * e * 0.8), -0.2)
                     k.w = 1
                     local pos = call.model:multiply_vec4(k)
                     local a = e
@@ -455,11 +416,12 @@ local function render(entities, state, delta, alpha)
 
                     renderer.render {
                         color = { 1, 1, 1, a * a },
-                        model = mat4.from_transform(pos, rot, 1),
+                        model = mat4.from_transform(pos, rot, 0.6),
                         translucent = 0.5,
                         glow = 0,
                         mesh = assets.mod_bubble.mesh,
                         material = "general",
+                        culling = "none"
                     }
                 end
             end

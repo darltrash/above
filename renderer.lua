@@ -101,11 +101,9 @@ local function render(call)
 
 	if call.grab then
 		table.insert(grab_list, call)
-
-		return call
+	else
+		table.insert(render_list, call)
 	end
-
-	table.insert(render_list, call)
 
 	return call
 end
@@ -279,6 +277,12 @@ local function render_to(target)
 	target.canvas_color  = target.canvas_color_a
 	target.canvas_depth  = target.canvas_depth_a
 	target.canvas_normal = target.canvas_normals_a
+
+	local render_list = target.render_list or render_list
+	local grab_list = grab_list
+	if target.render_list then
+		grab_list = target.grab_list or {}
+	end
 
 	local function set_canvas()
 		lg.setCanvas {
