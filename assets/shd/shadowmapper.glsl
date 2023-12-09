@@ -7,8 +7,26 @@ uniform mat4 projection;
 varying vec4 cl_position;
 
 #ifdef VERTEX
+    attribute vec3 VertexNormal;
+
+    mat3 cofactor(mat4 _m) {
+        return mat3(
+            _m[1][1]*_m[2][2]-_m[1][2]*_m[2][1],
+            _m[1][2]*_m[2][0]-_m[1][0]*_m[2][2],
+            _m[1][0]*_m[2][1]-_m[1][1]*_m[2][0],
+            _m[0][2]*_m[2][1]-_m[0][1]*_m[2][2],
+            _m[0][0]*_m[2][2]-_m[0][2]*_m[2][0],
+            _m[0][1]*_m[2][0]-_m[0][0]*_m[2][1],
+            _m[0][1]*_m[1][2]-_m[0][2]*_m[1][1],
+            _m[0][2]*_m[1][0]-_m[0][0]*_m[1][2],
+            _m[0][0]*_m[1][1]-_m[0][1]*_m[1][0]
+        );
+    }
+
     vec4 position( mat4 _, vec4 lc_position ) {
-        cl_position = projection * view * model * lc_position;
+
+        vec4 v = model * lc_position;
+        cl_position = projection * view * v;
 
         return cl_position;
     }
@@ -43,7 +61,7 @@ varying vec4 cl_position;
 
         if (o.a < 0.5) discard;
 
-        float depth = (cl_position.z/cl_position.w) * 0.5 + 0.5;
-        love_Canvases[0] = vec4(depth, depth * depth, 0.0, 1.0);
+        //float depth = (cl_position.z/cl_position.w) * 0.5 + 0.5;
+        //love_Canvases[0] = vec4(depth, depth * depth, 0.0, 1.0);
     }
 #endif

@@ -8,10 +8,16 @@ varying vec4 cl_position;
 varying vec4 vw_position;
 varying vec3 vw_normal;
 varying vec4 vx_color;
+varying vec3 wl_normal;
 
 varying vec4 lc_position;
 
+#define PI 3.1415926535898
+
 #define sqr(a) (a*a)
+
+// Spherical harmonics, cofactor and improved diffuse
+// by the people at excessive ❤ moé 
 
 #ifdef VERTEX
     attribute vec3 VertexNormal;
@@ -34,6 +40,8 @@ varying vec4 lc_position;
     vec4 position( mat4 _, vec4 vertex_position ) {
         //vertex_position.z = 1.0;
         
+        wl_normal = (model * vertex_position).xyz;
+    
         lc_position = vertex_position;
 
         vw_position = view * model * vertex_position;
@@ -48,23 +56,26 @@ varying vec4 lc_position;
 #endif
 
 #ifdef PIXEL
-    uniform Image stars;
     uniform Image MainTex;
+    uniform samplerCube cubemap;
     uniform float daytime;
+
+    float dither13(vec2 pos) {
+        return fract(dot(pos, vec2(4, 7) / 13.0));
+    }
 
     // Actual math
     void effect() {
-        float t = daytime;
-        vec3 a = Texel(MainTex, vec2(t, 0.75)).rgb;
-        vec3 b = Texel(MainTex, vec2(t, 0.25)).rgb;
+        vec3 s = textureLod(cubemap, normalize(abs(wl_normal)), 8).rgb;
 
-        float m = (lc_position.y + 0.1) * 5.0;
-        float n = clamp(log(m), 0.0, 1.3);
-        vec3 o = mix(a, b, 0.2+(n*0.5));
+        float a = Texel(MainTex, VaryingTexCoord.xy).a;
 
-        //if (lc_position.y < 0.0)
-        //    o = b * 0.2;
+        float di = a + dither13(love_PixelCoord.xy);
+        if (di < 1.0)
+            discard;
 
-        love_Canvases[0] = vec4(o * 130.0, 1.0);
+        float nighty = max(0.0, sin((daytime+0.5)*PI*2.0));
+
+        love_Canvases[0] = vec4(s * 1.3 * (1.0-(nighty*0.4)), 1.0);
     }
 #endif

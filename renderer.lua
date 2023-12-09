@@ -4,8 +4,7 @@ local mat4 = require "lib.mat4"
 local vector = require "lib.vec3"
 local toml = require "lib.toml"
 local log = require "lib.log"
-local frustum = require "frustum"
-local json = require "lib.json"
+local frustum = require "lib.frustum"
 local csm = require "csm"
 
 local render_list = {}
@@ -19,8 +18,6 @@ local canvas_color_b, canvas_normals_b, canvas_depth_b
 local canvas_temp_a,  canvas_temp_b,    canvas_temp_s
 local canvas_reflection
 local canvas_light_pass = {}
-
-local cuberes = 64
 
 -- CONSTANTS
 local COLOR_WHITE = { 1, 1, 1, 1 }
@@ -72,8 +69,6 @@ local function render(call)
 
 	local m = call.mesh
 	if type(m) == "table" then
-		call.mesh = m.mesh
-
 		call.box = {
 			min = m.bounds.base.min,
 			max = m.bounds.base.max
@@ -248,13 +243,13 @@ local function resize(w, h, scale)
 	}
 end
 
-local shadow_maps_res = 1028
+local shadow_maps_res = 1028 * 2
 local shadow_msaa = 0
 uniforms.shadow_maps = { unpack = true }
-for i=1, 2 do
+for i=1, 3 do
 	local k = lg.newCanvas(
 		shadow_maps_res, shadow_maps_res, {
-		format = "depth24", readable = true
+		format = "depth16", readable = true
 	})
 
 	k:setFilter("linear", "linear")
@@ -396,7 +391,7 @@ local function render_to(target)
 	if not target.no_sky then
 		render {
 			mesh = assets.mod_sphere.mesh,
-			model = mat4.from_transform(eye*vector(1, 0, 1), 0, 200),
+			model = mat4.from_transform(eye*vector(1, 1, 0), 0, 200),
 			shader = assets.shd_cubemap,
 			order = 999999,
 			culling = "front",
@@ -430,9 +425,21 @@ local function render_to(target)
 		uniforms.glow = call.glow or 0
 		uniforms.grid_mode = call.grid_mode and 1 or 0
 
+		uniforms.has_pose = false
+
 		-- Just so i can abstract away the IQM/EXM types :)
 		local mesh = call.mesh
 		if type(mesh) == "table" then
+			if mesh.anim9 then
+				if call.animation then
+					mesh.anim9:transition(call.animation, 0.2)
+				end
+
+				uniforms.pose = mesh.anim9.current_pose
+				uniforms.pose.unpack = true
+				uniforms.has_pose = true
+			end
+
 			mesh = mesh.mesh
 		end
 
@@ -452,6 +459,8 @@ local function render_to(target)
 				mesh:setTexture(call.texture)
 			end
 		end
+
+		uniforms.roughness_map = call.roughness_map or assets.tex_white
 
 		local v = mesh:getVertexCount()
 		if call.range then
@@ -540,56 +549,120 @@ local function render_to(target)
 	return vertices, calls, grab_calls, lights
 end
 
--- Create cubemap of world
-local function generate_cubemap()
-	local format = { type = "cube", format = "rg11b10f" }
+local generate_cubemap
 
-	local target = {
-		canvas_color_a = uniforms.cubemap or lg.newCanvas(cuberes, cuberes, format),
-		no_sky = true,
-		no_cleanup = true,
+if false then
+	-- Create cubemap of world
+	generate_cubemap = function (sun_direction)
 
-		projection = mat4.from_perspective(-90, -1, 0.01, 300),
-		clear = false
-	}
+		local format = { type = "cube", format = "rg11b10f", mipmaps = "manual" }
+		local cuberes = 128
 
-	local directions = {
-		vector(1, 0, 0), vector(-1, 0, 0), -- right vs left
-		vector(0, 1, 0), vector(0, -1, 0), -- bottom vs top
-		vector(0, 0, 1), vector(0, 0, -1), -- front vs back
-	}
+		local cb = uniforms.cubemap or lg.newCanvas(cuberes, cuberes, format)
+		cb:setFilter("linear", "linear")
+		uniforms.cubemap = cb
 
-	local call = render {
-		mesh = assets.mod_sphere.mesh,
-		material = "sky",
-		depth = "always"
-	}
+		local directions = {
+			vector(1, 0, 0), vector(-1, 0, 0), -- right vs left
+			vector(0, 1, 0), vector(0, -1, 0), -- bottom vs top
+			vector(0, 0, 1), vector(0, 0, -1), -- front vs back
+		}
 
-	call.texture:setFilter("linear", "linear")
+		assets.shd_sky_real:send("sun_params", {
+			sun_direction.x,
+			sun_direction.y,
+			sun_direction.z,
+			0
+		})
 
-	for index, direction in ipairs(directions) do
-		local up = vector(0, 1, 0)
+		local p = mat4.from_perspective(-90, -1, 0.01, 30)
 
-		if math.abs(vector.dot(direction, up)) == 1 then
-			up = vector(0, 0, 1)
+		lg.setColor(1, 1, 1, 1)
+		lg.setShader(assets.shd_sky_real)
+		for index, direction in ipairs(directions) do
+			local up = vector(0, 1, 0)
+			
+			if math.abs(vector.dot(direction, up)) > 0.99 then
+				up = vector(0, 0, 1)
+				direction = -direction
+			end
+
+			local vp = mat4.look_at(0, direction, up) * p
+
+			assets.shd_sky_real:send("view_proj", "column", vp:to_columns())
+			lg.setCanvas(cb, index)
+			lg.clear(1, 1, 1, 1)
+			lg.rectangle("fill", -1, -1, 2, 2)
+		end
+		lg.setCanvas()
+		lg.setShader()
+
+		cb:generateMipmaps()
+	end
+else
+	-- Create cubemap of world
+	generate_cubemap = function()
+		local format = { type = "cube", format = "rg11b10f", mipmaps = "manual" }
+		local cuberes = 64
+
+		uniforms.cubemap = uniforms.cubemap or lg.newCanvas(cuberes, cuberes, format)
+		uniforms.cubemap:setFilter("linear", "linear")
+
+		local target = {
+			canvas_color_a = uniforms.cubemap,
+
+			no_sky = true,
+			no_cleanup = true,
+
+			projection = mat4.from_perspective(-90, -1, 0.01, 300),
+			clear = false
+		}
+
+		local directions = {
+			vector(1, 0, 0), vector(-1, 0, 0), -- right vs left
+			vector(0, 0, -1), vector(0, 0, 1), -- front vs back
+			vector(0, 1, 0), vector(0, -1, 0), -- bottom vs top
+		}
+
+		local dir_names = {
+			"right", "left",
+			"bottom", "top",
+			"front", "back",
+		}
+
+		local call = render {
+			mesh = assets.mod_sphere.mesh,
+			material = "sky",
+			depth = "always"
+		}
+
+		call.texture:setFilter("linear", "linear")
+
+		for index, direction in ipairs(directions) do
+			local up = vector(0, 0, 1)
+
+			if math.abs(vector.dot(direction, up)) > 0.99 then
+				up = vector(0, 1, 0)
+			end
+
+			target.face = index
+			target.view = mat4.look_at(0, direction, up)
+
+			render_to(target)
 		end
 
-		target.face = index
-		target.view = mat4.look_at(0, direction, up)
+		render_list = {}
 
-		render_to(target)
+		uniforms.cubemap:generateMipmaps()
+
+		return target
 	end
-
-	render_list = {}
-
-	return target
 end
 
-local function generate_ambient()
-	local target = generate_cubemap()
 
-	uniforms.cubemap = target.canvas_color
-	uniforms.cubemap:setFilter("linear", "linear")
+local function generate_ambient(sun_direction)
+	local target = generate_cubemap(sun_direction)
+
 end
 
 -- b: temporary
@@ -623,14 +696,13 @@ local function draw(target, state)
 
 	local width, height = target.canvas_color_a:getDimensions()
 
-	target.projection = mat4.from_perspective(-45, -width / height, 0.01, 300)
+	target.projection = mat4.from_perspective(-65, -width / height, 0.01, 300)
 
 	local total_calls = 0
-
 	if target.sun then -- Shadow mapping
 		local setup = {
 			split_count = 2,
-			distance = 50,
+			distance = 60,
 			split_distribution = 0.65,
 			stabilize = true,
 			res = shadow_maps_res
@@ -654,7 +726,7 @@ local function draw(target, state)
 				no_sky = true,
 				shadow = true,
 
-				culling = "none",
+				culling = "front",
 
 				canvas_depth_a = uniforms.shadow_maps[x],
 
@@ -703,6 +775,7 @@ local function draw(target, state)
 
 	target.clear = true
 
+	target.no_sky = target.reflection
 	local vertices, calls, grabs, lights = render_to(target)
 	total_calls = total_calls + calls
 
@@ -717,7 +790,7 @@ local function draw(target, state)
 		state:debug("TCALLS: %i/200", total_calls)
 	end
 	
-	target.exposure = -6.5
+	target.exposure = -7.0
 
 	-- Generate light threshold data :)
 --	lg.push("all")

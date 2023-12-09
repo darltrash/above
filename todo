@@ -1,0 +1,13 @@
+[~] Implement BvH for physics
+[ ] Completely rewrite entity system (it's super stinky...)
+    [ ] Make it delta-independent
+    
+[ ] Implement CPML's quaternion evils
+[ ] Re-implement animation loading into iqm.lua
+[ ] Re-Implement Anim9
+[ ] Implement character animation
+[ ] Implement NPC pathfinding
+[ ] Actually build a story
+
+Most of this, is genuinely, just unf***ing Shake's code WITHOUT
+using Shake's perfect tools for this because I'm a psychopath.

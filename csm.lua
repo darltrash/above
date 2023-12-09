@@ -87,7 +87,7 @@ local function setup_csm(shadow, light_dir, world_from_view, proj)
 	-- setup light view mtx.
 
 	-- TODO: Fix this.
-	local light_view = mat4.look_at(light_dir, vec3(0, 0, 0), vec3(0, 0, 1))
+	local light_view = mat4.look_at(light_dir, vec3(0, 0, 0), vec3(1, 0, 0))
 	local split_slices = split_frustum(
 		shadow.split_count,
 		0.01,

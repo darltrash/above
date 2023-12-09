@@ -121,11 +121,9 @@ dialog.update = function (self, dt)
     dialog.selected_lerp = fam.lerp(dialog.selected_lerp, dialog.selected, 32 * dt)
 end
 
-local W, H = 300, 300
-
 local function sub(s,i,j)
-    i=utf8.offset(s,i)
-    j=utf8.offset(s,j+1) or (#s+1)
+    i = utf8.offset(s,i)
+    j = utf8.offset(s,j+1) or (#s+1)
     return string.sub(s,i,j-1)
 end
 

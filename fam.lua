@@ -106,6 +106,17 @@ fam.choice = function (array)
     return array[r(1, #array)]
 end
 
+local function shortAngleDist(a0,a1)
+    local max = math.pi*2
+    local da = (a1 - a0) % max
+    return 2*da % max - da
+end
+
+fam.angle_lerp = function (a0,a1,t)
+    return a0 + shortAngleDist(a0,a1)*t
+end
+
+
 local hash3 = {}
 hash3.__index = hash3
 

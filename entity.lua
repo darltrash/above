@@ -34,10 +34,10 @@ local initializers = {
 
         entity.animation = 0
         entity.flip_x = 1
-        entity.meshmap = assets.mod_hirsch
+        entity.mesh = assets.mod_thenewdeer
         entity.collider = {
-            offset = vector(0, 0.5, 0),
-            radius = vector(0.2, 0.5, 0.1),
+            offset = vector(0, 0, 0.7),
+            radius = vector(0.3, 0.3, 0.73),
 
             floor_time = 0,
             ceil_time = 0,
@@ -75,8 +75,7 @@ local function init(entities, raw, state)
 
     local entity = {
         title = title,
-        -- Change Z=1 to Y=1
-        position = raw.position and vector(raw.position[1], raw.position[3], -raw.position[2]) or false
+        position = raw.position and vector.from_array(raw.position) or false
     }
 
     local sections = fam.split(title, "%/")
@@ -111,16 +110,16 @@ local controllers = {
             entity.tint[4] = 0
         end
 
-        if require("ui").done then
-            velocity = vector(dir.x, 0, dir.y) * 5
+        if not scripts.coroutine then
+            dir = dir:rotate(state.camera_yaw, vector(0, 0, 1))
+
+            velocity = vector(dir.x, -dir.y, 0) * 5
 
             local mag = velocity:magnitude()
-            if mag > 0 then
---                if math.floor(entity.animation % 2) == 0 then -- fix this too
---                    assets.sfx_step:setVolume(lm.random(20, 70) / 100)
---                    assets.sfx_step:play()
---                end
 
+            entity.rotation.z = fam.angle_lerp(entity.rotation.z, entity.rot or 0, dt * 16)
+            if mag > 0 then
+                entity.rot = -math.atan2(dir.y, dir.x)
                 if entity.animation == 0 then
                     entity.animation = 1
                 end
@@ -131,18 +130,8 @@ local controllers = {
 
             if entity.collider.floor_time > 0 then
                 if input.holding("jump") then
-                    entity.velocity.y = 30
+                    entity.velocity.z = 30
                 end
-            end
-
-            if math.abs(dir.x) > 0 then
-                --entity.scale.x = 1
-                entity.flip_x = -fam.sign(dir.x)
-                entity.animation_index = 3
-            elseif dir.y > 0 then
-                entity.animation_index = 2
-            elseif dir.y < 0 then
-                entity.animation_index = 1
             end
         end
 
@@ -158,7 +147,7 @@ local controllers = {
         entity.mesh_index = anim[(a % #anim) + 1]
         entity.velocity = entity.velocity + velocity
 
-        --state.map_lights[1].position = entity.position + vector(0, 3, 0)
+        --state.map_lights[1].position = entity.position + vector(0, 0, 2)
     end,
 }
 
@@ -199,10 +188,10 @@ local function tick(entities, dt, state)
             if entity.past_mesh_index ~= entity.mesh_index then
                 entity.past_mesh_index = entity.mesh_index
                 
-                entity.scale.y = 0.7
+                entity.scale.z = 0.7
             end
 
-            entity.scale.y = fam.lerp(entity.scale.y, 1, dt * 20)
+            entity.scale.z = fam.lerp(entity.scale.z, 1, dt * 20)
         end
 
         if entity.position then
@@ -231,20 +220,25 @@ local function tick(entities, dt, state)
             if entity.velocity then -- P H Y S I C S !
                 -- TODO: FIX FORCE MATH!
                 if not state.settings.no_physics then
-                    if entity.mass then
-                        entity.gravity = (entity.gravity or 0) + 10 * dt
-                        entity.velocity.y = entity.velocity.y - entity.gravity
-
-                        entity.velocity.y = entity.velocity.y - dt * 64
-                    end
+--                    if entity.mass then
+--                        entity.gravity = (entity.gravity or 0) + 10 * dt
+--                        entity.velocity.z = entity.velocity.z - entity.gravity
+--
+--                        entity.velocity.z = entity.velocity.z - dt * 64
+--                    end
 
                     if entity.collider then
                         local p = entity.position + entity.collider.offset
                         local v = entity.velocity * dt * 2
 
-                        local function query(min, max)
-                            local a = state.hash:query_cube(min.x, min.y, min.y, max.x, max.y, max.z)
-                            return a
+                        local function query(_, _, vel, pos)
+                            local a = state.hash:intersectRay(pos, vel, false)
+                            local triangles = {}
+                            for _, v in ipairs(a) do
+                                table.insert(triangles, v.triangle)
+                            end
+
+                            return triangles
                         end
 
                         local new_position, new_velocity, planes =
@@ -253,8 +247,8 @@ local function tick(entities, dt, state)
                         entity.velocity = new_velocity / dt
 
                         entity.collider.floor_time = math.max(0, (entity.collider.floor_time or 0) - dt)
-                        entity.collider.ceil_time  = math.max(0, (entity.collider.ceil_time or 0) - dt)
-                        entity.collider.wall_time  = math.max(0, (entity.collider.wall_time or 0) - dt)
+                        entity.collider.ceil_time  = math.max(0, (entity.collider.ceil_time  or 0) - dt)
+                        entity.collider.wall_time  = math.max(0, (entity.collider.wall_time  or 0) - dt)
 
                         for _, plane in ipairs(planes) do
                             local i = plane.normal:dot(vector(0, -1, 0))
@@ -327,7 +321,7 @@ local function render(entities, state, delta, alpha)
                 end
 
                 if entity.camera_target then
-                    state.target_true = pos:copy()
+                    state.target = pos:copy() + vector(0, 0, 1)
                 end
 
                 if entity.offset then
@@ -338,7 +332,8 @@ local function render(entities, state, delta, alpha)
                     color = entity.tint,
                     model = mat4.from_transform(pos, rot, scl),
                     mesh = entity.mesh,
-                    culling = entity.culling
+                    culling = entity.culling,
+                    material = "general"
                 }
 
                 if entity.flip_x and entity.scale then
@@ -403,7 +398,7 @@ local function render(entities, state, delta, alpha)
 
                 if entity.interaction_anim then
                     local e = fam.lerp(entity._interaction_anim, entity.interaction_anim, alpha)
-                    local k = vector(0, 0.4 + (e * e * 0.8), -0.2)
+                    local k = vector(0, -0.2, 0.4 + (e * e * 0.8))
                     k.w = 1
                     local pos = call.model:multiply_vec4(k)
                     local a = e

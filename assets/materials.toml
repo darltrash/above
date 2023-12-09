@@ -21,6 +21,10 @@ culling = "front"
 shader_true = "sky"
 texture = "sky_gradient"
 
+[sky_real]
+culling = "front"
+shader_true = "sky_real"
+
 [griddy]
 shader = "griddy"
 
@@ -30,3 +34,20 @@ no_shadow = true
 
 [oooshiny]
 shader = "oooshiny"
+
+[clouds]
+texture = "sky_clouds"
+culling = "front"
+shader_true = "clouds"
+
+[tree]
+texture = "tree"
+translucent = 0.3
+
+[grass]
+texture = "grass"
+culling = "none"
+translucent = 0.8
+
+[SpiderBoy]
+texture = "boy"

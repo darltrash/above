@@ -1,4 +1,4 @@
--- vec2.lua: A simple 3D vector library
+-- vec3.lua: A simple 3D vector library
 
 --[[
     Copyright (c) 2022 Nelson Lopez
@@ -121,6 +121,14 @@ vector.cross = function (a, b)
 		a.z * b.x - a.x * b.z,
 		a.x * b.y - a.y * b.x
 	)
+end
+
+vector.inverse = function (a)
+    return vector.new(
+        1 / a.x,
+        1 / a.y,
+        1 / a.z
+    )
 end
 
 vector.sign = function (a)

@@ -9,11 +9,12 @@ NC='\033[0m'
 
 generate-icons:
 	rm -rf assets/img/icons/*
-	flatpak run org.inkscape.Inkscape -w 512  -h 512  assets/img/icon.svg -o assets/img/icons/icon512.png
-	flatpak run org.inkscape.Inkscape -w 256  -h 256  assets/img/icon.svg -o assets/img/icons/icon256.png
-	flatpak run org.inkscape.Inkscape -w 128  -h 128  assets/img/icon.svg -o assets/img/icons/icon128.png
-	flatpak run org.inkscape.Inkscape -w 32   -h 32   assets/img/icon.svg -o assets/img/icons/icon32.png
-	flatpak run org.inkscape.Inkscape -w 16   -h 16   assets/img/icon.svg -o assets/img/icons/icon16.png
+	convert assets/img/icon.png -resize 512x512 assets/img/icons/icon512.png
+	convert assets/img/icon.png -resize 256x256 assets/img/icons/icon256.png
+	convert assets/img/icon.png -resize 128x128 assets/img/icons/icon128.png
+	convert assets/img/icon.png -resize 64x64   assets/img/icons/icon64.png
+	convert assets/img/icon.png -resize 32x32   assets/img/icons/icon32.png
+	convert assets/img/icon.png -resize 16x16   assets/img/icons/icon16.png
 	optipng assets/img/icons/*
 	png2icns assets/img/icons/icon.icns assets/img/icons/*
 
@@ -88,7 +89,7 @@ mac: love
 	rm -rf out/above.macos.zip
 	cd .temp/ && zip -y -r -9 ../out/above.macos.zip love.app 
 
-everything: love win32 win64 appimage mac
+everything: love win32 win64 appimage
 
 itch: everything
 	rm -rf .temp/*

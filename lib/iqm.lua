@@ -2,58 +2,150 @@
 
 local ffi  = require "ffi"
 ffi.cdef [[
-    typedef uint32_t uint;
-    typedef uint8_t uchar;
-    typedef uint8_t byte, ubyte;
+typedef uint32_t uint;
+typedef uint8_t uchar;
+typedef uint8_t byte, ubyte; // simplifies translation for LOVE, LOVR.
 
-    struct iqmheader {
-        char magic[16];
-        uint version;
-        uint filesize;
-        uint flags;
-        uint num_text, ofs_text;
-        uint num_meshes, ofs_meshes;
-        uint num_vertexarrays, num_vertexes, ofs_vertexarrays;
-        uint num_triangles, ofs_triangles, ofs_adjacency;
-        uint num_joints, ofs_joints;
-        uint num_poses, ofs_poses;
-        uint num_anims, ofs_anims;
-        uint num_frames, num_framechannels, ofs_frames, ofs_bounds;
-        uint num_comment, ofs_comment;
-        uint num_extensions, ofs_extensions;
-    };
+struct iqmheader
+{
+    char magic[16]; // the string "INTERQUAKEMODEL\0", 0 terminated
+    uint version; // must be version 2
+    uint filesize;
+    uint flags;
+    uint num_text, ofs_text;
+    uint num_meshes, ofs_meshes;
+    uint num_vertexarrays, num_vertexes, ofs_vertexarrays;
+    uint num_triangles, ofs_triangles, ofs_adjacency;
+    uint num_joints, ofs_joints;
+    uint num_poses, ofs_poses;
+    uint num_anims, ofs_anims;
+    uint num_frames, num_framechannels, ofs_frames, ofs_bounds;
+    uint num_comment, ofs_comment;
+    uint num_extensions, ofs_extensions; // these are stored as a linked list, not as a contiguous array
+};
+// ofs_* fields are relative to the beginning of the iqmheader struct
+// ofs_* fields must be set to 0 when the particular data is empty
+// ofs_* fields must be aligned to at least 4 byte boundaries
 
-    struct iqmmesh {
-        uint name;
-        uint material;
-        uint first_vertex, num_vertexes;
-        uint first_triangle, num_triangles;
-    };
-    
-    enum {
-        IQM_POSITION = 0, IQM_TEXCOORD, IQM_NORMAL,
-        IQM_TANGENT, IQM_BLENDINDEXES, IQM_BLENDWEIGHTS,
-        IQM_COLOR,
+struct iqmmesh
+{
+    uint name;     // unique name for the mesh, if desired
+    uint material; // set to a name of a non-unique material or texture
+    uint first_vertex, num_vertexes;
+    uint first_triangle, num_triangles;
+};
 
-        IQM_CUSTOM = 0x10
-    };
+// all vertex array entries must ordered as defined below, if present
+// i.e. position comes before normal comes before ... comes before custom
+// where a format and size is given, this means models intended for portable use should use these
+// an IQM implementation is not required to honor any other format/size than those recommended
+// however, it may support other format/size combinations for these types if it desires
+enum // vertex array type
+{
+    IQM_POSITION     = 0,  // float, 3
+    IQM_TEXCOORD     = 1,  // float, 2
+    IQM_NORMAL       = 2,  // float, 3
+    IQM_TANGENT      = 3,  // float, 4
+    IQM_BLENDINDEXES = 4,  // ubyte, 4
+    IQM_BLENDWEIGHTS = 5,  // ubyte, 4
+    IQM_COLOR        = 6,  // ubyte, 4
 
-    enum {
-        IQM_BYTE = 0, IQM_UBYTE, IQM_SHORT, IQM_USHORT,
-        IQM_INT, IQM_UINT, IQM_HALF, IQM_FLOAT, IQM_DOUBLE,
-    };
+    // all values up to IQM_CUSTOM are reserved for future use
+    // any value >= IQM_CUSTOM is interpreted as CUSTOM type
+    // the value then defines an offset into the string table, where offset = value - IQM_CUSTOM
+    // this must be a valid string naming the type
+    IQM_CUSTOM       = 0x10
+};
 
-    struct iqmvertexarray {
-        uint type, flags, format, size, offset;
-    };
+enum // vertex array format
+{
+    IQM_BYTE   = 0,
+    IQM_UBYTE  = 1,
+    IQM_SHORT  = 2,
+    IQM_USHORT = 3,
+    IQM_INT    = 4,
+    IQM_UINT   = 5,
+    IQM_HALF   = 6,
+    IQM_FLOAT  = 7,
+    IQM_DOUBLE = 8,
+};
 
-    struct iqmtriangle {
-        uint vertex[3];
-    };
+struct iqmvertexarray
+{
+    uint type;   // type or custom name
+    uint flags;
+    uint format; // component format
+    uint size;   // number of components
+    uint offset; // offset to array of tightly packed components, with num_vertexes * size total entries
+                 // offset must be aligned to max(sizeof(format), 4)
+};
 
-    enum {
-        IQM_LOOP = 1<<0
-    };
+struct iqmtriangle
+{
+    uint vertex[3];
+};
+
+struct iqmadjacency
+{
+    // each value is the index of the adjacent triangle for edge 0, 1, and 2, where ~0 (= -1) indicates no adjacent triangle
+    // indexes are relative to the iqmheader.ofs_triangles array and span all meshes, where 0 is the first triangle, 1 is the second, 2 is the third, etc.
+    uint triangle[3];
+};
+
+struct iqmjoint
+{
+    uint name;
+    int parent; // parent < 0 means this is a root bone
+    float translate[3], rotate[4], scale[3];
+    // translate is translation <Tx, Ty, Tz>, and rotate is quaternion rotation <Qx, Qy, Qz, Qw>
+    // rotation is in relative/parent local space
+    // scale is pre-scaling <Sx, Sy, Sz>
+    // output = (input*scale)*rotation + translation
+};
+
+struct iqmpose
+{
+    int parent; // parent < 0 means this is a root bone
+    uint channelmask; // mask of which 10 channels are present for this joint pose
+    float channeloffset[10], channelscale[10];
+    // channels 0..2 are translation <Tx, Ty, Tz> and channels 3..6 are quaternion rotation <Qx, Qy, Qz, Qw>
+    // rotation is in relative/parent local space
+    // channels 7..9 are scale <Sx, Sy, Sz>
+    // output = (input*scale)*rotation + translation
+};
+
+struct iqmanim
+{
+    uint name;
+    uint first_frame, num_frames;
+    float framerate;
+    uint flags;
+};
+
+enum // iqmanim flags
+{
+    IQM_LOOP = 1<<0
+};
+
+struct iqmbounds
+{
+    float bbmins[3], bbmaxs[3]; // the minimum and maximum coordinates of the bounding box for this animation frame
+    float xyradius, radius; // the circular radius in the X-Y plane, as well as the spherical radius
+};
+
+struct iqmextension
+{
+    uint name;
+    uint num_data, ofs_data;
+    uint ofs_extensions; // pointer to next extension
+};
+
+// vertex data is not really interleaved, but this just gives examples of standard types of the data arrays
+struct iqmvertex
+{
+    float position[3], texcoord[2], normal[3], tangent[4];
+    uchar blendindices[4], blendweights[4], color[4];
+};
 ]]
 local c = ffi.C
 
@@ -234,22 +326,11 @@ function iqm.load(file, save_data, preserve_cw)
 			if va.type == "position" then
 				local v = vertices[i][va.type]
 
-                local y = v[1]
-                v[1] = v[2]
-                v[2] = -y
-
 				for i = 1, 3 do
 					computed_bbox.min[i] = math.min(computed_bbox.min[i] or v[i-1], v[i-1])
 					computed_bbox.max[i] = math.max(computed_bbox.max[i] or v[i-1], v[i-1])
 				end
 			end
-            if va.type == "normal" then
-                local v = vertices[i][va.type]
-
-                local y = v[1]
-                v[1] = v[2]
-                v[2] = -y
-            end
 		end
 	end
 
@@ -367,6 +448,105 @@ function iqm.load(file, save_data, preserve_cw)
 	collectgarbage("restart")
 
 	return objects
+end
+
+function iqm.load_anims(file)
+	-- Require CPML here because loading the mesh does not depend on it.
+	local vec3 = require "lib.vec3"
+	local quat = require "lib.quat"
+
+	-- See the comment in iqm.load. Do *NOT* remove. -ss
+	collectgarbage("stop")
+	local header, data = load_data(file)
+
+	-- Decode mesh/material names.
+	local text = read_ptr(
+		data,
+		"char",
+		header.ofs_text
+	)
+
+	local anims = {
+		tracks = {}
+	}
+
+	if header.ofs_joints > 0 then
+		local skeleton     = {}
+		local joints       = read_offset(data, "struct iqmjoint", header.ofs_joints, header.num_joints)
+		
+		local joint_map    = {}
+		for i, joint in ipairs(joints) do
+			local name = ffi.string(text+joint.name)
+			joint_map[i], joint_map[name] = name, i
+		end
+		anims.joint_map = joint_map
+
+		for i, joint in ipairs(joints) do
+			joint.parent = joint.parent + 1
+			local bone = {
+				parent   = joint.parent,
+				name     = ffi.string(text+joint.name),
+				position = vec3(joint.translate[0], joint.translate[1], joint.translate[2]),
+				rotation = quat(joint.rotate[0], joint.rotate[1], joint.rotate[2], joint.rotate[3]),
+				scale    = vec3(joint.scale[0], joint.scale[1], joint.scale[2])
+			}
+			skeleton[i], skeleton[bone.name] = bone, bone
+		end
+		anims.skeleton = skeleton
+	end
+
+	if header.ofs_anims > 0 then
+		local animdata = read_offset(data, "struct iqmanim", header.ofs_anims, header.num_anims)
+		for i, anim in ipairs(animdata) do
+			local a = {
+				name      = ffi.string(text+anim.name),
+				first     = anim.first_frame+1,
+				last      = anim.first_frame+anim.num_frames,
+				framerate = anim.framerate,
+				loop      = bit.band(anim.flags, c.IQM_LOOP) == c.IQM_LOOP
+			}
+
+			anims[i], anims[a.name] = a, a
+		end
+	end
+
+	if header.ofs_poses > 0 then
+		local poses = read_offset(data, "struct iqmpose", header.ofs_poses, header.num_poses)
+		local framedata = read_ptr(data, "unsigned short", header.ofs_frames)
+
+		local function readv(p, i, mask)
+			local v = p.channeloffset[i]
+			if bit.band(p.channelmask, mask) > 0 then
+				v = v + framedata[0] * p.channelscale[i]
+				-- I can see your pointers from here~ o///o
+
+				-- neil: ... this was clearly written by landon, fuck you landon. 
+				framedata = framedata + 1
+			end
+			return v
+		end
+
+		anims.frames = {}
+		for i = 1, header.num_frames do
+			local frame = {}
+			for j, p in ipairs(poses) do
+				-- This code is in touch with its sensitive side, please leave it be.
+				local v = {}
+				for o = 0, 9 do
+					v[o+1] = readv(p, o, bit.lshift(1, o))
+				end
+				table.insert(frame, {
+					translate = vec3(v[1], v[2], v[3]),
+					rotate    = quat(v[4], v[5], v[6], v[7]),
+					scale     = vec3(v[8], v[9], v[10])
+				})
+			end
+			table.insert(anims.frames, frame)
+		end
+	end
+
+	collectgarbage("restart")
+	return anims
 end
 
 return iqm

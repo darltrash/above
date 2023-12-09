@@ -6,10 +6,14 @@ local anim = {
 }
 local a = 2
 return function(self)
-  display("Watch me CHANGE!")
-  self.mesh_index = anim[a]
-  a = a + 1
-  if (a > #anim) then
-    a = 1
+  say("hello world!")
+  a = ask("do you like penis", {
+    "yes",
+    "no"
+  })
+  if a == 1 then
+    return say("ohmaga")
+  else
+    return say("ok, dumbass")
   end
 end

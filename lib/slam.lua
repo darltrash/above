@@ -322,13 +322,13 @@ slam.collide_with_world = function(packet, position, velocity, triangles, ids)
 end
 
 local function get_tris(position, velocity, radius, query, data)
-    local scale = math.max(1.5, vector.magnitude(velocity)) * 1.25
+    local scale = vector.magnitude(velocity) * 1.25
     local r3_position = position
     local query_radius = radius * scale
     local min = r3_position - query_radius
     local max = r3_position + query_radius
 
-    return query(min, max, velocity, data)
+    return query(min, max, velocity, position, data)
 end
 
 local function sub_update(packet, position, triangles, ids)
@@ -346,7 +346,7 @@ end
 -- query must be function(min, max, velocity)->triangles,id?
 -- returns position, velocity, contacts (as planes)
 slam.check = function(position, velocity, radius, query, substeps, data)
-    substeps = substeps or 1
+    substeps = substeps or 2
     velocity = velocity / substeps
 
     local _q = query
@@ -360,7 +360,7 @@ slam.check = function(position, velocity, radius, query, substeps, data)
 
     local base = position
     local contacts = {}
-    for i = 1, substeps do
+    for _ = 1, substeps do
         local packet = {
             r3_position      = position,
             r3_velocity      = velocity,

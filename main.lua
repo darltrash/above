@@ -6,6 +6,7 @@ local mat4 = require "lib.mat4"
 local vector = require "lib.vec3"
 local json = require "lib.json"
 local log = require "lib.log"
+local bvh = require "bvh"
 
 local utf8 = require "utf8"
 
@@ -80,7 +81,10 @@ local state = {
 	target_true = vector.zero:copy(),
 
 	scale = 2,
-	zoom = 1,
+	camera_pitch = -1.23,
+	camera_yaw = 0,	
+	camera_pos = vector.zero:copy(),
+
 	escape = 0,
 	transition = 1,
 
@@ -99,14 +103,11 @@ local state = {
 
 	daytime = 0.1,
 	time_speed = 1,
-
-	hash = fam.hash3.new(0.3)
 }
 
--- (used to be a) huge inspiration:
+-- (still somehow is) huge inspiration:
 -- https://www.youtube.com/watch?v=6DRMC8-ZSIg&t=1066s
 
-local camera_rotation = vector(0, 0, 0)
 local grass = {}
 
 local lovebird
@@ -131,51 +132,57 @@ local triarea = function(v1, v2, v3)
 	return area
 end
 
-local grass_meshes = {}
+local grass_calls = {}
 
 local rika
 
 local function render_level()
 	-- MAP STUFF
-local scripts = require "scripts"
-for _, buffer in ipairs(state.map.meshes) do
+	local scripts = require "scripts"
+	for _, buffer in ipairs(state.map.meshes) do
 		local a = renderer.render {
 			mesh = state.map.mesh,
 			range = { buffer.first, buffer.last - buffer.first },
 			material = buffer.material,
 			box = buffer.box,
-			texture = state.map_texture
+			texture = state.map_texture,
+			roughness_map = state.map.roughness_map
 		}
 		
-		if settings.ricanten and rika.materials[a.material] then
+		local g = settings.ricanten and rika.materials[a.material]
+		if g then
 			a.texture = rika.materials[a.material].albedo
 		end
 	end
 
 	-- THE WATAH
 	local pos = state.target:copy()
-	pos.y = 0
+	pos.z = 0
 
 	renderer.render {
 		mesh = assets.mod_water,
-		model = mat4.from_transform(0, 0, 1),
+		model = mat4.from_transform(pos, 0, 1),
 		order = math.huge,
 		material = "water",
 		no_shadow = true,
 		no_reflection = true
 	}
 
-	for _, instance in ipairs(grass_meshes) do
-		instance.material = "grass"
-		renderer.render(instance)
+	for _, instance in ipairs(grass_calls) do
+		renderer.render({
+			material = "grass",
+			mesh = assets.mod_grass,
+			model = mat4.from_translation(instance)
+		})
 	end
 
---	renderer.render {
---		mesh = assets.mod_clouds,
---		material = "clouds",
---		model = mat4.from_transform(0, { y = state.daytime * math.pi }, 10),
---		color = { 1, 1, 1, 1 / 4 },
---	}
+	renderer.render {
+		mesh = assets.mod_clouds,
+		material = "clouds",
+		model = mat4.from_transform(pos, { z = state.daytime * math.pi * 10 }, 5),
+		color = { 1, 1, 1, 1 },
+		no_shadow = true,
+	}
 end
 
 function state.load_map(what)
@@ -191,10 +198,13 @@ function state.load_map(what)
 		rika = json.decode(lf.read("assets/rik/scene.json"))
 
 		for _, material in pairs(rika.materials) do
-			print(material.albedo)
+			io.stdout:write(material.albedo, " ... ")
 			if lf.getInfo("assets/rik/"..material.albedo) then
+				print("✅")
 				material.albedo = lg.newImage("assets/rik/"..material.albedo)
 				material.albedo:setWrap("repeat", "repeat")
+			else
+				print("❌")
 			end
 		end
 	end
@@ -214,12 +224,14 @@ function state.load_map(what)
 		}
 	end
 
+	local enable_grass = false
+
 	local meshes = {}
 	local last = {}
 	state.triangles = {}
 	local vertex_map = map.mesh:getVertexMap()
 	for index, mesh in ipairs(map.meshes) do
-		if false and mesh.material:match("grassful") then
+		if enable_grass and mesh.material:match("grassful") then
 			for i = mesh.first, mesh.last - 1, 3 do -- Triangles
 				local v1 = vector(map.mesh:getVertexAttribute(vertex_map[i + 0], 1))
 				local v2 = vector(map.mesh:getVertexAttribute(vertex_map[i + 1], 1))
@@ -229,60 +241,14 @@ function state.load_map(what)
 				local floor_dot = n:dot(vector(0, 1, 0))
 
 				if floor_dot > 0.9 then
-					local grass_mesh = {
-						box = {
-							min = vector(),
-							max = vector()
-						}
-					}
-					local triangles = {}
-
-					local function process(a)
-						grass_mesh.box.min = grass_mesh.box.min:min(a)
-						grass_mesh.box.max = grass_mesh.box.max:max(a)
-
-						return a
-					end
-
-					local c1 = map.mesh:getVertexAttribute(vertex_map[i + 0], 5)
-					local c2 = map.mesh:getVertexAttribute(vertex_map[i + 1], 5)
-					local c3 = map.mesh:getVertexAttribute(vertex_map[i + 2], 5)
-
 					local area = triarea(v1, v2, v3)
 
-					for x = 1, math.floor(area * 20) do
+					for x = 1, math.floor(area * 3) do
 						local a = love.math.random(0, 100) / 100
 						local b = love.math.random(0, 100) / 100
 						local p = v1:lerp(v2, a):lerp(v3, b)
-						local c = fam.lerp(fam.lerp(c1, c2, a), c3, b)
 
-						local k = p * 0.25
-						local i = 0.4 + (love.math.noise(k.x, k.y, k.z) * 0.7) * c * (floor_dot / 0.9)
-
-						local r = lm.random(-1, 1)
-
-						local v1 = process(p - vector(0.2, 0, 0):rotate(r, vector(0, 1, 0)) * (0.2 + c))
-						local v2 = process(p + vector(0.2, 0, 0):rotate(r, vector(0, 1, 0)) * (0.2 + c))
-						local v3 = process(p + vector(0, 1, 0) * i)
-
-						local top = color_lerp("#01c265", "#cfff70", i)
-						local bot = fam.hex("#3ca370", 1)
-
-						table.insert(triangles, { v1.x, v1.y, v1.z, 0, 0, 1, bot[1], bot[2], bot[3], 1 })
-						table.insert(triangles, { v3.x, v3.y, v3.z, 0, 0, 1, top[1], top[2], top[3], 1 })
-						table.insert(triangles, { v2.x, v2.y, v2.z, 0, 0, 1, bot[1], bot[2], bot[3], 1 })
-					end
-
-					if #triangles > 10 then
-						grass_mesh.mesh = lg.newMesh(
-							{
-								{ "VertexPosition", "float", 3 },
-								{ "VertexNormal",   "float", 3 },
-								{ "VertexColor",    "float", 4 },
-							}, triangles, "triangles"
-						)
-
-						table.insert(grass_meshes, grass_mesh)
+						table.insert(grass_calls, p)
 					end
 				end
 			end
@@ -333,22 +299,7 @@ function state.load_map(what)
 	log.info("Optimized level from %i meshes to %i, reduced to %i%%!", origin, #meshes, (#meshes / origin) * 100)
 	log.info("Added %i/%i triangles to collision pool", #state.triangles, #map.triangles)
 
-	state.hash:refresh(state.triangles, function (t)
-		local x = math.min(t[1][1], t[2][1], t[3][1])
-		local y = math.min(t[1][2], t[2][2], t[3][2])
-		local z = math.min(t[1][3], t[2][3], t[3][3])
-
-		local w = math.max(t[1][1], t[2][1], t[3][1])
-		local h = math.max(t[1][2], t[2][2], t[3][2])
-		local d = math.max(t[1][3], t[2][3], t[3][3])
-
-		return {
-			x, y, z, 
-			w - x,
-			h - y,
-			d - z
-		}
-	end)
+	state.hash = bvh.new(state.triangles)
 
 	meta.lights = meta.lights or {}
 
@@ -356,7 +307,7 @@ function state.load_map(what)
 	for index, light in ipairs(meta.lights) do
 		table.insert(state.map_lights, {
 			position = vector(light.position[1], light.position[3], -light.position[2]),
-			color = { light.color[1], light.color[2], light.color[3], light.power }
+			color = { light.color[1], light.color[2], light.color[3], light.power * 2 }
 		})
 	end
 
@@ -383,6 +334,13 @@ function state.load_map(what)
 		state.map.texture = lg.newImage(data)
 		state.map.mesh:setTexture(state.map.texture)
 		state.map.texture:setFilter("nearest", "nearest")
+	end
+
+
+	data = ("assets/tex/%s_roughness.png"):format(what)
+	if love.filesystem.getInfo(data) then
+		state.map.roughness_map = lg.newImage(data)
+		state.map.roughness_map:setFilter("nearest", "nearest")
 	end
 
 	log.info(
@@ -433,8 +391,6 @@ function love.keypressed(k)
 		settings.fps_camera = not settings.fps_camera
 		love.mouse.setRelativeMode(settings.fps_camera)
 		love.mouse.setGrabbed(settings.fps_camera)
-	elseif (k == "b") then
-		scripts.spawn "npc_magical"
 	end
 
 	if settings.debug then
@@ -446,11 +402,6 @@ function love.keypressed(k)
 	end
 end
 
-function love.mousemoved(x, y, dx, dy)
-	camera_rotation.x = camera_rotation.x + dx * 0.001
-	camera_rotation.y = camera_rotation.y + dy * 0.001
-end
-
 local timestep = 1 / 30
 local lag = timestep
 
@@ -458,9 +409,11 @@ local current = 0
 local max_deltas = 8
 local deltas = {}
 local t = 0
+local frame = 1
 
 function love.update(dt)
 	current = current + 1
+	frame = frame - 1
 
 	deltas[current] = dt
 	if current == max_deltas then
@@ -477,6 +430,9 @@ function love.update(dt)
 	local n = 0
 	while (lag > timestep) do
 		input.update()
+		local r = input.get_camera_movement() * 0.001
+		state.camera_pitch = state.camera_pitch + r.y
+		state.camera_yaw   = state.camera_yaw   - r.x
 
 		lag = lag - timestep
 
@@ -489,6 +445,8 @@ function love.update(dt)
 		scripts.update()
 		entities.tick(state.entities, timestep, state)
 		ui:on_tick(timestep)
+
+		assets:update_anim9(timestep)
 
 		n = n + 1
 		if n == 5 then
@@ -522,29 +480,25 @@ function love.update(dt)
 	if true then
 		local eye
 		do
-			eye = (vector(0, 1.9, -6) * state.zoom * 1.3) + state.target
-
-			if state.camera_box then
-				local p = state.camera_box.position
-				local s = state.camera_box.size:round() - 2 -- margin
-
-				eye.x = fam.clamp(eye.x, p.x - s.x, p.x + s.x)
-				eye.z = fam.clamp(eye.z, p.z + s.z, p.z - s.z)
-			end
+			eye = state.target + vector(
+				math.sin(state.camera_yaw),
+				math.cos(state.camera_yaw),
+				math.cos(state.camera_pitch)
+			) * 5
 		end
+		state.camera_pos = state.camera_pos:lerp(eye, dt * 8)
 
-		state.view_matrix = mat4.look_at(eye, state.target + vector(0, 0.5, 0), { y = 1 })
+		state.view_matrix = mat4.look_at(state.camera_pos, state.target, { z = 1 })
 
-		local f = vector(1, -1, 1)
-		state.render_target.reflection = mat4.look_at(eye * f, state.target + vector(0, 0.5, 0), { y = 1 })
+		local f = vector(1, 1, -1)
+--		state.render_target.reflection = mat4.look_at(state.camera_pos * f, state.target, { z = 1 })
 
 		local d = (state.daytime * 360)
 		local position = vector(
 			math.cos((d / 360) * math.pi * 2),
-			math.sin((d / 360) * math.pi * 2),
-			-0.5
+			0,
+			math.sin((d / 360) * math.pi * 2)
 		) * 10
-
 
 		local off = vector(0, 0, 5)
 		local true_sun = (position+off):normalize()
@@ -552,35 +506,19 @@ function love.update(dt)
 		renderer.uniforms.sun = (position+off):normalize()
 		local is_day = (state.daytime > 0 and state.daytime < 0.5) 
 		state.render_target.sun = is_day and position:normalize() or false
-		state.shadow_view_matrix = mat4.look_at(state.target+true_sun*17, state.target+off, { y = 1 })
 
-		renderer.generate_ambient()
-
-		if settings.fps_camera then
-			local pos = state.target + vector(0, 1, 0)
-
-			local rot = vector(
-				math.cos(camera_rotation.x),
-				-math.sin(camera_rotation.y),
-				math.sin(camera_rotation.x)
-			)
-
-			state.view_matrix = mat4.look_at(pos, pos + rot, { y = 1 })
-			state.render_target.reflection = mat4.look_at(pos * f, (pos*f) + rot, { y = 1 })
-		end
+		--if frame == 0 then
+			renderer.generate_ambient(position:normalize())
+		--	frame = 30
+		--end
 
 		renderer.uniforms.frame = (renderer.uniforms.frame or 0) + 1
 
 		if not settings.disable_wobble then -- Cool camera movement effect
 			local offset = vector(
 				lm.noise(lt.getTime() * 0.1, lt.getTime() * 0.3),
-				lm.noise(lt.getTime() * 0.2, lt.getTime() * 0.1),
-				0
-			)
-
-			local rot = vector(
-				0, 0,
-				lm.noise(lt.getTime() * 0.12, lt.getTime() * 0.1) - 0.5
+				0,
+				lm.noise(lt.getTime() * 0.2, lt.getTime() * 0.1)
 			)
 
 			state.view_matrix = state.view_matrix *
@@ -593,14 +531,6 @@ function love.update(dt)
 
 		render_level()
 	end
-
-	--state.view_matrix = mat4.look_at(0, {x = 1}, {y = 1})
-
-	if settings.fps_camera and settings.debug then
-		state:debug("FPS CAMERA IS ON!")
-		state:debug("")
-	end
-
 	if settings.fps then
 		state:debug("FPS:    %i", lt.getFPS())
 	end
@@ -624,8 +554,6 @@ function love.update(dt)
 
 	local alpha = fam.clamp(lag / timestep, 0, 1)
 	entities.render(state.entities, state, dt, alpha)
-
-	state.target = state.target:decay(state.target_true, 1, dt)
 
 	do -- Escape code
 		if love.keyboard.isDown("escape") then
@@ -678,7 +606,10 @@ local function draw_text(font, text, x, y, scale)
 	lg.pop()
 end
 
+local frame = 0
 function love.draw()
+	frame = frame + 1
+
 	-- If the canvas hasnt been created yet
 	local w, h = lg.getDimensions()
 	if not state.resized then
@@ -703,14 +634,12 @@ function love.draw()
 
 	local r = function()
 		lg.push("all")
-		assets.shd_post:send("color_a", fam.hex "#00093b")
-		assets.shd_post:send("color_b", fam.hex "#ff0080")
-		assets.shd_post:send("power", 0.2)
 		target.canvas_color:setFilter("nearest")
 		lg.setShader(assets.shd_post)
 		lg.scale(state.scale)
 		assets.shd_post:send("light", target.canvas_light_pass)
 		assets.shd_post:send("exposure", target.exposure)
+		assets.shd_post:send("frame_index", frame)
 		lg.draw(target.canvas_color)
 
 		if settings.debug then

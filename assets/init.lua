@@ -1,5 +1,6 @@
 local exm = require "lib.iqm"
 local log = require "lib.log"
+local anim9 = require "lib.anim9"
 local json = require "lib.json" -- Move this to bitser stuff? Maybe not.
 
 -- Here comes the 
@@ -7,9 +8,29 @@ local json = require "lib.json" -- Move this to bitser stuff? Maybe not.
 
 local template = love.filesystem.read("assets/shk/template.glsl")
 
+local anim9_cache = {}
+
 local loaders = {
     mod = function (what)
-        return exm.load("assets/mod/"..what..".exm")
+        local f = "assets/mod/"..what..".exm"
+        local a = exm.load(f)
+        if a.has_anims then
+            a.anims = exm.load_anims(f)
+            a.anim9 = anim9.new(a.anims)
+
+            a.tracks = {}
+            for _, v in ipairs(a.anims) do
+                print(v.name)
+                a.tracks[v.name] = a.anim9:new_track(v.name)
+            end
+            
+            
+            a.anim9:play(a.tracks.Run)
+
+            anim9_cache[a.anim9] = true
+        end
+        
+        return a
     end,
 
     mus = function (what)
@@ -25,7 +46,7 @@ local loaders = {
     end,
 
     shk = function (what)
-        local text = love.filesystem.read("assets/shk/"..what..".glsl")
+        local text = love.filesystem.read("assets/shk/" .. what .. ".glsl")
         local g = template:gsub("<template>", text)
         return lg.newShader(g)
     end,
@@ -65,6 +86,12 @@ local emoji = {
 local loaded = 1
 local ret = setmetatable({
     fnt_main = lg.newFont("assets/fnt/monogram.ttf", 16),
+
+    update_anim9 = function (self, delta)
+        for v in pairs(anim9_cache) do
+            v:update(delta)
+        end
+    end
 
 }, {
     __index = function (self, index)

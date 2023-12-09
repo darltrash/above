@@ -4,11 +4,11 @@
 varying vec3 vw_position;
 
 #ifdef VERTEX
-    uniform mat4 inverse_view_proj;
+    uniform mat4 view_proj;
 
     vec4 position(mat4 mvp, vec4 vertex) { 
         vec4 o = vec4(vertex.xy * vec2(-1.0, 1.0), 2.0 * step(0.5, vertex.z) - 1.0, 1.0);
-        vw_position = mat3(inverse_view_proj) * vec3(vertex.x, vertex.y, o.z);
+        vw_position = mat3(view_proj) * vec3(vertex.x, vertex.y, o.z);
         return o;
     }
 #endif
@@ -19,12 +19,11 @@ varying vec3 vw_position;
     uniform vec4 sun_params;
 
     const vec3 luma = vec3(0.299, 0.587, 0.114);
-    const vec3 cameraPos = vec3(0.0, 0.0, 0.0);
     const float luminance = 1.05; // formerly uniform
-    const float turbidity = 8.0; // formerly uniform
+    const float turbidity = 3.0; // formerly uniform
     const float reileigh = 1.25; // formerly uniform
     const float mieCoefficient = 0.005;
-    const float mieDirectionalG = 0.8;
+    const float mieDirectionalG = 0.1;
 
     // constants for atmospheric scattering
     const float e = 2.71828182845904523536028747135266249775724709369995957;
@@ -97,7 +96,7 @@ varying vec3 vw_position;
     }
 
     vec4 effect(vec4 _, Image tex, vec2 uv, vec2 screen_coords) {
-        float sunfade = 1.0-clamp(1.0-exp((sun_params.y/450000.0)),0.0,1.0);
+        float sunfade = 1.0-clamp(1.0-exp((sun_params.z/450000.0)),0.0,1.0);
         float reileighCoefficient = reileigh - (1.0* (1.0-sunfade));
         vec3 sunDirection = normalize(sun_params.xyz);
         float sunE = sunIntensity(dot(sunDirection, up));
@@ -109,9 +108,11 @@ varying vec3 vw_position;
         // mie coefficients
         vec3 betaM = totalMie(lambda, K, turbidity) * mieCoefficient;
 
+        vec3 direction = normalize(vw_position.xyz);
+
         // optical length
         // cutoff angle at 90 to avoid singularity in next formula.
-        float zenithAngle = acos(max(0.0, dot(up, normalize(vw_position.xyz - cameraPos))));
+        float zenithAngle = acos(max(0.0, dot(up, direction)));
         float sR = rayleighZenithLength / (cos(zenithAngle) + 0.15 * pow(93.885 - ((zenithAngle * 180.0) / pi), -1.253));
         float sM = mieZenithLength / (cos(zenithAngle) + 0.15 * pow(93.885 - ((zenithAngle * 180.0) / pi), -1.253));
 
@@ -119,7 +120,7 @@ varying vec3 vw_position;
         vec3 Fex = exp(-(betaR * sR + betaM * sM));
 
         // in scattering
-        float cosTheta = dot(normalize(vw_position.xyz), sunDirection);
+        float cosTheta = dot(direction, sunDirection);
 
         float rPhase = rayleighPhase(cosTheta*0.5+0.5);
         vec3 betaRTheta = betaR * rPhase;
@@ -133,14 +134,13 @@ varying vec3 vw_position;
         Lin *= mix(vec3(1.0),pow(sunE * ((betaRTheta + betaMTheta) / (betaR + betaM)) * Fex,vec3(1.0/2.0)),clamp(pow(1.0-sun_dot_up,5.0),0.0,1.0));
 
         // night sky
-        vec3 direction = normalize(vw_position.xyz);
         float theta = acos(direction.y); // elevation --> y-axis, [-pi/2, pi/2]
         float phi = atan(direction.z/direction.x); // azimuth --> x-axis [-pi/2, pi/2]
         vec3 L0 = vec3(0.1) * Fex;
 
         // composition + solar disc
-        float sundisk = smoothstep(sunAngularDiameterCos,sunAngularDiameterCos+0.0001,cosTheta);
-        L0 += (sunE * 19000.0 * Fex)*sundisk;
+        //float sundisk = smoothstep(sunAngularDiameterCos,sunAngularDiameterCos+0.0001,cosTheta);
+        //L0 += (sunE * 19000.0 * Fex)*sundisk;
 
         vec3 texColor = (Lin+L0);
         texColor *= 0.04;
@@ -153,6 +153,6 @@ varying vec3 vw_position;
         retColor = mix(retColor * 0.75, retColor, clamp(dot(direction, up) * 0.5 + 0.5, 0.0, 1.0));
         retColor *= retColor;
 
-        return vec4(retColor, 1.0) * 8.0;
+        return vec4(retColor, 1.0) * 7.0;
     }
 #endif

@@ -46,7 +46,21 @@ local modes = {
             return vector:normalize()
         end,
 
+        get_camera_movement = function (self)
+            local o = vector(0, 0)
+            if self.mouse_grabbed then
+                o = vector(love.mouse.getPosition()) - 300
+                love.mouse.setPosition(300, 300)
+            end
+
+            return o
+        end,
+
         update = function(self)
+            self.mouse_grabbed = love.mouse.isDown(1)
+            love.mouse.setRelativeMode(self.mouse_grabbed)
+            love.mouse.setGrabbed(self.mouse_grabbed)
+
             local done
             for k, v in pairs(self.map) do
                 if lk.isDown(unpack(v)) then
@@ -132,6 +146,10 @@ return {
 
     get_direction = function()
         return current:get_direction()
+    end,
+
+    get_camera_movement = function ()
+        return current:get_camera_movement()
     end,
 
     just_pressed = function(what)

@@ -45,12 +45,17 @@ uniform bool trim = true;
 #define tex MainTex
 #line 1
     <template>
-#line 49
+#line 48
 
 // HERE IT ENDS
 
 #ifdef VERTEX
+    attribute vec4 VertexWeight;
+    attribute vec4 VertexBone;
     attribute vec3 VertexNormal;
+
+    uniform mat4 pose[100];
+    uniform bool has_pose = false;
 
     // the thang that broke a month ago and i didnt even know about it
     mat3 cofactor(mat4 _m) {
@@ -68,15 +73,26 @@ uniform bool trim = true;
     }
 
     vec4 position( mat4 _, vec4 vertex_position ) {
-        vw_normal = cofactor(view * model) * VertexNormal;
-        wl_normal = cofactor(model) * VertexNormal;
+        mat4 real_model = model;
+
+        if (has_pose) {
+            mat4 skeleton = pose[int(VertexBone.x*255.0)] * VertexWeight.x +
+                            pose[int(VertexBone.y*255.0)] * VertexWeight.y +
+                            pose[int(VertexBone.z*255.0)] * VertexWeight.z +
+                            pose[int(VertexBone.w*255.0)] * VertexWeight.w;
+            
+            real_model = model * skeleton;
+        }
+
+        vw_normal = cofactor(view * real_model) * VertexNormal;
+        wl_normal = cofactor(real_model) * VertexNormal;
 
         vx_position = vertex_position;
 
 #ifdef vertexed
-    wl_position = vertex(model * vertex_position);
+    wl_position = vertex(real_model * vx_position);
 #else
-    wl_position = model * vertex_position;
+    wl_position = real_model * vx_position;
 #endif
 
         vw_position = view * wl_position;
@@ -99,8 +115,8 @@ uniform bool trim = true;
     uniform int light_amount;
 
     uniform vec4 clip;
-    uniform float translucent = 0.0; // useful for displaying flat things
-    uniform float fleshy = 0.4; 
+    uniform float translucent = 0.3; // useful for displaying flat things
+    uniform float fleshy = 0.5; 
 
     uniform Image sun_gradient;
     uniform samplerCube cubemap;
@@ -111,20 +127,12 @@ uniform bool trim = true;
 
     uniform float grid_mode;
 
-    float dither4x4(vec2 position, float brightness) {
-        float dither_table[16] = float[16](
-            0.0625, 0.5625, 0.1875, 0.6875, 
-            0.8125, 0.3125, 0.9375, 0.4375, 
-            0.2500, 0.7500, 0.1250, 0.6250, 
-            1.0000, 0.5000, 0.8750, 0.3750
-        );
+    float dither17(vec2 pos) {
+        return fract(dot(pos, vec2(10, 15) / 17.0));
+    }
 
-        ivec2 p = ivec2(mod(position, 4.0));
-        
-        float a = step(float(p.x), 3.0);
-        float limit = mix(0.0, dither_table[p.y + p.x * 4], a);
-
-        return step(limit, brightness);
+    float dither13(vec2 pos) {
+        return fract(dot(pos, vec2(4, 7) / 13.0));
     }
 
     float linearstep(float e0, float e1, float x) {
@@ -181,7 +189,7 @@ uniform bool trim = true;
         }
     }
 
-    float sample_shadow() {
+    float sample_shadow(float bias) {
         for (int i=0; i<2; ++i) {
             vec4 ss_position = shadow_mats[i] * wl_position; 
             ss_position.xyz = ss_position.xyz * 0.5 + 0.5;
@@ -197,7 +205,7 @@ uniform bool trim = true;
             int radius = 1;
             vec2 pixel_size = 1.0 / textureSize(shadow_maps[0], 0);
             float shadow = 0.0;
-            ss_position.z -= 0.001;
+            ss_position.z -= bias;
 
             vec4 s = ss_position;
 
@@ -206,8 +214,9 @@ uniform bool trim = true;
                     shadow += sample_map(i, vec4(s.xy + vec2(x, y) * pixel_size, s.zw), 0.0);
                 }
                 
-            // visibility
-            return shadow / pow((radius * 2 + 1), 2); // float(i+1);
+            float a = shadow / pow((radius * 2 + 1), 2);
+            
+            return a;
         }
 
         return 1.0;
@@ -260,19 +269,19 @@ uniform bool trim = true;
 
     // Actual math
     void effect() {
-        if (trim && wl_position.y < 0.0) discard;
+        if (trim && wl_position.y < 0.001) discard;
 
         // Lighting! (Diffuse)
         normal = normalize(mix(vw_normal, abs(vw_normal), translucent));
-        vec3 s = textureLod(cubemap, normalize(wl_normal), 5).rgb;
-        vec3 ambient = s * 0.8; // vec4(sh(harmonics, normal), 1.0)
+        vec3 s = textureLod(cubemap, normalize(wl_normal), 8).rgb;
+        vec3 ambient = s * 1.3; // vec4(sh(harmonics, normal), 1.0)
 
         vec3 i = normalize(-vw_position.xyz);
         incoming = i;
 
         // This helps us make the models just use a single portion of the 
         // texture, which allows us to make things such as sprites show up :)
-        uv = clip.xy + VaryingTexCoord.xy * clip.zw;
+        uv = VaryingTexCoord.xy;
         color = VaryingColor;
 
         back_uv = love_PixelCoord.xy / love_ScreenSize.xy;
@@ -289,17 +298,17 @@ uniform bool trim = true;
 
         roughness = max(0.08, roughness);
 
-        float ior = 1.8 * (metalness * 100);
+        float ior = metalness * 180.0;
         float ldh = max(0.25, dot(normal, i));
         float fresnel = schlick_ior_fresnel(ior, ldh);
         vec3 kn = normalize(eye-wl_position.xyz);
-        vec3 specular = textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*4.0).rgb * fresnel * 0.05;
+        vec3 specular = vec3(0.0); //textureLod(cubemap, reflect(kn, wl_normal.xyz), roughness*8.0).rgb * fresnel * 0.05;
         vec3 diffuse = ambient;
 
         // Rim light at night!
-        //float rim = gsf(normal, -i, i);
+        float rim = gsf(normal, -i, i);
         float nighty = max(0.0, sin((daytime+0.5)*PI*2.0));
-        //diffuse += rim * 1.3 * s * nighty * roughness;
+        diffuse += rim * 1.3 * s * nighty * roughness;
 
         for(int k=0; k<light_amount; ++k) { // For each light
             vec3 position = (view * vec4(light_positions[k], 1.0)).xyz;
@@ -320,31 +329,36 @@ uniform bool trim = true;
         }
    
         {
-            //float daily = max(pow(sin(daytime*2*PI), 0.2), 0);
+            float daily = max(pow(sin(daytime*2*PI), 0.2), 0);
             //vec3 sun_color = textureLod(cubemap, sun_direction, 10).rgb * 0.02 * daily;
 
             vec3 sun_color = texture(sun_gradient, vec2(daytime, 1.0)).rgb;
 
-            float shadow = sample_shadow();
             vec3 vs = (view * vec4(sun_direction, 0.0)).xyz;
+
+            float bias = max(0.002 * (1.0 - dot(normal, vs)), 0.0005);
+            float shadow = sample_shadow(bias);
             float d = gsf(normal, vs, i);
             float s = ggx(normal, i, normalize(vs - vw_position.xyz), ior);
 
-            diffuse  += shadow * sun_color * d * 70.0;
-            specular += shadow * sun_color * s * 0.2;
+            diffuse  += shadow * sun_color * d * 50.0;
+            specular += shadow * sun_color * s * 0.2 * daily;
 
             vec3 vsk = (view * vec4(sun_direction * vec3(-1.0, -1.0, 1.0), 0.0)).xyz;
             float dk = gsf(normal, vsk, i);
             float sk = ggx(normal, i, normalize(vsk - vw_position.xyz), ior);
 
             diffuse += nighty * dk * 40.0 * vec3(0.1, 0.2, 1.0);
-            specular += nighty * sk * 0.2;
+            specular += nighty * sk * 0.2 * daily;
         }
 
         vec4 o = vec4((albedo * diffuse) + specular, alpha);
 
+        //o.a *= min(1.0, length(vw_position)/2.0);
+
         // Calculate dithering based on transparency, skip dithered pixels!
-        if (dither4x4(love_PixelCoord.xy, o.a) < 0.5)
+        float di = o.a + dither13(love_PixelCoord.xy);
+        if (di < 1.0)
             discard;
 
         vec3 n = normal * 0.5 + 0.5;

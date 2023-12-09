@@ -28,24 +28,24 @@ float fres(float ior, float ldh) {
 void pixel() {
     vec3 origin = texture(back_color, back_uv).rgb / 120.0;
 
-    vec4 f = inverse(view) * vec4(back_position.xyz, 1.0);
-    float dist = distance(wl_position.xz, f.xz);
-    float t = clamp(dist / 25.0, 0.0, 1.0);
+    float dist = distance(back_position.xyz, vw_position.xyz);
+    float t = 0.5;
 
-    //if (t < 0.5) return;
+    //if (t < 0.01) return;
     
-    t *= t;
+    //t *= t;
+    //t = 1.0;
 
-    float ior = 1.8 * 100.0 * 0.01;
+    float ior = 1.8 * 100.0 * 0.005;
     float ldh = max(0.1, dot(normal, incoming));
     float fresnel = fres(ior, ldh);
 
-    vec3 k = mix(vec3(0.05, 0.0, 0.2), vec3(0.6, 0.0, 0.7), fresnel);
+    vec3 k = mix(vec3(0.05, 0.0, 0.3), vec3(0.7, 0.1, 0.8), fresnel);
 
     albedo.rgb = mix(origin, k, t);
 
-    roughness = 0.0;
-    metalness = 0.5;
+    roughness = 1.0;
+    metalness = 0.0;
 
     vec4 x = projection * reflection_matrix * wl_position;
     vec2 v = (x.xy / x.w) * 0.5 + 0.5;
